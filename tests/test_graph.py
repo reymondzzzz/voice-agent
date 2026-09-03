@@ -20,13 +20,13 @@ def _call_agent_tool(vpending: handoff.PendingHandoff):
 
 def test_tool_arms_the_pending_handoff_and_reports_the_target_voice():
     vpending = handoff.PendingHandoff()
-    vraw = _call_agent_tool(vpending).invoke({"target_agent_id": "sidra", "handoff_summary": "the q3 sales report"})
+    vraw = _call_agent_tool(vpending).invoke({"target_agent_id": "alice", "handoff_summary": "the q3 sales report"})
     assert json.loads(vraw) == {
         "authorized": True,
-        "target_agent_id": "sidra",
-        "target_name": "Sidra",
+        "target_agent_id": "alice",
+        "target_name": "Alice",
         "handoff_summary": "the q3 sales report",
-        "voice_profile_id": "voice_sidra",
+        "voice_profile_id": "voice_alice",
     }
     assert vpending.armed()
 
@@ -41,8 +41,8 @@ def test_a_refused_handoff_leaves_nothing_pending():
 def test_the_tool_refuses_while_a_handoff_is_already_pending():
     vpending = handoff.PendingHandoff()
     vtool = _call_agent_tool(vpending)
-    vtool.invoke({"target_agent_id": "sidra", "handoff_summary": "the report"})
-    vraw = vtool.invoke({"target_agent_id": "sidra", "handoff_summary": "the report"})
+    vtool.invoke({"target_agent_id": "alice", "handoff_summary": "the report"})
+    vraw = vtool.invoke({"target_agent_id": "alice", "handoff_summary": "the report"})
     assert vraw == "Error: a handoff is already pending on this call"
 
 

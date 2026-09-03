@@ -24,7 +24,7 @@ DOC_AREA_MAP = (
 )
 DOC_SYNC_LINE_THRESHOLD = 80
 
-CLOUD_MARKERS = ("livekit.cloud", "import inference", "inference.STT", "inference.TTS")
+CLOUD_MARKERS = ("import inference", "inference.STT", "inference.TTS")
 
 
 @dataclasses.dataclass(frozen=True)

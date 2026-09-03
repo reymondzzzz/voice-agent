@@ -8,8 +8,9 @@ dependencies = [
     "langchain>=1.3.18",
     "langchain-openai>=1.6.0",
     "langgraph>=1.2.11",
-    "livekit-agents[langchain,openai,silero]~=1.5",
+    "livekit-agents[langchain,silero]~=1.5",
     "python-dotenv>=1.2.3",
+    "scipy>=1.18.1",
 ]
 
 [dependency-groups]

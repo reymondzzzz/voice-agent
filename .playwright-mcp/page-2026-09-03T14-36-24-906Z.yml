@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]: voice-agent — boss, alice, bob
+    - generic [ref=e4]: failed
+  - generic [ref=e29]: "Could not start the call: could not establish signal connection: invalid authorization token: token signature is invalid: signature is invalid"
+  - main [ref=e5]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Boss
+      - generic [ref=e10]: answers first and routes the call
+    - complementary [ref=e11]:
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - generic [ref=e15]: Boss
+          - generic [ref=e16]: routes
+        - listitem [ref=e17]:
+          - generic [ref=e19]: Alice
+          - generic [ref=e20]: weather
+        - listitem [ref=e21]:
+          - generic [ref=e23]: Bob
+          - generic [ref=e24]: time
+      - generic [ref=e25]: Transcript appears here once the call is live.
+  - contentinfo [ref=e26]:
+    - button "Connect" [ref=e27] [cursor=pointer]
+    - button "Mute" [disabled] [ref=e28]
