@@ -128,7 +128,7 @@ CHECKS = (
     CheckSpec("ruff", STAGE_COMMIT, 1, check_ruff),
     CheckSpec("tests", STAGE_COMMIT, 2, check_tests),
     CheckSpec("no-cloud", STAGE_COMMIT, 4, check_no_cloud_endpoints),
-    CheckSpec("doc-sync", STAGE_COMMIT, 12, check_doc_sync),
+    CheckSpec("doc-sync", STAGE_COMMIT, 13, check_doc_sync),
     CheckSpec("uv-lock", STAGE_PUSH, 3, check_lock),
 )
 

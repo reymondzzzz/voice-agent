@@ -8,12 +8,13 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext
+from livekit.agents.voice.agent_session import TurnHandlingOptions
 from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
 
 from examples import small_agents
 from examples.livekit_providers import FlexusOpenRouterSTT, FlexusOpenRouterTTS
-from voice_agent.pipeline import voice_contracts, voice_return_intent
+from voice_agent.pipeline import voice_contracts, voice_interruption_policy, voice_return_intent
 
 logger = logging.getLogger("voice-agent-example")
 
@@ -114,7 +115,26 @@ server = AgentServer()
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
     mirror_flexus_livekit_env()
-    vsession = AgentSession(stt=FlexusOpenRouterSTT(), vad=silero.VAD.load())
+    vinterruption = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG.validated()
+    vsession = AgentSession(
+        stt=FlexusOpenRouterSTT(),
+        vad=silero.VAD.load(
+            min_speech_duration=vinterruption.vminimum_speech_ms / 1000,
+            min_silence_duration=vinterruption.vend_silence_ms / 1000,
+            prefix_padding_duration=vinterruption.vpre_roll_ms / 1000,
+        ),
+        turn_handling=TurnHandlingOptions(
+            turn_detection="vad",
+            endpointing={
+                "min_delay": vinterruption.vend_silence_ms / 1000,
+                "max_delay": vinterruption.vutterance_end_silence_ms / 1000,
+            },
+            interruption={
+                "mode": "vad",
+                "min_duration": vinterruption.vminimum_speech_ms / 1000,
+            },
+        ),
+    )
     vcall = ExampleCall(vsession, ctx.room)
 
     vsession.on("agent_state_changed", vcall.on_agent_state_changed)

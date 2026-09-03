@@ -58,7 +58,8 @@ class PcmResampler:
         vpositions = self._vphase + self._vstep * numpy.arange(vcount)
         vleft = numpy.floor(vpositions).astype(numpy.int64)
         vfraction = vpositions - vleft
-        vresampled = vavailable[vleft] * (1.0 - vfraction) + vavailable[vleft + 1] * vfraction
+        vright = numpy.minimum(vleft + 1, vavailable.size - 1)
+        vresampled = vavailable[vleft] * (1.0 - vfraction) + vavailable[vright] * vfraction
         vconsumed = int(vleft[-1])
         self._vcarry = vavailable[vconsumed:]
         self._vphase = vpositions[-1] + self._vstep - vconsumed

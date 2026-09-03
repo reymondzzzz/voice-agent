@@ -89,6 +89,10 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
     are distinguished by `vtts_speed` until a provider with real voice ids is wired. Do not add a
     profile with an invented voice id. Enforced by `tests/test_small_agents.py`.
 
+13. Documentation lands in the same commit as the change it describes, per the table below.
+    Enforced by the `doc-sync` check, which fails a commit moving an area by
+    `DOC_SYNC_LINE_THRESHOLD` lines or more without touching its doc.
+
 ## Layout
 
 - `voice_agent/pipeline/**` — the moved pipeline: contracts, providers, PCM, queues,
