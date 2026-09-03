@@ -21,6 +21,7 @@ STAGE_ORDER = (STAGE_COMMIT, STAGE_PUSH)
 DOC_AREA_MAP = (
     (("voice_agent/pipeline/",), "docs/MOVED.md"),
     (("examples/",), "docs/EXAMPLES.md"),
+    (("voice_agent/",), "docs/REALTIME_ARCHITECTURE.md"),
 )
 DOC_SYNC_LINE_THRESHOLD = 80
 
@@ -98,7 +99,11 @@ def check_lock() -> CheckResult:
 
 def check_no_cloud_endpoints() -> CheckResult:
     vhits: list[str] = []
-    vfiles = [*sorted((REPO_ROOT / "examples").rglob("*.py")), *sorted((REPO_ROOT / "flexus_backend/services/voice").rglob("*.py"))]
+    vfiles = [
+        *sorted((REPO_ROOT / "examples").rglob("*.py")),
+        *sorted((REPO_ROOT / "voice_agent").rglob("*.py")),
+        *sorted((REPO_ROOT / "flexus_backend/services/voice").rglob("*.py")),
+    ]
     for vpath in vfiles:
         if not vpath.exists():
             continue
@@ -128,7 +133,7 @@ CHECKS = (
     CheckSpec("ruff", STAGE_COMMIT, 1, check_ruff),
     CheckSpec("tests", STAGE_COMMIT, 2, check_tests),
     CheckSpec("no-cloud", STAGE_COMMIT, 4, check_no_cloud_endpoints),
-    CheckSpec("doc-sync", STAGE_COMMIT, 13, check_doc_sync),
+    CheckSpec("doc-sync", STAGE_COMMIT, 15, check_doc_sync),
     CheckSpec("uv-lock", STAGE_PUSH, 3, check_lock),
 )
 

@@ -2,6 +2,7 @@
 
 Rules only. What this repo is, and what it deliberately is not, lives in `docs/`:
 
+- [docs/REALTIME_ARCHITECTURE.md](docs/REALTIME_ARCHITECTURE.md) — the realtime agent architecture: the two planes, lifecycles, invariants, and where a future speech model plugs in.
 - [docs/MOVED.md](docs/MOVED.md) — what was moved out of the flexus `voice-agent` branch, what was left behind, and why.
 - [docs/EXAMPLES.md](docs/EXAMPLES.md) — the Boss / Alice / Bob LangGraph agents and how to run them.
 - [docs/voice-agent/implementation_plan.md](docs/voice-agent/implementation_plan.md) — the original design, moved verbatim. Still the authority on the pipeline.
@@ -89,7 +90,14 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
     are distinguished by `vtts_speed` until a provider with real voice ids is wired. Do not add a
     profile with an invented voice id. Enforced by `tests/test_small_agents.py`.
 
-13. Documentation lands in the same commit as the change it describes, per the table below.
+13. A side effect happens only through `ActionService`: prepare resolves and validates, policy
+    decides whether confirmation is required, and commit executes the command that prepare stored.
+    A LangGraph node or tool must never write storage directly, and a model argument must never
+    reach an effect without passing a proposal. Enforced by `tests/voice_agent/test_actions.py`.
+14. Audio never enters the semantic plane. Frames go to an `AudioSink`; LangGraph and the mailbox
+    carry meaning only. A PCM buffer in a semantic event is a design error, not a detail.
+    Reviewers enforce.
+15. Documentation lands in the same commit as the change it describes, per the table below.
     Enforced by the `doc-sync` check, which fails a commit moving an area by
     `DOC_SYNC_LINE_THRESHOLD` lines or more without touching its doc.
 
@@ -100,7 +108,10 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
 - `flexus_backend/{hallucitron,flexus_utils,services}/` — only the handful of support modules the
   pipeline imports. Do not grow these; a new import here means the flexus app is leaking back in.
 - `tests/pipeline/**` — the moved tests, unchanged.
-- `examples/` — the small LangGraph agents and the LiveKit entrypoint. New work goes here.
+- `voice_agent/` — the realtime agent architecture. `realtime/` is the model-neutral speech
+  boundary, `agent/` the semantic plane (state, graph, tasks, actions, delivery), `livekit/` the
+  transport adapter. A provider SDK may only ever be imported from a `realtime/` adapter.
+- `examples/` — the small LangGraph agents and the LiveKit entrypoint that demo the moved pipeline.
 - `tests/` — tests for `examples/` only.
 - `flexus_frontend/src/features/voice/**`, `components/ui/voice-orb.tsx` — the moved voice page and
   the procedural shader orb. No build tooling is moved with them; see `docs/MOVED.md`.
@@ -112,6 +123,7 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
 | --- | --- |
 | anything under `flexus_backend/` | `docs/MOVED.md`, with what changed and why |
 | anything under `examples/` | `docs/EXAMPLES.md` |
+| anything under `voice_agent/` | `docs/REALTIME_ARCHITECTURE.md` |
 | a command in this file | run it first, then change it |
 
 The `doc-sync` check fails a commit that moves an area by `DOC_SYNC_LINE_THRESHOLD` lines or more
