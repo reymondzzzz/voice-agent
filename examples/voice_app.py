@@ -43,12 +43,42 @@ def build_llm():
     )
 
 
-def build_voice_agent(vagent: small_agents.ExampleAgent, vpending: small_agents.PendingHandoff) -> Agent:
-    return Agent(
-        instructions="",
-        llm=langchain.LLMAdapter(graph=small_agents.build_agent_graph(vagent, build_llm(), vpending)),
-        tts=FlexusOpenRouterTTS(small_agents.resolve_example_profile(vagent.vprofile_id)),
-    )
+class PersonaAgent(Agent):
+    def __init__(
+        self,
+        vagent: small_agents.ExampleAgent,
+        vpending: small_agents.PendingHandoff,
+        *,
+        vhandoff_summary: str = "",
+    ) -> None:
+        super().__init__(
+            instructions="",
+            llm=langchain.LLMAdapter(graph=small_agents.build_agent_graph(vagent, build_llm(), vpending)),
+            tts=FlexusOpenRouterTTS(small_agents.resolve_example_profile(vagent.vprofile_id)),
+            allow_interruptions=True,
+        )
+        self.vagent = vagent
+        self.vhandoff_summary = vhandoff_summary
+
+    async def on_enter(self) -> None:
+        if not self.vhandoff_summary:
+            return
+        await self.session.generate_reply(
+            instructions=(
+                f"You are {self.vagent.vname}. The caller has just been transferred to you and "
+                f"asked: {self.vhandoff_summary}. Answer that now, in one or two short spoken "
+                f"sentences, using your tools. Do not greet them and do not ask them to repeat."
+            )
+        )
+
+
+def build_voice_agent(
+    vagent: small_agents.ExampleAgent,
+    vpending: small_agents.PendingHandoff,
+    *,
+    vhandoff_summary: str = "",
+) -> PersonaAgent:
+    return PersonaAgent(vagent, vpending, vhandoff_summary=vhandoff_summary)
 
 
 async def publish_active_agent(vroom: rtc.Room, vagent: small_agents.ExampleAgent) -> None:
@@ -76,16 +106,11 @@ class ExampleCall:
             return
         vtarget = small_agents.resolve_example_agent(vauth.vtarget_agent_id)
         self.vactive = vtarget
-        self.vsession.update_agent(build_voice_agent(vtarget, self.vpending))
+        self.vsession.update_agent(
+            build_voice_agent(vtarget, self.vpending, vhandoff_summary=vauth.vhandoff_summary)
+        )
         await publish_active_agent(self.vroom, vtarget)
         logger.info("handoff committed source=%s target=%s", vauth.vsource_agent_id, vtarget.vagent_id)
-        await self.vsession.generate_reply(
-            instructions=(
-                f"You are {vtarget.vname}. The caller has just been transferred to you and asked: "
-                f"{vauth.vhandoff_summary}. Answer that now, in one or two short spoken sentences, "
-                f"using your tools. Do not greet them and do not ask them to repeat the question."
-            )
-        )
 
     def on_agent_state_changed(self, vev: AgentStateChangedEvent) -> None:
         if vev.old_state == "speaking" and vev.new_state == "listening" and self.vpending.armed():
@@ -134,6 +159,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "mode": "vad",
                 "min_duration": vinterruption.vminimum_speech_ms / 1000,
                 "resume_false_interruption": False,
+                "discard_audio_if_uninterruptible": False,
             },
         ),
     )

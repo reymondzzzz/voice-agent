@@ -54,6 +54,11 @@ The handoff is therefore split, and `PendingHandoff` is the seam:
    `update_agent` with the target and publishes `active_agent_id` as a room attribute so a client
    can follow the switch.
 
+The target's answer is produced from `PersonaAgent.on_enter`, not from a `generate_reply` issued
+straight after `update_agent`: the swap leaves speech scheduling draining, and a reply queued in
+that window is cancelled with `cannot schedule new speech`, which left the incoming agent
+silent. `on_enter` runs once the new agent is actually active.
+
 The voice changes because each agent carries its own `tts=FlexusOpenRouterTTS(profile)`. The target
 starts with a fresh `chat_ctx` and receives only the bounded summary, matching the decision in
 `docs/voice-agent/implementation_plan.md` not to copy history across a handoff.
@@ -68,6 +73,16 @@ which is what makes it work regardless of the active agent's tools.
 provider's declared PCM layout and resamples 44.1kHz down to the 24kHz room rate on its own; the
 adapter only forwards bytes into LiveKit's emitter. `FlexusOpenRouterSTT` delegates to
 `voice_stt.OpenRouterSttProvider`, which wraps PCM into WAV, bounds the utterance, and parses usage.
+
+## Tool results must not be spoken
+
+`SpokenOnlyGraph` wraps every persona graph. livekit's LangGraph adapter discards the metadata
+that says which node produced a token and turns every message into speech, so a tool's return
+value is read aloud before the agent's own sentence — the caller hears
+"Friday 04 September 2026, 02:16 in Asia/Tokyo" and then "It's 2:16 AM in Tokyo", and for a
+handoff the raw authorization string. Filtering `ToolMessage` out of the graph's own stream is the
+narrowest fix: the model still sees every tool result in its context, the microphone path is
+untouched, and the adapter is used unmodified.
 
 ## Streaming, chunking and the buffer
 
