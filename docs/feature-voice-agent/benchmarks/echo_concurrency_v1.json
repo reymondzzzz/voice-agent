@@ -1,0 +1,197 @@
+{
+  "vcapacity": {
+    "vcapacity_derived": false,
+    "vraw_sessions_per_pod": null,
+    "vsafe_sessions_per_pod": null
+  },
+  "vexecution_mode": "offline_in_process",
+  "vlevels": [
+    {
+      "vcancellation_trace_timing": {
+        "vrequested_to_stale_queue_empty_ms": {
+          "vp50": 0.008667,
+          "vp95": 0.008667,
+          "vp99": 0.008667,
+          "vsamples": 1
+        },
+        "vsource": "offline_in_process_pipeline_trace_clock"
+      },
+      "vcancellations": 1,
+      "vconcurrency": 1,
+      "verrors": 0,
+      "vframes": {
+        "vaccepted": 1,
+        "vaccepted_after_cancellation": 0,
+        "vforeign_audio_attempts": 1,
+        "vforeign_audio_rejected": 1,
+        "vforeign_identity_attempts": 1,
+        "vforeign_identity_rejected": 1,
+        "vrejected": 3,
+        "vstale_rejected": 1
+      },
+      "vhost_execution_ms": {
+        "vp50": 3.498625,
+        "vp95": 3.498625,
+        "vp99": 3.498625,
+        "vsamples": 1
+      },
+      "visolation": {
+        "vdeliberate_stale_attempts_rejected": true,
+        "vforeign_session_attempts_rejected": true,
+        "vno_cross_session_sink_frames": true,
+        "vno_stale_frames_after_cancellation": true
+      },
+      "vpeak_inflight_stt": 1,
+      "vpeak_inflight_tts": 1,
+      "vprovider_calls_executed": false,
+      "vprovider_timings_are_synthetic": true,
+      "vqueue": {
+        "vdeterministic_sink_queue_capacity_frames": 1,
+        "vhigh_water_frames": 1
+      },
+      "vwarm_calls": 1
+    },
+    {
+      "vcancellation_trace_timing": {
+        "vrequested_to_stale_queue_empty_ms": {
+          "vp50": 0.004042,
+          "vp95": 0.004042,
+          "vp99": 0.004042,
+          "vsamples": 1
+        },
+        "vsource": "offline_in_process_pipeline_trace_clock"
+      },
+      "vcancellations": 1,
+      "vconcurrency": 5,
+      "verrors": 0,
+      "vframes": {
+        "vaccepted": 9,
+        "vaccepted_after_cancellation": 0,
+        "vforeign_audio_attempts": 5,
+        "vforeign_audio_rejected": 5,
+        "vforeign_identity_attempts": 5,
+        "vforeign_identity_rejected": 5,
+        "vrejected": 11,
+        "vstale_rejected": 1
+      },
+      "vhost_execution_ms": {
+        "vp50": 8.026,
+        "vp95": 11.938209,
+        "vp99": 12.296975,
+        "vsamples": 5
+      },
+      "visolation": {
+        "vdeliberate_stale_attempts_rejected": true,
+        "vforeign_session_attempts_rejected": true,
+        "vno_cross_session_sink_frames": true,
+        "vno_stale_frames_after_cancellation": true
+      },
+      "vpeak_inflight_stt": 5,
+      "vpeak_inflight_tts": 5,
+      "vprovider_calls_executed": false,
+      "vprovider_timings_are_synthetic": true,
+      "vqueue": {
+        "vdeterministic_sink_queue_capacity_frames": 1,
+        "vhigh_water_frames": 1
+      },
+      "vwarm_calls": 5
+    },
+    {
+      "vcancellation_trace_timing": {
+        "vrequested_to_stale_queue_empty_ms": {
+          "vp50": 0.003375,
+          "vp95": 0.003375,
+          "vp99": 0.003375,
+          "vsamples": 1
+        },
+        "vsource": "offline_in_process_pipeline_trace_clock"
+      },
+      "vcancellations": 1,
+      "vconcurrency": 10,
+      "verrors": 0,
+      "vframes": {
+        "vaccepted": 19,
+        "vaccepted_after_cancellation": 0,
+        "vforeign_audio_attempts": 10,
+        "vforeign_audio_rejected": 10,
+        "vforeign_identity_attempts": 10,
+        "vforeign_identity_rejected": 10,
+        "vrejected": 21,
+        "vstale_rejected": 1
+      },
+      "vhost_execution_ms": {
+        "vp50": 13.573708,
+        "vp95": 21.981214,
+        "vp99": 22.782409,
+        "vsamples": 10
+      },
+      "visolation": {
+        "vdeliberate_stale_attempts_rejected": true,
+        "vforeign_session_attempts_rejected": true,
+        "vno_cross_session_sink_frames": true,
+        "vno_stale_frames_after_cancellation": true
+      },
+      "vpeak_inflight_stt": 10,
+      "vpeak_inflight_tts": 10,
+      "vprovider_calls_executed": false,
+      "vprovider_timings_are_synthetic": true,
+      "vqueue": {
+        "vdeterministic_sink_queue_capacity_frames": 1,
+        "vhigh_water_frames": 1
+      },
+      "vwarm_calls": 10
+    },
+    {
+      "vcancellation_trace_timing": {
+        "vrequested_to_stale_queue_empty_ms": {
+          "vp50": 0.003959,
+          "vp95": 0.003959,
+          "vp99": 0.003959,
+          "vsamples": 1
+        },
+        "vsource": "offline_in_process_pipeline_trace_clock"
+      },
+      "vcancellations": 1,
+      "vconcurrency": 20,
+      "verrors": 0,
+      "vframes": {
+        "vaccepted": 39,
+        "vaccepted_after_cancellation": 0,
+        "vforeign_audio_attempts": 20,
+        "vforeign_audio_rejected": 20,
+        "vforeign_identity_attempts": 20,
+        "vforeign_identity_rejected": 20,
+        "vrejected": 41,
+        "vstale_rejected": 1
+      },
+      "vhost_execution_ms": {
+        "vp50": 26.509792,
+        "vp95": 45.383046,
+        "vp99": 47.123509,
+        "vsamples": 20
+      },
+      "visolation": {
+        "vdeliberate_stale_attempts_rejected": true,
+        "vforeign_session_attempts_rejected": true,
+        "vno_cross_session_sink_frames": true,
+        "vno_stale_frames_after_cancellation": true
+      },
+      "vpeak_inflight_stt": 20,
+      "vpeak_inflight_tts": 20,
+      "vprovider_calls_executed": false,
+      "vprovider_timings_are_synthetic": true,
+      "vqueue": {
+        "vdeterministic_sink_queue_capacity_frames": 1,
+        "vhigh_water_frames": 1
+      },
+      "vwarm_calls": 20
+    }
+  ],
+  "vprovider_calls_executed": false,
+  "vprovider_timings_are_synthetic": true,
+  "vtransport_exercised": {
+    "vlivekit_rtc": false,
+    "vturn": false
+  },
+  "vva106_artifact_version": "1.0.0"
+}

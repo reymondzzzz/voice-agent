@@ -1,0 +1,2161 @@
+{
+  "corpus_version": 2,
+  "voice_contract_version": "1.0.0",
+  "sample_rate_hz": 16000,
+  "pcm_encoding": "pcm_s16le",
+  "built_at": "2026-08-30T22:06:33.776182+00:00",
+  "ffmpeg_version": "ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "speech_source": "tatoeba.org sentence audio, CC BY 2.0 FR, per-clip author and sentence ids recorded below",
+  "babble_talkers": [
+    {
+      "tatoeba_sentence_id": 9257217,
+      "tatoeba_audio_id": 823215,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "f2f874f33648b4ebc5c4d82ae3107cd2fae6259f10f0f474c81b4408fd96b965"
+    },
+    {
+      "tatoeba_sentence_id": 8695672,
+      "tatoeba_audio_id": 786640,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "e8cea70ed90a728f7cfaa3159984f8cedf521e52150de48778e464529c5b8ca6"
+    },
+    {
+      "tatoeba_sentence_id": 8695545,
+      "tatoeba_audio_id": 786636,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "d698375ce36b93fed4f21294702fb90827faaff28f3b56dd5b3ef0363e22ceff"
+    },
+    {
+      "tatoeba_sentence_id": 8672306,
+      "tatoeba_audio_id": 786630,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "306c3144f9c628cecfa63d5dfd69ec3a598a5023dd4b816a450e7d1c30dd57d0"
+    },
+    {
+      "tatoeba_sentence_id": 8641550,
+      "tatoeba_audio_id": 786614,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "60f939844cb5d5df2b38e0c58aff6bb8190da7fc9cfcdde7ed07e6a95cba68aa"
+    },
+    {
+      "tatoeba_sentence_id": 8641372,
+      "tatoeba_audio_id": 786608,
+      "tatoeba_audio_author": "driini",
+      "license": "CC BY 2.0 FR",
+      "mp3_sha256": "a8afb60a8574d3989c2636225637b235b9aa16c18b44986266b1989c6a3b280c"
+    }
+  ],
+  "clips": [
+    {
+      "clip_id": "short_en_01",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "It's finger-licking good.",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "8bf3dee523abfa3482d6064f61a78a2244b492ad7a9d9fb7a469dfc6e6a95b42",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625739,
+          "tatoeba_audio_id": 1281820,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0b8998c045e6a30cc76b8291ca562eac984156e8627207428830982bb8698016"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_02",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "What's the daily special?",
+      "audio_seconds": 1.85,
+      "pcm_sha256": "6f281d9ece4981fb621c148927ac062b4077c1257a48495cf75692bb065dd334",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625736,
+          "tatoeba_audio_id": 1281818,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b9e2e0a83be82b93c35fc21641d2e2a907ccbbed288f431031fde65f6fce336b"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_03",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "Let's find a restaurant.",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "82ac036a0bd1699f7c6e7ed07fdd6c43c4ac82fe41420afa96e0607379aa12d1",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625733,
+          "tatoeba_audio_id": 1281816,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e50e72e1f557610aff677104917aba666b547f00b935f8b64ff89d33f410b3fc"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_04",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "It's full of vitamins.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "f86809c6934b29d1cc64eda80f868366fdeedd071c88a2fed5afea39b0f06f38",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625730,
+          "tatoeba_audio_id": 1281813,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7f2ccd3ff90b6acdbd3ed24a5de099dce55acaa27729e6ce18c460eb339f1d1b"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_05",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "Can I have the recipe?",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "d83e6153ae5589e3a711db808e1549391a97e7e0d8858d77ccfa68a349eb6410",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625729,
+          "tatoeba_audio_id": 1281812,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fde056335df90cd69f8adc8e0bd71a7209f14e057ad3ed77dda2601cf23dc421"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_06",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "Don't burn the toast.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "0fdd904885fcf44d2140feefe8bd12a98ff8be07caf70a4a985d9e1c109048f6",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625722,
+          "tatoeba_audio_id": 1281810,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "efa2b7c051821b7d629a88b1e20ab4ab6a0081f7f9b0eace2d08a258f56df943"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_07",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "Can you heat this up?",
+      "audio_seconds": 1.55,
+      "pcm_sha256": "467f23a18b326397bda4c19825fdce4d6ac74039c78ce055bfc3ae4537a11cea",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625720,
+          "tatoeba_audio_id": 1281808,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "362b6ce0e45b2e53c6a768abf96a304dcfa0f32753edb20c7696d4430acaf5a5"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_08",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "Can I get a refill?",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "a4a130a8da416fb0644fd640684d298f19fb10626d50a7559bcafd53d950f169",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625692,
+          "tatoeba_audio_id": 1281800,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b5aa19a1b860a34f866c586ba731e948f2cc2162b0cfac5080d024ef5fe3d223"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_09",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "I'll handle this myself.",
+      "audio_seconds": 2.0,
+      "pcm_sha256": "7517ecf7e5d6d6d021babd427d0f3c710a660c123e0588c11b3861d749e083f8",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13622632,
+          "tatoeba_audio_id": 1281775,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "437e04719f4e2763999f7bcf7490ce9bea97a4f45efe7981d7a799e7ae820e80"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_10",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "I've warned you before.",
+      "audio_seconds": 1.95,
+      "pcm_sha256": "9f9b21650405e3a52160ed8db89b1dcec6c8748a03f6c455f04062191a947ecb",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13622631,
+          "tatoeba_audio_id": 1281774,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "bc46caeb3f7312dd6de7a78e3373de8fa17c93c292d7a5083bfbd002406e22bf"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_11",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "I've signed the papers.",
+      "audio_seconds": 1.85,
+      "pcm_sha256": "0cefa119250e4aa378530904c3d9347e00cca3384ab88c61b038ef13c0fe4ccc",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13622630,
+          "tatoeba_audio_id": 1281773,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "ef516f59789b22bce5a98824b97bdee8f1e9f40e622e9c626172dd327c587e2e"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_en_12",
+      "bucket": "short",
+      "language": "en",
+      "reference_text": "I'm leaving right away.",
+      "audio_seconds": 1.95,
+      "pcm_sha256": "8e1387759779519e191f7a50e2c2507035b95995834388c90bf0e83cad5f21d9",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13622627,
+          "tatoeba_audio_id": 1281772,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "bc706278488f204c5589a3e30a0045937b3f69fd5e70b9f3e1f462b4ef46686f"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_en_01",
+      "bucket": "long",
+      "language": "en",
+      "reference_text": "I can't function without my morning cup of coffee. I'm skipping dinner because I had a huge lunch. I'm baking a cake for Tom's birthday party. I'm trying to save money by eating at home. I'll try to be more patient in the future. I'll try to be more patient from now on.",
+      "audio_seconds": 19.95,
+      "pcm_sha256": "aef5d418c90e1364b54b05b723ff8f368de82e8f3eddf28faa123599a3d78b30",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13626294,
+          "tatoeba_audio_id": 1281877,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "66dbfadcf7a75a6e3294d179892d8df7ff67a719780fa08e675bc40f6313a5fe"
+        },
+        {
+          "tatoeba_sentence_id": 13626234,
+          "tatoeba_audio_id": 1281872,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "69f1a80b5db7297d2bac4187c9e8ee21b0338f68152fda482370a37319153c0b"
+        },
+        {
+          "tatoeba_sentence_id": 13625981,
+          "tatoeba_audio_id": 1281860,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0aef9a6da849dfd9ce8b6e89ec5abb22cbda820589dd66cc4616cbc025007b0d"
+        },
+        {
+          "tatoeba_sentence_id": 13625966,
+          "tatoeba_audio_id": 1281853,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "54ae67fbf2fc313356a29327dbbef12c4b2cc0502d34fa7b6feb8b6bb4e13b68"
+        },
+        {
+          "tatoeba_sentence_id": 13622352,
+          "tatoeba_audio_id": 1282242,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "86164e17d8c2097615e1309d6dfcdd1ce38bbc4086a429f71336408561e0c84c"
+        },
+        {
+          "tatoeba_sentence_id": 13622351,
+          "tatoeba_audio_id": 1282241,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "5f670a03a5c42b960b1cf682292d0bfa79671ef26d44741b1959b0623e0e7348"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_en_02",
+      "bucket": "long",
+      "language": "en",
+      "reference_text": "My physics teacher doesn't mind if I skip class. Please feel free to use the books in my library. Please write to me as soon as you get there. Please correct me if I make any mistakes in pronunciation. Please be sure to be here by 5 o'clock. Please call me as soon as you arrive in London.",
+      "audio_seconds": 20.801,
+      "pcm_sha256": "5b50b109ba97f750c642546e110ab1973ba5526d9ba54485c54158ddbf99bd6c",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13573999,
+          "tatoeba_audio_id": 1282168,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "8c90ac1c943fbe2016cd28394c7d17aa5bdad21bd33df09b518a4c10025a139b"
+        },
+        {
+          "tatoeba_sentence_id": 13573811,
+          "tatoeba_audio_id": 1282164,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "eff74f74035b2eba9d8862bd600791c13760a480d6d03e53caa9cc92dca8c346"
+        },
+        {
+          "tatoeba_sentence_id": 13573690,
+          "tatoeba_audio_id": 1282152,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "aea462a0a24362ff0f9f92e850fba9e591da0e41b61938fc5cfde3715cf8e821"
+        },
+        {
+          "tatoeba_sentence_id": 13573635,
+          "tatoeba_audio_id": 1282139,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "c02c0d8df20ef7a987d3a51e2a9ffa642000509901b27793be53d6ceba99639b"
+        },
+        {
+          "tatoeba_sentence_id": 13572475,
+          "tatoeba_audio_id": 1282120,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "f5f84d5ac0de5ce3133ec504407ba9a2b18f7ae0bfcddd1b28f66b3bf2781859"
+        },
+        {
+          "tatoeba_sentence_id": 13572051,
+          "tatoeba_audio_id": 1282114,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "a825f48c4e5eaabdc67a0472f96832ef926971b47a18e8d95747a6fa2d40430c"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_en_03",
+      "bucket": "long",
+      "language": "en",
+      "reference_text": "If you have any questions, please send us an email. Connection to the server failed. Please check your network settings. If the screen doesn't change automatically, please click here. Everyone, please return to your seats and fasten your seatbelts.",
+      "audio_seconds": 17.901,
+      "pcm_sha256": "0dffd809ba1c5b9c3732973efa47c4a87a6e63d283e4a176a9150e9283ce2ab1",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13572020,
+          "tatoeba_audio_id": 1282112,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "4904586b2a6be1931835bfc12c216f51e70f3f2490938a43e83eb2e4915de7c0"
+        },
+        {
+          "tatoeba_sentence_id": 13571849,
+          "tatoeba_audio_id": 1282105,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e93cf698e33f7571b8ca1ca1c5b69686fe59fdde7c882c74f5fff95946a8ae4e"
+        },
+        {
+          "tatoeba_sentence_id": 13571810,
+          "tatoeba_audio_id": 1282097,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7baec68c9c812440ab1dd372159644b3851a2f244599c462fc18229c9f6052c0"
+        },
+        {
+          "tatoeba_sentence_id": 13571745,
+          "tatoeba_audio_id": 1282091,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "28098c796f71ba4c7f1f2f287d25cd9b6fc200710d4670cab6822bf3a211b386"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_01",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Это вниз по улице, слева.",
+      "audio_seconds": 1.985,
+      "pcm_sha256": "d15ac18b0d8025c6ef38d9560d58e2397fa1845dbb1aa61e7dd4ecce4acc89fb",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13818025,
+          "tatoeba_audio_id": 1283971,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fd2bd3a1e251438d59781eae1e365ed7350fe1cd135e98b54642f1c4ff26f10c"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_02",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Вижу, ты нашёл мою сумку.",
+      "audio_seconds": 1.672,
+      "pcm_sha256": "41e1dc44cf96dbef00313b5a4fdba70b91d47923bf48ecd7a34c9a22a72d54fc",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13817412,
+          "tatoeba_audio_id": 1283980,
+          "tatoeba_audio_author": "EugeneGS",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "093357351fcd88aac493fd11a5a163cfeae57d1ab11496445dbdb208d416405f"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_03",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Позвоните мне перед приходом, пожалуйста.",
+      "audio_seconds": 2.691,
+      "pcm_sha256": "e32e82c11b880e8a49a865c3f6ea798c13f5583960e0d45e22154efb47f2a5f0",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353851,
+          "tatoeba_audio_id": 1279017,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "eed538f92433e5cc729d85e3dbc9bb07ab64d399450b1920b50aa06ecff80b1f"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_04",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Позвони мне перед приходом, пожалуйста.",
+      "audio_seconds": 2.56,
+      "pcm_sha256": "e0d880073c9720c7f7011028f0d857fd2ad3fe88e2960962f814279dc7fdb2f9",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353850,
+          "tatoeba_audio_id": 1279016,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e39ccf10c47644b983828fe79e9a0931fd22c02f77a99ce6103d85f1dfb3ca37"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_05",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Он приложил руку ко лбу.",
+      "audio_seconds": 1.959,
+      "pcm_sha256": "89cc2df745dfc41cbf3fc6a9d4673359fccc9bb550acb67a0b2fc278b3741dfc",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353589,
+          "tatoeba_audio_id": 1278998,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "84e506559af1bcee768e6b660a330f34e6470d9555f46a5e728777932254d211"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_06",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Мы знакомы с вашим братом.",
+      "audio_seconds": 2.064,
+      "pcm_sha256": "46d1d0655394efb89746d43c75ddf1beb2bb97a8675fd468390b929d0ab14903",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13351534,
+          "tatoeba_audio_id": 1278991,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "8a369d7886c2560a9b557778a78d4de75780cdadd226c648a2177fe0836dc647"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_07",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Мы знакомы с твоим братом.",
+      "audio_seconds": 1.959,
+      "pcm_sha256": "240017338f4994a589a1d97540262895e5907bfe2dac7e9adc8279741602389a",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13351532,
+          "tatoeba_audio_id": 1278990,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "c4c6a8ca04d1ff095e27bf8324f4853cafb25a72edd896290a8770f9bbfd6dc8"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_08",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Ты часто в кино ходишь?",
+      "audio_seconds": 1.724,
+      "pcm_sha256": "1e1b37e6703384516b812d7edd83040f717c7d40d6e6b7698203df9e2244a36a",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13350751,
+          "tatoeba_audio_id": 1278987,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e3c587e84af3719a08c585d321e916e9eb6ee2871ee45e16a3c9abc485ba019c"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_09",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Вы часто в кино ходите?",
+      "audio_seconds": 1.829,
+      "pcm_sha256": "758f77a02d5808fae726f96a28ed629282acdc4b8ea99ee149260bc7b219b459",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13350750,
+          "tatoeba_audio_id": 1278986,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "9a23f27d8d5d5f57c8bde4fffefa6ff386d2fd98c0090c1640f1735945139e89"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_10",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Мне много денег не нужно.",
+      "audio_seconds": 1.933,
+      "pcm_sha256": "555f8549d30e7bba42de7452344d2c935f80df8fce1953e3043422fd98f4d773",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13350555,
+          "tatoeba_audio_id": 1278975,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "578c266b000de1b5c0fd6d7a9d929ef61ad7bab7410f0cae00a83bb3ea6b48f1"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_11",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Мне много денег не надо.",
+      "audio_seconds": 1.776,
+      "pcm_sha256": "e95a94ae41b437c8ac6b3b960e9dc7ba177ccf9033ae7396448762e83379767c",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13350554,
+          "tatoeba_audio_id": 1278974,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "51e3b4a82f1d886ec3a8f185bdae58df47b8a6ecfe075bb8ad9c8ebfee2121e8"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_ru_12",
+      "bucket": "short",
+      "language": "ru",
+      "reference_text": "Нет, я туда не поехал.",
+      "audio_seconds": 1.985,
+      "pcm_sha256": "5ad79d1ae7062611bc48b90c4df37d84f091bcbfff45fd10353a7a8814c16a2a",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13349974,
+          "tatoeba_audio_id": 1278953,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b46213ce8f8ed1cfecb6d1cd4b58da614f367672abfb335c5c0c188e12f97002"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_ru_01",
+      "bucket": "long",
+      "language": "ru",
+      "reference_text": "Почему бы нам не остановиться и не съесть по мороженому? Не думаю, что у нас хватит еды, чтобы всех накормить. Это Том сказал мне, что тебе не следует этого делать. По сравнению с вами, я в этой игре просто новичок. По сравнению с тобой, я в этой игре просто новичок. Мне хотелось бы иметь возможность проводить больше времени с друзьями.",
+      "audio_seconds": 21.288,
+      "pcm_sha256": "57100e916fa2dc3a8875be2509e8c4d64a97983cf267176260096eaad82ebe3f",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13350666,
+          "tatoeba_audio_id": 1278981,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "ef04130f3d0d8bec725667eca5f8604b084a03e3b4cbf1eea7af139b207b3f8d"
+        },
+        {
+          "tatoeba_sentence_id": 13350556,
+          "tatoeba_audio_id": 1278976,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "bbc2de814e4651b1bfa0dfa57aaeaf01d94116e4a2f4d357e17fe77ed3c6e4ea"
+        },
+        {
+          "tatoeba_sentence_id": 13349729,
+          "tatoeba_audio_id": 1275127,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "ab4ed53ab806fd4749a6991bcd22fbab499dc96ef84ee4d092c46f094754654d"
+        },
+        {
+          "tatoeba_sentence_id": 13347750,
+          "tatoeba_audio_id": 1278917,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "1d70739072b818b2eb3308c9043ced6a00c46c187fb2376fb7dac030ff7bfa63"
+        },
+        {
+          "tatoeba_sentence_id": 13347749,
+          "tatoeba_audio_id": 1278916,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "751a901c7cccd1c701279f585ae7fd24866e9568e3c8d34902f251677e61bd7b"
+        },
+        {
+          "tatoeba_sentence_id": 13343824,
+          "tatoeba_audio_id": 1275091,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "8e99d2681d96d6e73692b6105f38417493238c9e853a06ed393ecb4bfb2c63a9"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_ru_02",
+      "bucket": "long",
+      "language": "ru",
+      "reference_text": "Я бы очень хотел поехать с вами, но не могу. Я бы очень хотел поехать с тобой, но не могу. Я бы очень хотел пойти с вами, но не могу. Я бы очень хотел пойти с тобой, но не могу. Было бы вкуснее, если бы вы добавили чуть больше соли. Том может приходить ко мне в гости в любое время.",
+      "audio_seconds": 19.357,
+      "pcm_sha256": "70e956c8bd17f525ee125b4753c38be496950a0fe0d9d921199775ecf50cf5d8",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13341450,
+          "tatoeba_audio_id": 1278873,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e7921f28947dd7194f9040e7a50961042be6f874b4e6a790c0e5c55e14f08873"
+        },
+        {
+          "tatoeba_sentence_id": 13341449,
+          "tatoeba_audio_id": 1278872,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "9c15a6359d4bac7b1cd47f3161b5083c1555e1eb1837f062b9e8c7023281cd57"
+        },
+        {
+          "tatoeba_sentence_id": 13341446,
+          "tatoeba_audio_id": 1278871,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "9ee18b826e9d208093c25552d0b1dd58414a81cac5283a1709df1db5a1efb419"
+        },
+        {
+          "tatoeba_sentence_id": 13341445,
+          "tatoeba_audio_id": 1278870,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7867c2bde50d66504bd5c63ddbaa50ee64d52fd4d40c7b1ee563ebdcc4e444b6"
+        },
+        {
+          "tatoeba_sentence_id": 13340912,
+          "tatoeba_audio_id": 1278865,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e6e549033d69eb9f92181b1b236e2f86a39b11dde2624bb71e158135b5ce73de"
+        },
+        {
+          "tatoeba_sentence_id": 13339611,
+          "tatoeba_audio_id": 1278844,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7af73ab588554e639bd7c5554456305d78ceac7183af36ba9db48fac241a5593"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_ru_03",
+      "bucket": "long",
+      "language": "ru",
+      "reference_text": "Вы вроде говорили, что не можете позволить себе купить грузовик. Ты вроде говорил, что не можешь позволить себе купить грузовик. Пользователь является администратором чата, и его нельзя заблокировать или ограничить. Том и Мэри волнуются, что их вылет может быть отменён. Том и Мэри волнуются, что их полёт может быть отменён.",
+      "audio_seconds": 19.189,
+      "pcm_sha256": "748dd43c25103155fea7772d0c0fb32983ae079c73ff5dbef47dd019c61656fc",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13336084,
+          "tatoeba_audio_id": 1278757,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "9247cf81f7b41498a4f13f23cfb87efd271c354e85eacb8a43e8cdbb95b3e2f5"
+        },
+        {
+          "tatoeba_sentence_id": 13336082,
+          "tatoeba_audio_id": 1278756,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b1204692c5ab4bc0badc1371244a621304694d2843f9563d0d43a40d1a3ee007"
+        },
+        {
+          "tatoeba_sentence_id": 13289151,
+          "tatoeba_audio_id": 1274937,
+          "tatoeba_audio_author": "EugeneGS",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "f3936d413f5b24ff5f9943e1614d0bc7b3bfcbb11e95577d251f62a2349b1e8f"
+        },
+        {
+          "tatoeba_sentence_id": 13226669,
+          "tatoeba_audio_id": 1265092,
+          "tatoeba_audio_author": "EugeneGS",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "5ec9984a8782ccf69615f504be826f93d216e0461958d52cb65d8474e38f583b"
+        },
+        {
+          "tatoeba_sentence_id": 13226666,
+          "tatoeba_audio_id": 1265091,
+          "tatoeba_audio_author": "EugeneGS",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7db50f88d4776ecd5d9b127fc99f1d68db7fc4184bf19d1570d5e229a2753a3b"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_01",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Me llevo estupendamente con él.",
+      "audio_seconds": 2.011,
+      "pcm_sha256": "d5f40d33807a63620a620bd1af0091533fc04848166b82c97705bb6c942cdbdd",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093253,
+          "tatoeba_audio_id": 1253709,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e7b7504468ddb8db5b328bbad43f84f586167915d1a63beb546f2f03b6d8e13e"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_02",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Intenta llevarte bien con todos.",
+      "audio_seconds": 2.325,
+      "pcm_sha256": "94bbcfd0f04310650e4121f23cd2e79e4dccf7eee9c26c4fb810c1017208229b",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093250,
+          "tatoeba_audio_id": 1253706,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "662bc1f8b0afda7895345b9eb4b44aa299761b41a3aba1983e592c4925b96290"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_03",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "¿Cuánto es dos por dos?",
+      "audio_seconds": 1.672,
+      "pcm_sha256": "9db1f2fd73b71c8fd6deab0bef5c08795dd83cbd98ef43950f2ec32d0c6a90f2",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093245,
+          "tatoeba_audio_id": 1253702,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "ce4d8c76479e0c47a5c732c9d70b243670fe25df7cd7a2a9cd9cbda44cd684ed"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_04",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Eso no vino a cuento.",
+      "audio_seconds": 1.802,
+      "pcm_sha256": "8c00a68fe9c4d25fbab4a6930cbfd14ec91bf398c0291bf0cb8d9785882643c4",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093238,
+          "tatoeba_audio_id": 1253700,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "c6df36610705b5b32746ae69ab7960299266d6e064f62927794ea71cb95ae08c"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_05",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Debe de estar al llegar.",
+      "audio_seconds": 1.776,
+      "pcm_sha256": "128e732923b9c141d54d36d5aef5f660c6b1600bcfeba45fa52029e5d7a6e05c",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093222,
+          "tatoeba_audio_id": 1253688,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "f216f69e22cde277608ee3699e2449292695bcee335442d9722cadf4dea208aa"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_06",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Creo que no les gusto.",
+      "audio_seconds": 1.672,
+      "pcm_sha256": "db3acf54073b349207c9d1855ba0615d6d7d705adb55a15d6b4fa2bce43abe99",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093190,
+          "tatoeba_audio_id": 1253674,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "79237f3534c7b743d22037d8c283b8a8eeee1e86b2b9c6a71dd4247cc32ee9cc"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_07",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Me parece una moda absurda.",
+      "audio_seconds": 2.064,
+      "pcm_sha256": "65596bb2eaf023d3f5492c4bbb7662c62b5ed79ccab361e3f1ea76003cb5c5ac",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093175,
+          "tatoeba_audio_id": 1253672,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "a7fa5cf4a8495be76f9a974771fda7aa0616195c12fe775461cab4620110c955"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_08",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "No pienso perforarme las orejas.",
+      "audio_seconds": 2.455,
+      "pcm_sha256": "0d5f2013790613b8325fbf30723140dea6c7caf9387c1782cb6d58d56418898a",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093174,
+          "tatoeba_audio_id": 1253671,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "558fa9f04b7087489d341f5c1bfdd4f95e6fcdeedf43bf42ee04c1702acec2d5"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_09",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Deberíamos hacerlo de otro modo.",
+      "audio_seconds": 2.064,
+      "pcm_sha256": "32206b5a8e0bda905eb0fe47d12df3c3fc4d9b306eb4bb82585d6153aaf6e1c5",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093172,
+          "tatoeba_audio_id": 1253670,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "51f31df76aaec4a4aebca3948f2c1455bd96176c0d03dcf03fe300d5ee570fcc"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_10",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Yo no lo haría así.",
+      "audio_seconds": 1.907,
+      "pcm_sha256": "434b0ccb7fd989eafb417904497ee391a00ce69009a57ab83f9d77488c8d2edd",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093171,
+          "tatoeba_audio_id": 1253669,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "2f3e9a7b21893ccf4fed05fcf43c01e69ce8b9701868bca44091290f7cd33ec2"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_11",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Sigo teniendo ataques de pánico.",
+      "audio_seconds": 2.22,
+      "pcm_sha256": "5b709810ccf5c968453ac905c90ff10aae77fbcb4ebca9176b6cb55e0fb631a4",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13089220,
+          "tatoeba_audio_id": 1253641,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "2d0e76f0208b092024dbe274949380348c5c740c9b0d2735d36da36a8041ce19"
+        }
+      ]
+    },
+    {
+      "clip_id": "short_es_12",
+      "bucket": "short",
+      "language": "es",
+      "reference_text": "Estaré feliz cuando estés conmigo.",
+      "audio_seconds": 2.403,
+      "pcm_sha256": "4d0705f2c19d5d68c807cb45227ebd34f7292140fb28c8cdcc5fdd05a14fe19e",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13089214,
+          "tatoeba_audio_id": 1253640,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "a01a70cdb9dcf44d343f2258ba78b45702162308a209bfb745c54fdedb034a68"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_es_01",
+      "bucket": "long",
+      "language": "es",
+      "reference_text": "La calle es demasiado estrecha para ese camión tan grande. Muchas gracias por ayudarme a traducir el informe al español. No lo he visto desde hace tres días o así. Lo que haces en tu tiempo libre es cosa tuya. La verdad es que a mí me da exactamente igual. Así que como un poco de todo para estar sano.",
+      "audio_seconds": 20.715,
+      "pcm_sha256": "86bfc5d6b45ad3f6eefc378acfc93c04efa6302b7e8e262875662a1ca301b0b9",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093217,
+          "tatoeba_audio_id": 1253684,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7a7ec8c98ed6f44a09bab82ad328ea08fa057661d868864607d79643da0c8e12"
+        },
+        {
+          "tatoeba_sentence_id": 13093209,
+          "tatoeba_audio_id": 1253682,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "79045a3be7f4a13bbb05367f338aa524a188fb5c85381c20368986f576793986"
+        },
+        {
+          "tatoeba_sentence_id": 13093161,
+          "tatoeba_audio_id": 1253662,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e46789820a6cd01d31c1e12fd4313f2581780ac21261606a3d5156ba8134b45f"
+        },
+        {
+          "tatoeba_sentence_id": 13084670,
+          "tatoeba_audio_id": 1253637,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "4c2a6a385b60ec792ca9204644ccdc38eff83251822909a2aec9bc210e554133"
+        },
+        {
+          "tatoeba_sentence_id": 13076841,
+          "tatoeba_audio_id": 1252740,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "464d59445b3c4792a862044ac31f4056c112bfbb064c43ceeb9a3faa4d1e77b6"
+        },
+        {
+          "tatoeba_sentence_id": 13076469,
+          "tatoeba_audio_id": 1252683,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0c2eb7696d22d1a635f9744d2f69bbdf5930bb5563ca2701373aae043f67d2f3"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_es_02",
+      "bucket": "long",
+      "language": "es",
+      "reference_text": "A muchas personas no les gustó lo que estábamos haciendo. El problema es que yo no sé cómo hacer eso. Nápoles es una ciudad de casi un millón de habitantes. Nápoles es una ciudad cercana a un millón de habitantes. El jefe no viene a la oficina todos los días. Por primera vez, estoy convencido de que Dios es real.",
+      "audio_seconds": 21.551,
+      "pcm_sha256": "4cc022edb9242a53c2db1e91d7a91a00c8fd4dae08777beefc1d7b6c41924e18",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13059652,
+          "tatoeba_audio_id": 1252671,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "8d2cf56ef07e2b624bf698c607927a55d6f19a19d2d70904ecc49e458ea1b9bc"
+        },
+        {
+          "tatoeba_sentence_id": 13059635,
+          "tatoeba_audio_id": 1252670,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7148d28ea3bca2f8f70b299212cccd3a5ff9c1970be5d1d57b022a8067b1b41a"
+        },
+        {
+          "tatoeba_sentence_id": 13050154,
+          "tatoeba_audio_id": 1253594,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "bde2898892e769ab46476cb815874210c5bed58f8dacc3f21f8962eed3512b62"
+        },
+        {
+          "tatoeba_sentence_id": 13050151,
+          "tatoeba_audio_id": 1253593,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "a4a474e97c7faa2f4357e9ca8b86b80c0fc5f7a1fe1db8d9222f3bd870a78ba5"
+        },
+        {
+          "tatoeba_sentence_id": 13034019,
+          "tatoeba_audio_id": 1252640,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "492678fe2b7ed4b6731e54b1acf5b989d53d8d42d93b1461f5d5064872a00666"
+        },
+        {
+          "tatoeba_sentence_id": 13015364,
+          "tatoeba_audio_id": 1253512,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "66f0afdd458bd451647604d9083846fcb24d7ada99f156ff52b195977af2dc09"
+        }
+      ]
+    },
+    {
+      "clip_id": "long_es_03",
+      "bucket": "long",
+      "language": "es",
+      "reference_text": "Ésta es la primera vez que tengo fe en Dios. Me alegro de que por fin me lo hayas dicho. María va a recoger a su hija a la guardería. María ya ha gastado todo el dinero que le di. Usé cintas y lazos para decorar los regalos de Navidad. Estoy completamente de acuerdo contigo excepto por un pequeño detalle.",
+      "audio_seconds": 20.741,
+      "pcm_sha256": "d7888cd5dab6aa17c2f73a74734d25e44e2657e42c44ccf6d6c879b3c73e29c2",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13015360,
+          "tatoeba_audio_id": 1253510,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "a275c7ced2af26dc3fdea0934791d8fc3be9907d8d1101f7b390aaad2cfae4b0"
+        },
+        {
+          "tatoeba_sentence_id": 12987808,
+          "tatoeba_audio_id": 1253488,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0251e5721ebd25a71c9db1c4a0e412f246279889f636408c5a54f66aa1061232"
+        },
+        {
+          "tatoeba_sentence_id": 12987693,
+          "tatoeba_audio_id": 1253480,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "37683b9ae953cbfebed001a07c977c3d193cb658f4e43a2cffa4a2f31c4d177d"
+        },
+        {
+          "tatoeba_sentence_id": 12974464,
+          "tatoeba_audio_id": 1253464,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "9cb15545d48d4728600f36a16815441657613548934fd1de62394a7f39773e0e"
+        },
+        {
+          "tatoeba_sentence_id": 12957527,
+          "tatoeba_audio_id": 1252605,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "55b7372a72be27c420e9fc3bb5d20d5fbfc493d28f422066acd20294e7270364"
+        },
+        {
+          "tatoeba_sentence_id": 12939343,
+          "tatoeba_audio_id": 1253423,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "5c57a13af28baf5496d659a244e099f507959203324e0e66148aebc4e50202dc"
+        }
+      ]
+    },
+    {
+      "clip_id": "noisy_snr10_en_01",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "It's finger-licking good.",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "59e4cb820c4404ae152f4d730123e67b8b0867defb12a886b88cfdc5b71cc196",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625739,
+          "tatoeba_audio_id": 1281820,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0b8998c045e6a30cc76b8291ca562eac984156e8627207428830982bb8698016"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_02",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "What's the daily special?",
+      "audio_seconds": 1.85,
+      "pcm_sha256": "eee012e392b581fa5b0f3628fc2f269f6e79719bbeaeac915ff811ffe1fcc413",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625736,
+          "tatoeba_audio_id": 1281818,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b9e2e0a83be82b93c35fc21641d2e2a907ccbbed288f431031fde65f6fce336b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_03",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "Let's find a restaurant.",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "d95f864dea445430e878bc166b8af9ca18a64dd0c6c7c2cfd66574f84a005b90",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625733,
+          "tatoeba_audio_id": 1281816,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e50e72e1f557610aff677104917aba666b547f00b935f8b64ff89d33f410b3fc"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_04",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "It's full of vitamins.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "50135e7d7730c0567a94f4fca101e30b41eb7e06cc5d846bfca9c9afa127488f",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625730,
+          "tatoeba_audio_id": 1281813,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7f2ccd3ff90b6acdbd3ed24a5de099dce55acaa27729e6ce18c460eb339f1d1b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_05",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "Can I have the recipe?",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "7186efb9945f8a893eaac77bfa9ceebb8c77ebf9e2b321d9110026f3786a9368",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625729,
+          "tatoeba_audio_id": 1281812,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fde056335df90cd69f8adc8e0bd71a7209f14e057ad3ed77dda2601cf23dc421"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_06",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "Don't burn the toast.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "08944ea6f6bffe8d0e12a961b612c8c2c36059a279c6fda5ba980b6842cf01b9",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625722,
+          "tatoeba_audio_id": 1281810,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "efa2b7c051821b7d629a88b1e20ab4ab6a0081f7f9b0eace2d08a258f56df943"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_07",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "Can you heat this up?",
+      "audio_seconds": 1.55,
+      "pcm_sha256": "26b02099f6bc0ada34825c5be84da3206738e8457c8cadfc9556e2b955f2b3b5",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625720,
+          "tatoeba_audio_id": 1281808,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "362b6ce0e45b2e53c6a768abf96a304dcfa0f32753edb20c7696d4430acaf5a5"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr10_en_08",
+      "bucket": "noisy_snr10",
+      "language": "en",
+      "reference_text": "Can I get a refill?",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "5e594c60dfdf3305eb5f4147fee913672768d51d7810ec31b86a21b0bdc15747",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625692,
+          "tatoeba_audio_id": 1281800,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b5aa19a1b860a34f866c586ba731e948f2cc2162b0cfac5080d024ef5fe3d223"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 10.0,
+        "measured_snr_db": 10.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_01",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "It's finger-licking good.",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "eac8068defe53fd459363e3b468148d133bbb85fc7cc77d1457860eb245949dd",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625739,
+          "tatoeba_audio_id": 1281820,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0b8998c045e6a30cc76b8291ca562eac984156e8627207428830982bb8698016"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_02",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "What's the daily special?",
+      "audio_seconds": 1.85,
+      "pcm_sha256": "a58d3fb438333ee7aa6d9a418818f176d1636a2f7ca07623c9e34edb5519280e",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625736,
+          "tatoeba_audio_id": 1281818,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b9e2e0a83be82b93c35fc21641d2e2a907ccbbed288f431031fde65f6fce336b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.003,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_03",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "Let's find a restaurant.",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "bf1f635abd8d3d18f2b43890b111e0b5b1dd7f5c4b6f966971c37ac44f766d4e",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625733,
+          "tatoeba_audio_id": 1281816,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e50e72e1f557610aff677104917aba666b547f00b935f8b64ff89d33f410b3fc"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_04",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "It's full of vitamins.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "b3a097ee236d65fc66194266c6f0eabf1efcc54c0ab1df7626f3faed214e6d7a",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625730,
+          "tatoeba_audio_id": 1281813,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7f2ccd3ff90b6acdbd3ed24a5de099dce55acaa27729e6ce18c460eb339f1d1b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.001,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_05",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "Can I have the recipe?",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "4b6e78569de4f91014a9679fb84217dfdeec0621c7a8789d6dcf669351dc54af",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625729,
+          "tatoeba_audio_id": 1281812,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fde056335df90cd69f8adc8e0bd71a7209f14e057ad3ed77dda2601cf23dc421"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_06",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "Don't burn the toast.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "b5b178597f3cbed621f2b3a9531c1a18c75f0eec74b32b3f4e0db011a5b38710",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625722,
+          "tatoeba_audio_id": 1281810,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "efa2b7c051821b7d629a88b1e20ab4ab6a0081f7f9b0eace2d08a258f56df943"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_07",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "Can you heat this up?",
+      "audio_seconds": 1.55,
+      "pcm_sha256": "1006898a984da7af8e264f530a07c50ffe9c16c471c435cc39b17ada760eb620",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625720,
+          "tatoeba_audio_id": 1281808,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "362b6ce0e45b2e53c6a768abf96a304dcfa0f32753edb20c7696d4430acaf5a5"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.004,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_en_08",
+      "bucket": "noisy_snr5",
+      "language": "en",
+      "reference_text": "Can I get a refill?",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "c1c71088d4b5c185e5082bf60a8b85f2bf899d801fc30bfc1e4446b9d2e08e65",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625692,
+          "tatoeba_audio_id": 1281800,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b5aa19a1b860a34f866c586ba731e948f2cc2162b0cfac5080d024ef5fe3d223"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.002,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_01",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "It's finger-licking good.",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "75096ece5a9f5daf0fd99e265d6bcca98af517694ad1899e7593288cdf397300",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625739,
+          "tatoeba_audio_id": 1281820,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "0b8998c045e6a30cc76b8291ca562eac984156e8627207428830982bb8698016"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.008,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_02",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "What's the daily special?",
+      "audio_seconds": 1.85,
+      "pcm_sha256": "51f944f4c40760431d92c10cd129955e4843a9724e948b26b64c1a8dada56f71",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625736,
+          "tatoeba_audio_id": 1281818,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b9e2e0a83be82b93c35fc21641d2e2a907ccbbed288f431031fde65f6fce336b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.008,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_03",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "Let's find a restaurant.",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "2bd807776afd5102e405beac361e0f585b29c300c6f80215503f409b8fd0ecf2",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625733,
+          "tatoeba_audio_id": 1281816,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e50e72e1f557610aff677104917aba666b547f00b935f8b64ff89d33f410b3fc"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.005,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_04",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "It's full of vitamins.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "2343e9945d37928c29e4a6906b413f96695414d384bda85accc3766f11cbe85f",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625730,
+          "tatoeba_audio_id": 1281813,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "7f2ccd3ff90b6acdbd3ed24a5de099dce55acaa27729e6ce18c460eb339f1d1b"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.004,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_05",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "Can I have the recipe?",
+      "audio_seconds": 1.9,
+      "pcm_sha256": "5ca142dd6212a9f0554921ec06c7cd82766ddde15b59de522cca245ea226d90b",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625729,
+          "tatoeba_audio_id": 1281812,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fde056335df90cd69f8adc8e0bd71a7209f14e057ad3ed77dda2601cf23dc421"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.003,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_06",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "Don't burn the toast.",
+      "audio_seconds": 1.8,
+      "pcm_sha256": "098bf9816e1ac921ff27bad35f5f74ee31b09cc0b4802098734ee3e9c5ef4f49",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625722,
+          "tatoeba_audio_id": 1281810,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "efa2b7c051821b7d629a88b1e20ab4ab6a0081f7f9b0eace2d08a258f56df943"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.001,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_07",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "Can you heat this up?",
+      "audio_seconds": 1.55,
+      "pcm_sha256": "1907d822c9ddba19fd050b84b8cc9b1a1652ae1fff10f4d421dafa0e0a6190eb",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625720,
+          "tatoeba_audio_id": 1281808,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "362b6ce0e45b2e53c6a768abf96a304dcfa0f32753edb20c7696d4430acaf5a5"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.056,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr0_en_08",
+      "bucket": "noisy_snr0",
+      "language": "en",
+      "reference_text": "Can I get a refill?",
+      "audio_seconds": 1.75,
+      "pcm_sha256": "27b7f862363e4455f2eef7142548a1662cbc8c6b724ec098cbc10d6d3c17e269",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13625692,
+          "tatoeba_audio_id": 1281800,
+          "tatoeba_audio_author": "CK",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "b5aa19a1b860a34f866c586ba731e948f2cc2162b0cfac5080d024ef5fe3d223"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 0.0,
+        "measured_snr_db": 0.005,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_ru_01",
+      "bucket": "noisy_snr5",
+      "language": "ru",
+      "reference_text": "Это вниз по улице, слева.",
+      "audio_seconds": 1.985,
+      "pcm_sha256": "5eb5e6c56cfa49ca6d12268b2969c915af73ef3c285f51fe3921743513980647",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13818025,
+          "tatoeba_audio_id": 1283971,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "fd2bd3a1e251438d59781eae1e365ed7350fe1cd135e98b54642f1c4ff26f10c"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_ru_02",
+      "bucket": "noisy_snr5",
+      "language": "ru",
+      "reference_text": "Вижу, ты нашёл мою сумку.",
+      "audio_seconds": 1.672,
+      "pcm_sha256": "70aa77f3f0a52fbb36ba47aa5a0bc954122c1a76496db156a33ed108fa1bbec3",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13817412,
+          "tatoeba_audio_id": 1283980,
+          "tatoeba_audio_author": "EugeneGS",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "093357351fcd88aac493fd11a5a163cfeae57d1ab11496445dbdb208d416405f"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.001,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_ru_03",
+      "bucket": "noisy_snr5",
+      "language": "ru",
+      "reference_text": "Позвоните мне перед приходом, пожалуйста.",
+      "audio_seconds": 2.691,
+      "pcm_sha256": "6cc6b9c4c2d2975112190f90b11ae76d607001c31a46d8785d2b728ccde258f8",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353851,
+          "tatoeba_audio_id": 1279017,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "eed538f92433e5cc729d85e3dbc9bb07ab64d399450b1920b50aa06ecff80b1f"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_ru_04",
+      "bucket": "noisy_snr5",
+      "language": "ru",
+      "reference_text": "Позвони мне перед приходом, пожалуйста.",
+      "audio_seconds": 2.56,
+      "pcm_sha256": "af709574b2fd89390d09e0b2886b20b6b448edb35417c64d5f24e0529538db69",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353850,
+          "tatoeba_audio_id": 1279016,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e39ccf10c47644b983828fe79e9a0931fd22c02f77a99ce6103d85f1dfb3ca37"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_ru_05",
+      "bucket": "noisy_snr5",
+      "language": "ru",
+      "reference_text": "Он приложил руку ко лбу.",
+      "audio_seconds": 1.959,
+      "pcm_sha256": "9efb4af966159095b64116809c867d4940a7d8391323f6f8f72f1664caf1b5c1",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13353589,
+          "tatoeba_audio_id": 1278998,
+          "tatoeba_audio_author": "retr0ra1n",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "84e506559af1bcee768e6b660a330f34e6470d9555f46a5e728777932254d211"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_es_01",
+      "bucket": "noisy_snr5",
+      "language": "es",
+      "reference_text": "Me llevo estupendamente con él.",
+      "audio_seconds": 2.011,
+      "pcm_sha256": "437dc877cf4876f1fdfa7daa6e0f761cb3ecab3f78d0f7ae7255fb1949e762b7",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093253,
+          "tatoeba_audio_id": 1253709,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "e7b7504468ddb8db5b328bbad43f84f586167915d1a63beb546f2f03b6d8e13e"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_es_02",
+      "bucket": "noisy_snr5",
+      "language": "es",
+      "reference_text": "Intenta llevarte bien con todos.",
+      "audio_seconds": 2.325,
+      "pcm_sha256": "e515242cf4ed5338693236c8ac725ebcef562386ce8466320ea26c7c5e0c0713",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093250,
+          "tatoeba_audio_id": 1253706,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "662bc1f8b0afda7895345b9eb4b44aa299761b41a3aba1983e592c4925b96290"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_es_03",
+      "bucket": "noisy_snr5",
+      "language": "es",
+      "reference_text": "¿Cuánto es dos por dos?",
+      "audio_seconds": 1.672,
+      "pcm_sha256": "dece2b2879326443d679902ebf6b4b9a211cc63e3a828f0a07251357a3fbb27c",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093245,
+          "tatoeba_audio_id": 1253702,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "ce4d8c76479e0c47a5c732c9d70b243670fe25df7cd7a2a9cd9cbda44cd684ed"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.004,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_es_04",
+      "bucket": "noisy_snr5",
+      "language": "es",
+      "reference_text": "Eso no vino a cuento.",
+      "audio_seconds": 1.802,
+      "pcm_sha256": "4e1aee220350bd1e43930330bb9b253ab70baf9a4fb5c32dd26ca32fb645a9c5",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093238,
+          "tatoeba_audio_id": 1253700,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "c6df36610705b5b32746ae69ab7960299266d6e064f62927794ea71cb95ae08c"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.0,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "noisy_snr5_es_05",
+      "bucket": "noisy_snr5",
+      "language": "es",
+      "reference_text": "Debe de estar al llegar.",
+      "audio_seconds": 1.776,
+      "pcm_sha256": "05d04063154d426640790ac911ad0e9d8317b00cf952c0f119308fe389291fe3",
+      "sources": [
+        {
+          "tatoeba_sentence_id": 13093222,
+          "tatoeba_audio_id": 1253688,
+          "tatoeba_audio_author": "arh",
+          "license": "CC BY 2.0 FR",
+          "mp3_sha256": "f216f69e22cde277608ee3699e2449292695bcee335442d9722cadf4dea208aa"
+        }
+      ],
+      "noise": {
+        "kind": "multi_talker_babble",
+        "target_snr_db": 5.0,
+        "measured_snr_db": 5.015,
+        "talker_audio_ids": [
+          823215,
+          786640,
+          786636,
+          786630,
+          786614,
+          786608
+        ]
+      }
+    },
+    {
+      "clip_id": "silence_01",
+      "bucket": "silence",
+      "language": "none",
+      "reference_text": "",
+      "audio_seconds": 3.0,
+      "pcm_sha256": "55873fecc61a79e87ca550c7072e38ccdd7ecb600ace286fe4717952a97c42b0",
+      "sources": []
+    },
+    {
+      "clip_id": "silence_02",
+      "bucket": "silence",
+      "language": "none",
+      "reference_text": "",
+      "audio_seconds": 3.0,
+      "pcm_sha256": "55873fecc61a79e87ca550c7072e38ccdd7ecb600ace286fe4717952a97c42b0",
+      "sources": []
+    },
+    {
+      "clip_id": "silence_03",
+      "bucket": "silence",
+      "language": "none",
+      "reference_text": "",
+      "audio_seconds": 3.0,
+      "pcm_sha256": "55873fecc61a79e87ca550c7072e38ccdd7ecb600ace286fe4717952a97c42b0",
+      "sources": []
+    }
+  ]
+}

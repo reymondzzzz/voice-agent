@@ -1,0 +1,108 @@
+{
+  "vprotocol_version": 1,
+  "vrecorded_date": "2026-09-01",
+  "vstatus": "initial_chromium_pilot_complete_headphone_control_deferred",
+  "vpilot_scope": {
+    "vdesktop_web_required": true,
+    "vrequired_desktop_browser_families": [
+      "chromium"
+    ],
+    "vdeferred_desktop_browser_families": [
+      "safari",
+      "firefox"
+    ],
+    "vmobile_required": false,
+    "vmobile_promotion_requires_physical_evidence": true
+  },
+  "vprivacy": {
+    "vraw_audio_stored": false,
+    "vtranscript_stored": false,
+    "vdevice_ids_stored": false,
+    "vdevice_labels_stored": false,
+    "vuser_agent_stored": false
+  },
+  "vprobe": {
+    "vattenuation_pass_threshold_db": 12,
+    "vminimum_baseline_over_background_db": 6,
+    "vnoise_suppression_requested": false,
+    "vauto_gain_control_requested": false,
+    "vphysical_runs_required_per_client": 3,
+    "vheadphone_control_required": false,
+    "vheadphone_control_deferred": true
+  },
+  "vclients": [
+    {
+      "vbrowser_family": "chromium",
+      "vbrowser_major": 151,
+      "vplatform_family": "macos",
+      "vplatform_major": 26,
+      "vinstallation": "available",
+      "vcapture_settings": "aec_toggle_and_processing_isolation_observed",
+      "vspeaker_echo": "three_valid_trials_passed",
+      "vclassification": "supported_for_initial_chromium_pilot",
+      "vphysical_evidence": {
+        "vaudio_path": "built_in_speaker_and_microphone",
+        "vvalid_trial_attenuation_db": [
+          15.324253490368786,
+          14.951753402520637,
+          17.583995545526886
+        ],
+        "vinconclusive_warmup_trials": 1,
+        "vheadphone_control": "deferred_by_pilot_scope"
+      }
+    },
+    {
+      "vbrowser_family": "safari",
+      "vbrowser_major": 26,
+      "vplatform_family": "macos",
+      "vplatform_major": 26,
+      "vinstallation": "available",
+      "vcapture_settings": "aec_toggle_observed_processing_isolation_unavailable",
+      "vspeaker_echo": "three_trials_inconclusive",
+      "vclassification": "deferred_outside_initial_pilot",
+      "vphysical_evidence": {
+        "vaudio_path": "built_in_speaker_and_microphone",
+        "vcompleted_trials": 3,
+        "vcompleted_trial_classifications": [
+          "inconclusive",
+          "inconclusive",
+          "inconclusive"
+        ],
+        "vwithout_aec_effective": false,
+        "vwith_aec_effective": true,
+        "vprocessing_isolation_observed": false,
+        "vheadphone_control": "not_run"
+      }
+    },
+    {
+      "vbrowser_family": "firefox",
+      "vbrowser_major": null,
+      "vplatform_family": "macos",
+      "vplatform_major": 26,
+      "vinstallation": "unavailable",
+      "vcapture_settings": "not_run",
+      "vspeaker_echo": "not_run",
+      "vclassification": "deferred_outside_initial_pilot"
+    },
+    {
+      "vbrowser_family": "safari",
+      "vbrowser_major": null,
+      "vplatform_family": "ios",
+      "vplatform_major": null,
+      "vinstallation": "not_in_pilot",
+      "vcapture_settings": "not_run",
+      "vspeaker_echo": "not_run",
+      "vclassification": "unverified"
+    },
+    {
+      "vbrowser_family": "chromium",
+      "vbrowser_major": null,
+      "vplatform_family": "android",
+      "vplatform_major": null,
+      "vinstallation": "not_in_pilot",
+      "vcapture_settings": "not_run",
+      "vspeaker_echo": "not_run",
+      "vclassification": "unverified"
+    }
+  ]
+}

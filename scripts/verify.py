@@ -19,8 +19,8 @@ STAGE_PUSH = "push"
 STAGE_ORDER = (STAGE_COMMIT, STAGE_PUSH)
 
 DOC_AREA_MAP = (
-    (("src/handoff.py", "src/personas.py"), "docs/HANDOFF.md"),
-    (("src/agent.py", "src/graph.py"), "docs/ARCHITECTURE.md"),
+    (("voice_agent/pipeline/",), "docs/MOVED.md"),
+    (("examples/",), "docs/EXAMPLES.md"),
 )
 DOC_SYNC_LINE_THRESHOLD = 80
 
@@ -89,7 +89,7 @@ def check_ruff() -> CheckResult:
 
 
 def check_tests() -> CheckResult:
-    return run_argv([venv_tool("pytest"), "-q", "-m", "not provider and not room"])
+    return run_argv([venv_tool("pytest"), "-q", "-m", "not integration and not provider"])
 
 
 def check_lock() -> CheckResult:
@@ -98,7 +98,7 @@ def check_lock() -> CheckResult:
 
 def check_no_cloud_endpoints() -> CheckResult:
     vhits: list[str] = []
-    vfiles = [*sorted((REPO_ROOT / "src").rglob("*.py")), REPO_ROOT / ".env.example"]
+    vfiles = [*sorted((REPO_ROOT / "examples").rglob("*.py")), *sorted((REPO_ROOT / "flexus_backend/services/voice").rglob("*.py"))]
     for vpath in vfiles:
         if not vpath.exists():
             continue

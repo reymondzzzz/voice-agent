@@ -1,0 +1,1611 @@
+{
+  "vlat_config": {
+    "vprovider_timings_are_synthetic": true,
+    "vscenario_jitter_ratio": 0.15,
+    "vscenario_name": "baseline",
+    "vscenario_seed": 7,
+    "vscenario_sessions": 10,
+    "vscenario_turn_used": false,
+    "vscenario_turns_per_session": 1,
+    "vscenario_warm_state": "warm",
+    "vstt_model": "synthetic-stt-v1",
+    "vstt_provider": "synthetic",
+    "vtts_model": "synthetic-tts-v1",
+    "vtts_provider": "synthetic",
+    "vtts_voice": "synthetic-neutral"
+  },
+  "vlat_contract_version": "1.1.0",
+  "vlat_run": {
+    "vbenchmark_id": "synthetic-baseline-seed-7",
+    "vbenchmark_source": "synthetic",
+    "vprovider_calls_executed": false
+  },
+  "vlat_schema_version": "1.0.0",
+  "vlat_summary": {
+    "vsummary_cancellations": {
+      "vcancellation_by_reason": {
+        "barge_in": 2
+      },
+      "vcancellation_count": 2
+    },
+    "vsummary_concurrency": {
+      "vconcurrency_active_sessions": 10,
+      "vconcurrency_active_turns": 10,
+      "vconcurrency_admitted_sessions": 10,
+      "vconcurrency_requested_sessions": 10,
+      "vconcurrency_stt_inflight": 10,
+      "vconcurrency_stt_limit": 10,
+      "vconcurrency_tts_inflight": 10,
+      "vconcurrency_tts_limit": 10,
+      "vconcurrency_turn_used": false,
+      "vconcurrency_worker_replicas": 1,
+      "vconcurrency_worker_session_capacity": 10
+    },
+    "vsummary_cost": {
+      "vcost_currency": "USD",
+      "vcost_total": 0.0
+    },
+    "vsummary_errors": {
+      "verror_by_code": {},
+      "verror_by_stage": {},
+      "verror_count": 0
+    },
+    "vsummary_metrics": {
+      "cancellation_to_provider_closed_ms": {
+        "vmax": 120.0,
+        "vmin": 120.0,
+        "vp50": 120.0,
+        "vp95": 120.0,
+        "vp99": 120.0,
+        "vsamples": 2
+      },
+      "cancellation_to_publish_stopped_ms": {
+        "vmax": 40.0,
+        "vmin": 40.0,
+        "vp50": 40.0,
+        "vp95": 40.0,
+        "vp99": 40.0,
+        "vsamples": 2
+      },
+      "cancellation_to_stale_queue_empty_ms": {
+        "vmax": 70.0,
+        "vmin": 70.0,
+        "vp50": 70.0,
+        "vp95": 70.0,
+        "vp99": 70.0,
+        "vsamples": 2
+      },
+      "run_duration_ms": {
+        "vmax": 1170.918961,
+        "vmin": 926.026774,
+        "vp50": 1055.868204,
+        "vp95": 1160.037142,
+        "vp99": 1168.742597,
+        "vsamples": 10
+      },
+      "speech_end_to_first_playout_ms": {
+        "vmax": 1387.079339,
+        "vmin": 1254.967728,
+        "vp50": 1346.338159,
+        "vp95": 1385.228753,
+        "vp99": 1386.709222,
+        "vsamples": 10
+      },
+      "speech_end_to_playout_complete_ms": {
+        "vmax": 2410.666764,
+        "vmin": 2121.805313,
+        "vp50": 2184.173307,
+        "vp95": 2351.950989,
+        "vp99": 2398.923609,
+        "vsamples": 8
+      },
+      "speech_end_to_stt_final_ms": {
+        "vmax": 715.295865,
+        "vmin": 608.599689,
+        "vp50": 668.518672,
+        "vp95": 713.552408,
+        "vp99": 714.947174,
+        "vsamples": 10
+      },
+      "stt_final_to_first_text_delta_ms": {
+        "vmax": 398.942283,
+        "vmin": 316.749281,
+        "vp50": 359.226213,
+        "vp95": 394.571871,
+        "vp99": 398.068201,
+        "vsamples": 10
+      },
+      "stt_final_to_run_start_ms": {
+        "vmax": 4.460061,
+        "vmin": 3.486924,
+        "vp50": 3.938493,
+        "vp95": 4.455608,
+        "vp99": 4.45917,
+        "vsamples": 10
+      },
+      "utterance_duration_ms": {
+        "vmax": 886.03243,
+        "vmin": 695.069354,
+        "vp50": 748.151513,
+        "vp95": 884.034357,
+        "vp99": 885.632815,
+        "vsamples": 10
+      }
+    },
+    "vsummary_success_count": 10,
+    "vsummary_trace_count": 10,
+    "vsummary_usage": {
+      "vusage_played_audio_seconds": 7.52,
+      "vusage_provider_requests": 20,
+      "vusage_stt_audio_seconds": 7.714157,
+      "vusage_tts_generated_audio_seconds": 9.0,
+      "vusage_tts_input_characters": 720
+    }
+  },
+  "vlat_traces": [
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 757.719864,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 990.4861,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1429.503844,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1429.503844,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1432.990768,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1796.866024,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1866.257998,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1866.257998,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2046.659528,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2095.664213,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2468.660697,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2477.283877,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2879.525177,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-000",
+        "livekit_room_sid": "synthetic-room-000",
+        "run_id": "synthetic-run-000-000",
+        "speech_id": "synthetic-speech-000-000",
+        "turn_id": "synthetic-turn-000-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-000-000",
+        "vsession_id": "synthetic-session-000",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1035.669929,
+        "speech_end_to_first_playout_ms": 1337.944349,
+        "speech_end_to_playout_complete_ms": 2121.805313,
+        "speech_end_to_stt_final_ms": 671.78398,
+        "stt_final_to_first_text_delta_ms": 367.36218,
+        "stt_final_to_run_start_ms": 3.486924,
+        "utterance_duration_ms": 757.719864
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-000-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 180.40153,
+          "vplayout_total_ms": 783.860964,
+          "vtts_first_byte_to_playout_ms": 49.004685,
+          "vtts_total_ms": 611.025879
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.757719864,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 701.771123,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 955.88362,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1417.066988,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1417.066988,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1420.61555,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1750.725358,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1841.470373,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1841.470373,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2025.633932,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2082.777759,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2477.486335,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2510.136003,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2860.355083,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-001",
+        "livekit_room_sid": "synthetic-room-001",
+        "run_id": "synthetic-run-001-000",
+        "speech_id": "synthetic-speech-001-000",
+        "turn_id": "synthetic-turn-001-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-001-000",
+        "vsession_id": "synthetic-session-001",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1056.870785,
+        "speech_end_to_first_playout_ms": 1381.006636,
+        "speech_end_to_playout_complete_ms": 2158.58396,
+        "speech_end_to_stt_final_ms": 715.295865,
+        "stt_final_to_first_text_delta_ms": 333.65837,
+        "stt_final_to_run_start_ms": 3.548562,
+        "utterance_duration_ms": 701.771123
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-001-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 184.163559,
+          "vplayout_total_ms": 777.577324,
+          "vtts_first_byte_to_playout_ms": 57.143827,
+          "vtts_total_ms": 668.66563
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.701771123,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 886.03243,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1129.621954,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1504.798095,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1504.798095,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1508.339446,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1847.655483,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1919.992916,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1919.992916,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2104.399325,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2152.485288,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2614.042018,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2625.236345,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vlat_at_ms": 3065.376294,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-002",
+        "livekit_room_sid": "synthetic-room-002",
+        "run_id": "synthetic-run-002-000",
+        "speech_id": "synthetic-speech-002-000",
+        "turn_id": "synthetic-turn-002-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-002-000",
+        "vsession_id": "synthetic-session-002",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1105.702572,
+        "speech_end_to_first_playout_ms": 1266.452858,
+        "speech_end_to_playout_complete_ms": 2179.343864,
+        "speech_end_to_stt_final_ms": 618.765665,
+        "stt_final_to_first_text_delta_ms": 342.857388,
+        "stt_final_to_run_start_ms": 3.541351,
+        "utterance_duration_ms": 886.03243
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-002-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 184.406409,
+          "vplayout_total_ms": 912.891006,
+          "vtts_first_byte_to_playout_ms": 48.085963,
+          "vtts_total_ms": 705.243429
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.88603243,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": "barge_in"
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 695.069354,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 920.718245,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1303.669043,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1303.669043,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1307.885523,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1660.065492,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-003-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1742.118977,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-003-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1742.118977,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-003-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1919.590933,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-003-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1974.006625,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2094.006625,
+          "vlat_kind": "cancellation.requested"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2134.006625,
+          "vlat_kind": "cancellation.publish_stopped"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2164.006625,
+          "vlat_kind": "cancellation.stale_queue_empty"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2214.006625,
+          "vlat_kind": "cancellation.provider_closed"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2321.036398,
+          "vlat_kind": "run.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-003",
+        "livekit_room_sid": "synthetic-room-003",
+        "run_id": "synthetic-run-003-000",
+        "speech_id": "synthetic-speech-003-000",
+        "turn_id": "synthetic-turn-003-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-003-000",
+        "vsession_id": "synthetic-session-003",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "cancellation_to_provider_closed_ms": 120.0,
+        "cancellation_to_publish_stopped_ms": 40.0,
+        "cancellation_to_stale_queue_empty_ms": 70.0,
+        "run_duration_ms": 1013.150875,
+        "speech_end_to_first_playout_ms": 1278.937271,
+        "speech_end_to_stt_final_ms": 608.599689,
+        "stt_final_to_first_text_delta_ms": 356.396449,
+        "stt_final_to_run_start_ms": 4.21648,
+        "utterance_duration_ms": 695.069354
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-003-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 177.471956,
+          "vtts_first_byte_to_playout_ms": 54.415692
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.15999999999999978,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.695069354,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 738.583163,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1004.388212,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1427.562971,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1427.562971,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1432.013136,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1816.793227,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1908.317423,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1908.317423,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2067.692975,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2121.550089,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2472.260158,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2555.411398,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2927.585913,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-004",
+        "livekit_room_sid": "synthetic-room-004",
+        "run_id": "synthetic-run-004-000",
+        "speech_id": "synthetic-speech-004-000",
+        "turn_id": "synthetic-turn-004-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-004-000",
+        "vsession_id": "synthetic-session-004",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1040.247022,
+        "speech_end_to_first_playout_ms": 1382.966926,
+        "speech_end_to_playout_complete_ms": 2189.00275,
+        "speech_end_to_stt_final_ms": 688.979808,
+        "stt_final_to_first_text_delta_ms": 389.230256,
+        "stt_final_to_run_start_ms": 4.450165,
+        "utterance_duration_ms": 738.583163
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-004-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 159.375552,
+          "vplayout_total_ms": 806.035824,
+          "vtts_first_byte_to_playout_ms": 53.857114,
+          "vtts_total_ms": 647.093975
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.738583163,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 797.351144,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1021.40931,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1462.604508,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1462.604508,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1466.921993,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1834.808795,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1910.338735,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1910.338735,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2100.884685,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2152.083113,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2613.659135,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2615.040167,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vlat_at_ms": 3040.258552,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-005",
+        "livekit_room_sid": "synthetic-room-005",
+        "run_id": "synthetic-run-005-000",
+        "speech_id": "synthetic-speech-005-000",
+        "turn_id": "synthetic-turn-005-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-005-000",
+        "vsession_id": "synthetic-session-005",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1146.737142,
+        "speech_end_to_first_playout_ms": 1354.731969,
+        "speech_end_to_playout_complete_ms": 2242.907408,
+        "speech_end_to_stt_final_ms": 665.253364,
+        "stt_final_to_first_text_delta_ms": 372.204287,
+        "stt_final_to_run_start_ms": 4.317485,
+        "utterance_duration_ms": 797.351144
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-005-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 190.54595,
+          "vplayout_total_ms": 888.175439,
+          "vtts_first_byte_to_playout_ms": 51.198428,
+          "vtts_total_ms": 704.701432
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.797351144,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 881.592267,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1176.277392,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1593.013783,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1593.013783,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1597.210766,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1909.763064,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1993.294157,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1993.294157,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2199.921338,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2246.690271,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2652.076388,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2748.210056,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vlat_at_ms": 3115.85396,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-006",
+        "livekit_room_sid": "synthetic-room-006",
+        "run_id": "synthetic-run-006-000",
+        "speech_id": "synthetic-speech-006-000",
+        "turn_id": "synthetic-turn-006-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-006-000",
+        "vsession_id": "synthetic-session-006",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1054.865622,
+        "speech_end_to_first_playout_ms": 1365.098004,
+        "speech_end_to_playout_complete_ms": 2234.261693,
+        "speech_end_to_stt_final_ms": 711.421516,
+        "stt_final_to_first_text_delta_ms": 316.749281,
+        "stt_final_to_run_start_ms": 4.196983,
+        "utterance_duration_ms": 881.592267
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-006-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 206.627181,
+          "vplayout_total_ms": 869.163689,
+          "vtts_first_byte_to_playout_ms": 46.768933,
+          "vtts_total_ms": 754.915899
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.881592267,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": "barge_in"
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 840.476652,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1063.23656,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1478.410166,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1478.410166,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1482.011824,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1800.65817,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-007-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1887.095762,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-007-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1887.095762,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-007-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2047.080134,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-007-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2095.44438,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2215.44438,
+          "vlat_kind": "cancellation.requested"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2255.44438,
+          "vlat_kind": "cancellation.publish_stopped"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2285.44438,
+          "vlat_kind": "cancellation.stale_queue_empty"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2335.44438,
+          "vlat_kind": "cancellation.provider_closed"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2408.038598,
+          "vlat_kind": "run.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-007",
+        "livekit_room_sid": "synthetic-room-007",
+        "run_id": "synthetic-run-007-000",
+        "speech_id": "synthetic-speech-007-000",
+        "turn_id": "synthetic-turn-007-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-007-000",
+        "vsession_id": "synthetic-session-007",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "cancellation_to_provider_closed_ms": 120.0,
+        "cancellation_to_publish_stopped_ms": 40.0,
+        "cancellation_to_stale_queue_empty_ms": 70.0,
+        "run_duration_ms": 926.026774,
+        "speech_end_to_first_playout_ms": 1254.967728,
+        "speech_end_to_stt_final_ms": 637.933514,
+        "stt_final_to_first_text_delta_ms": 322.248004,
+        "stt_final_to_run_start_ms": 3.601658,
+        "utterance_duration_ms": 840.476652
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-007-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 159.984372,
+          "vtts_first_byte_to_playout_ms": 48.364246
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.16,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.840476652,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 699.339512,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 955.376129,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1381.605558,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1381.605558,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1386.065619,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1780.547841,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1855.229947,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1855.229947,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2030.655959,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2086.418851,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2509.471634,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2556.98458,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vlat_at_ms": 3110.006276,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-008",
+        "livekit_room_sid": "synthetic-room-008",
+        "run_id": "synthetic-run-008-000",
+        "speech_id": "synthetic-speech-008-000",
+        "turn_id": "synthetic-turn-008-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-008-000",
+        "vsession_id": "synthetic-session-008",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1170.918961,
+        "speech_end_to_first_playout_ms": 1387.079339,
+        "speech_end_to_playout_complete_ms": 2410.666764,
+        "speech_end_to_stt_final_ms": 682.266046,
+        "stt_final_to_first_text_delta_ms": 398.942283,
+        "stt_final_to_run_start_ms": 4.460061,
+        "utterance_duration_ms": 699.339512
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-008-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 175.426012,
+          "vplayout_total_ms": 1023.587425,
+          "vtts_first_byte_to_playout_ms": 55.762892,
+          "vtts_total_ms": 654.241687
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.699339512,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    },
+    {
+      "vlat_cancellation": {
+        "vcancel_reason": null
+      },
+      "vlat_concurrency": {
+        "vconcurrency_active_sessions": 10,
+        "vconcurrency_active_turns": 10,
+        "vconcurrency_admitted_sessions": 10,
+        "vconcurrency_requested_sessions": 10,
+        "vconcurrency_stt_inflight": 10,
+        "vconcurrency_stt_limit": 10,
+        "vconcurrency_tts_inflight": 10,
+        "vconcurrency_tts_limit": 10,
+        "vconcurrency_turn_used": false,
+        "vconcurrency_worker_replicas": 1,
+        "vconcurrency_worker_session_capacity": 10
+      },
+      "vlat_errors": [],
+      "vlat_events": [
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 0.0,
+          "vlat_kind": "utterance.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 716.221017,
+          "vlat_kind": "utterance.speech_end"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 950.966,
+          "vlat_kind": "stt.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1337.192565,
+          "vlat_kind": "stt.final"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1337.192565,
+          "vlat_kind": "run.queued"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1340.872568,
+          "vlat_kind": "run.started"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 1699.248543,
+          "vlat_kind": "run.first_text_delta"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1773.554462,
+          "vlat_kind": "phrase.ready"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1773.554462,
+          "vlat_kind": "tts.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1926.775517,
+          "vlat_kind": "tts.first_byte"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 1974.814321,
+          "vlat_kind": "playout.started"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2414.617492,
+          "vlat_kind": "tts.completed"
+        },
+        {
+          "provider_generation_id": null,
+          "segment_index": null,
+          "vlat_at_ms": 2417.964479,
+          "vlat_kind": "run.completed"
+        },
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vlat_at_ms": 2892.726451,
+          "vlat_kind": "playout.completed"
+        }
+      ],
+      "vlat_identity": {
+        "agent_id": "synthetic-agent",
+        "conversation_id": "synthetic-conversation-009",
+        "livekit_room_sid": "synthetic-room-009",
+        "run_id": "synthetic-run-009-000",
+        "speech_id": "synthetic-speech-009-000",
+        "turn_id": "synthetic-turn-009-000",
+        "vleg_seq": 0,
+        "voice_utterance_id": "synthetic-utterance-009-000",
+        "vsession_id": "synthetic-session-009",
+        "workspace_id": "synthetic-workspace"
+      },
+      "vlat_metrics": {
+        "run_duration_ms": 1077.091911,
+        "speech_end_to_first_playout_ms": 1258.593304,
+        "speech_end_to_playout_complete_ms": 2176.505434,
+        "speech_end_to_stt_final_ms": 620.971548,
+        "stt_final_to_first_text_delta_ms": 362.055978,
+        "stt_final_to_run_start_ms": 3.680003,
+        "utterance_duration_ms": 716.221017
+      },
+      "vlat_phrase_metrics": [
+        {
+          "provider_generation_id": "synthetic-generation-009-000",
+          "segment_index": 0,
+          "vphrase_ready_to_tts_first_byte_ms": 153.221055,
+          "vplayout_total_ms": 917.91213,
+          "vtts_first_byte_to_playout_ms": 48.038804,
+          "vtts_total_ms": 641.06303
+        }
+      ],
+      "vlat_usage": {
+        "vusage_cost_usd": 0.0,
+        "vusage_played_audio_seconds": 0.9,
+        "vusage_provider_requests": 2,
+        "vusage_stt_audio_seconds": 0.716221017,
+        "vusage_tts_generated_audio_seconds": 0.9,
+        "vusage_tts_input_characters": 72
+      }
+    }
+  ]
+}

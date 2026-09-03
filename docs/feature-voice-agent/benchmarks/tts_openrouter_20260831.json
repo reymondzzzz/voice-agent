@@ -1,0 +1,504 @@
+{
+  "cancellation": [
+    {
+      "bytes_before_cancel": 4088,
+      "cancel_reason": "barge_in",
+      "cancel_to_closed_ms": 9.179124957881868,
+      "candidate": "boss",
+      "chunks_before_cancel": 1,
+      "first_byte_ms": 865.0573330232874,
+      "generation_id": "gen-tts-1788130684-dXBmvYKKmD6dfddQlzRJ",
+      "max_chunk_bytes": 9600,
+      "status": "cancelled",
+      "stream_completed": false,
+      "usage": null,
+      "usage_error_code": "openrouter_tts_http_404",
+      "voice": "am_adam"
+    },
+    {
+      "bytes_before_cancel": 1384,
+      "cancel_reason": "barge_in",
+      "cancel_to_closed_ms": 5.4058750392869115,
+      "candidate": "sidra",
+      "chunks_before_cancel": 1,
+      "first_byte_ms": 1815.4099999228492,
+      "generation_id": "gen-tts-1788130694-ykhn9A7wUf5BYF3QFS3Y",
+      "max_chunk_bytes": 9600,
+      "status": "cancelled",
+      "stream_completed": false,
+      "usage": null,
+      "usage_error_code": "openrouter_tts_http_404",
+      "voice": "af_heart"
+    }
+  ],
+  "candidates": {
+    "boss": "am_adam",
+    "sidra": "af_heart"
+  },
+  "config": {
+    "customer_audio_used": false,
+    "input_characters_per_request": 116,
+    "raw_audio_persisted": false,
+    "request_count": 12,
+    "sequential_requests": true,
+    "trials_per_voice": 5
+  },
+  "contract_version": "1.0.0",
+  "cost": {
+    "currency": "USD",
+    "estimated_max_usd": 0.00086304,
+    "price_per_character_usd": 6.2e-07,
+    "provider_reported_records": 10,
+    "provider_reported_total_usd": 0.0007192
+  },
+  "endpoint": "https://openrouter.ai/api/v1/audio/speech",
+  "errors": [],
+  "generated_at": "2026-08-30T22:58:28.346929+00:00",
+  "git_commit": "b7f5c813ec4277b2f0ff6f249309d805799d0fb7",
+  "model": "hexgrad/kokoro-82m",
+  "pcm": {
+    "channels": 1,
+    "contract_evidence": {
+      "kokoro_reference_implementation": "https://github.com/hexgrad/kokoro/blob/main/kokoro/__main__.py",
+      "openai_pcm_format": "https://developers.openai.com/api/docs/guides/text-to-speech#supported-output-formats",
+      "openrouter_api": "https://openrouter.ai/docs/guides/overview/multimodal/tts"
+    },
+    "encoding": "pcm_s16le",
+    "layout_validation_source": "openai_audio_speech_pcm_contract",
+    "max_yielded_chunk_bytes": 9600,
+    "provider_response_declared_fields": [
+      "channels",
+      "sample_rate_hz"
+    ],
+    "sample_rate_hz": 24000,
+    "sample_width_bytes": 2
+  },
+  "provider": "openrouter",
+  "response_format": "pcm",
+  "runs": [
+    {
+      "audio_duration_seconds": 7.525,
+      "candidate": "boss",
+      "chunk_count": 116,
+      "complete_ms": 4865.482459077612,
+      "first_byte_ms": 3915.8975000027567,
+      "first_chunk_bytes": 26,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130674-iSq74sj3fQwW6XuaLw2X",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 361200,
+      "trial": 1,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "am_adam"
+    },
+    {
+      "audio_duration_seconds": 7.525,
+      "candidate": "boss",
+      "chunk_count": 62,
+      "complete_ms": 1426.9016250036657,
+      "first_byte_ms": 776.9102080492303,
+      "first_chunk_bytes": 6848,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130678-wnhMQMN6Ns87sedkYWsE",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 361200,
+      "trial": 2,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "am_adam"
+    },
+    {
+      "audio_duration_seconds": 7.525,
+      "candidate": "boss",
+      "chunk_count": 73,
+      "complete_ms": 1679.4924590503797,
+      "first_byte_ms": 991.8865420622751,
+      "first_chunk_bytes": 1360,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130680-L1qpSlZY9tC5OlD9Be2G",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 361200,
+      "trial": 3,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "am_adam"
+    },
+    {
+      "audio_duration_seconds": 7.525,
+      "candidate": "boss",
+      "chunk_count": 72,
+      "complete_ms": 1659.1720411088318,
+      "first_byte_ms": 1087.6409161137417,
+      "first_chunk_bytes": 1384,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130681-TZeSiHBWP0LbpAwqlV7I",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 361200,
+      "trial": 4,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "am_adam"
+    },
+    {
+      "audio_duration_seconds": 7.525,
+      "candidate": "boss",
+      "chunk_count": 74,
+      "complete_ms": 1274.2572909919545,
+      "first_byte_ms": 1052.659415989183,
+      "first_chunk_bytes": 26,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130683-M2yyuboT3uvBvF7Fhveo",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 361200,
+      "trial": 5,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "am_adam"
+    },
+    {
+      "audio_duration_seconds": 7.4,
+      "candidate": "sidra",
+      "chunk_count": 109,
+      "complete_ms": 2049.953499925323,
+      "first_byte_ms": 1054.0854159044102,
+      "first_chunk_bytes": 26,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130685-iI4CiD6BP9Ij0oEERcFV",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 355200,
+      "trial": 1,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "af_heart"
+    },
+    {
+      "audio_duration_seconds": 7.4,
+      "candidate": "sidra",
+      "chunk_count": 55,
+      "complete_ms": 2026.4948329422623,
+      "first_byte_ms": 1292.3492499394342,
+      "first_chunk_bytes": 8186,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130687-hQdcAGAee2d2AoarCXRd",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 355200,
+      "trial": 2,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "af_heart"
+    },
+    {
+      "audio_duration_seconds": 7.4,
+      "candidate": "sidra",
+      "chunk_count": 58,
+      "complete_ms": 1607.8646670794114,
+      "first_byte_ms": 915.4797090450302,
+      "first_chunk_bytes": 9600,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130689-0BK5viLZgQbFWtDCtYZW",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 355200,
+      "trial": 3,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "af_heart"
+    },
+    {
+      "audio_duration_seconds": 7.4,
+      "candidate": "sidra",
+      "chunk_count": 60,
+      "complete_ms": 1966.2167499773204,
+      "first_byte_ms": 1116.2358749425039,
+      "first_chunk_bytes": 26,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130691-NOeJr2uZm3DDjDB6lpwc",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 355200,
+      "trial": 4,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "af_heart"
+    },
+    {
+      "audio_duration_seconds": 7.4,
+      "candidate": "sidra",
+      "chunk_count": 64,
+      "complete_ms": 1107.0481250062585,
+      "first_byte_ms": 424.59095804952085,
+      "first_chunk_bytes": 9600,
+      "first_chunk_yielded_before_stream_completion": true,
+      "generation_id": "gen-tts-1788130693-18fqpl2rOD7TLJxfYVvm",
+      "max_chunk_bytes": 9600,
+      "pcm_layout": {
+        "channels": 1,
+        "encoding": "pcm_s16le",
+        "response_declared_fields": [
+          "sample_rate_hz",
+          "channels"
+        ],
+        "sample_rate_hz": 24000,
+        "sample_width_bytes": 2,
+        "validation_source": "openai_audio_speech_pcm_contract"
+      },
+      "status": "ok",
+      "total_pcm_bytes": 355200,
+      "trial": 5,
+      "usage": {
+        "cancelled": false,
+        "native_input_units": 29,
+        "provider_name": "DeepInfra",
+        "total_cost_usd": 7.192e-05
+      },
+      "usage_error_code": null,
+      "voice": "af_heart"
+    }
+  ],
+  "schema_version": "voice-tts-benchmark.v2",
+  "summary": {
+    "boss": {
+      "errors": 0,
+      "metrics": {
+        "audio_duration_seconds": {
+          "max": 7.525,
+          "min": 7.525,
+          "p50": 7.525,
+          "p95": 7.525,
+          "p99": 7.525
+        },
+        "chunk_count": {
+          "max": 116.0,
+          "min": 62.0,
+          "p50": 73.0,
+          "p95": 107.6,
+          "p99": 114.32000000000001
+        },
+        "complete_ms": {
+          "max": 4865.482459077612,
+          "min": 1274.2572909919545,
+          "p50": 1659.1720411088318,
+          "p95": 4228.284459072164,
+          "p99": 4738.042859076522
+        },
+        "first_byte_ms": {
+          "max": 3915.8975000027567,
+          "min": 776.9102080492303,
+          "p50": 1052.659415989183,
+          "p95": 3350.246183224953,
+          "p99": 3802.767236647196
+        },
+        "total_pcm_bytes": {
+          "max": 361200.0,
+          "min": 361200.0,
+          "p50": 361200.0,
+          "p95": 361200.0,
+          "p99": 361200.0
+        }
+      },
+      "runs": 5,
+      "successes": 5,
+      "voice": "am_adam"
+    },
+    "sidra": {
+      "errors": 0,
+      "metrics": {
+        "audio_duration_seconds": {
+          "max": 7.4,
+          "min": 7.4,
+          "p50": 7.4,
+          "p95": 7.4,
+          "p99": 7.4
+        },
+        "chunk_count": {
+          "max": 109.0,
+          "min": 55.0,
+          "p50": 60.0,
+          "p95": 99.99999999999999,
+          "p99": 107.2
+        },
+        "complete_ms": {
+          "max": 2049.953499925323,
+          "min": 1107.0481250062585,
+          "p50": 1966.2167499773204,
+          "p95": 2045.2617665287107,
+          "p99": 2049.0151532460004
+        },
+        "first_byte_ms": {
+          "max": 1292.3492499394342,
+          "min": 424.59095804952085,
+          "p50": 1054.0854159044102,
+          "p95": 1257.1265749400482,
+          "p99": 1285.304714939557
+        },
+        "total_pcm_bytes": {
+          "max": 355200.0,
+          "min": 355200.0,
+          "p50": 355200.0,
+          "p95": 355200.0,
+          "p99": 355200.0
+        }
+      },
+      "runs": 5,
+      "successes": 5,
+      "voice": "af_heart"
+    }
+  },
+  "usage": {
+    "generation_records_missing": 2,
+    "generation_records_retrieved": 10,
+    "input_characters": 1392
+  }
+}

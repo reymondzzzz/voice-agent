@@ -1,0 +1,61 @@
+name: flexus-voice-local
+
+services:
+  livekit_redis:
+    image: redis:7.4.11-alpine
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 5s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+    restart: unless-stopped
+    networks:
+      - livekit_internal
+
+  livekit_server:
+    image: livekit/livekit-server:v1.13.6
+    command:
+      - --config
+      - /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${FLEXUS_VOICE_LIVEKIT_API_KEY:?set FLEXUS_VOICE_LIVEKIT_API_KEY}: ${FLEXUS_VOICE_LIVEKIT_API_SECRET:?set FLEXUS_VOICE_LIVEKIT_API_SECRET}"
+    volumes:
+      - ./dockerfiles/livekit.dev.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "127.0.0.1:7880:7880/tcp"
+      - "127.0.0.1:7881:7881/tcp"
+      - "127.0.0.1:7882:7882/udp"
+      - "127.0.0.1:3478:3478/udp"
+      - "127.0.0.1:30000-30010:30000-30010/udp"
+      - "127.0.0.1:6789:6789/tcp"
+    depends_on:
+      livekit_redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1:7880/
+      interval: 5s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - livekit_internal
+
+networks:
+  livekit_internal:
+    driver: bridge
