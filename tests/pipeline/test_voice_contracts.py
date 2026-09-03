@@ -3,8 +3,7 @@ import re
 
 import pytest
 
-from flexus_backend.services import workspace_stt
-from voice_agent.pipeline import voice_contracts
+from voice_agent.pipeline import voice_contracts, voice_stt
 
 REPO_ROOT = pathlib.Path(voice_contracts.__file__).resolve().parents[2]
 ROOM_IO_VALUES_WERE_READ_FROM = "livekit-agents==1.7.1"
@@ -63,7 +62,6 @@ def test_non_signal_livekit_urls_are_rejected(vlk_url):
 def test_openrouter_audio_endpoints_are_the_documented_ones():
     assert voice_contracts.OPENROUTER_STT_ENDPOINT == "https://openrouter.ai/api/v1/audio/transcriptions"
     assert voice_contracts.OPENROUTER_TTS_ENDPOINT == "https://openrouter.ai/api/v1/audio/speech"
-    assert voice_contracts.OPENROUTER_STT_ENDPOINT == workspace_stt.OPENROUTER_STT_ENDPOINT
 
 
 def test_tts_is_requested_as_incrementally_consumable_pcm():
@@ -73,9 +71,9 @@ def test_tts_is_requested_as_incrementally_consumable_pcm():
 
 
 def test_stt_request_shape_matches_the_existing_openrouter_caller():
-    workspace_stt_source = pathlib.Path(workspace_stt.__file__).read_text(encoding="utf-8")
+    voice_stt_source = pathlib.Path(voice_stt.__file__).read_text(encoding="utf-8")
     for field in voice_contracts.OPENROUTER_STT_REQUEST_FIELDS[:2]:
-        assert '"%s"' % field in workspace_stt_source
+        assert '"%s"' % field in voice_stt_source
     assert voice_contracts.OPENROUTER_STT_PROMPT_VOCABULARY_SUPPORTED is False
 
 

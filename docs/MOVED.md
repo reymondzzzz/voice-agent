@@ -11,7 +11,6 @@ The branch stays upstream: keep changes here small enough to read as a diff agai
 | --- | ---: | ---: | --- |
 | `voice_agent/pipeline/**` | 28 | 7,071 | The pipeline: contracts, OpenRouter TTS/STT, PCM resampling, output/stream queues, speech segmentation, interruption policy, actor lease, latency tracing, benchmarks. |
 | `flexus_backend/{hallucitron,flexus_utils}/**` | 5 | — | Only what the pipeline imports: `openrouter_shared`, `hallu_structs`, `asyncio_task_logging`. |
-| `flexus_backend/services/{workspace_stt,migration_provider_types}.py` | 2 | 194 | Needed by `test_voice_contracts.py`, which cross-checks the STT endpoint constant. |
 | `tests/pipeline/**` | 24 | — | The moved tests, unchanged but for the one file below. |
 | `flexus_frontend/src/features/voice/**` + `components/ui/voice-orb.tsx`, `voiceOrbShader.ts` | 36 | 2,912 | The voice page and the procedural shader orb. |
 | `docs/voice-agent/`, `docs/feature-voice-agent/` | 57 | 2,837 | Implementation plan, backlog, provider contracts, benchmark results, 28 dev-log iterations. |
@@ -19,10 +18,15 @@ The branch stays upstream: keep changes here small enough to read as a diff agai
 
 520 tests pass offline: `uv run pytest -q -m "not integration and not provider"`.
 
+There is no PostgreSQL and no cocoindex anywhere in this repo — not in the code, the dependencies,
+or the compose stack. Redis stays: `voice_actor_lease` holds a per-call actor lease in it, and
+`compose.voice.yml` runs one for LiveKit. Its tests drive a `_FakeRedis`, so they need no live
+server and run in the unit tier; nothing is marked `integration` today.
+
 ## The one modified file
 
-`tests/pipeline/test_voice_contracts.py` — two tests asserted flexus's
-packaging, which does not exist here:
+`tests/pipeline/test_voice_contracts.py` — three assertions reached outside
+this repo:
 
 - `test_setup_py_voice_extra_matches_the_pinned_python_sdks` → rewritten as
   `test_pyproject_pins_match_the_declared_python_sdks`, checking the same
@@ -30,10 +34,35 @@ packaging, which does not exist here:
   extras markers. Same intent, same coverage.
 - `test_voice_extra_is_absent_from_the_ci_lock_command` → deleted. It read `requirements-ci.lock`,
   which this repo does not have; `uv.lock` is the equivalent and has no extras command to assert.
+- `test_stt_request_shape_matches_the_existing_openrouter_caller` → retargeted from
+  `services/workspace_stt.py` to the moved `voice_stt.py`, which is the OpenRouter caller here. The
+  endpoint cross-check against `workspace_stt` in
+  `test_openrouter_audio_endpoints_are_the_documented_ones` was dropped; the two literal endpoint
+  assertions beside it still cover the constant.
+
+`services/workspace_stt.py` and `services/migration_provider_types.py` were moved for those two
+assertions and then removed: they are flexus workspace and provider-migration code, not voice.
+`mutagen` went with them.
 
 `.env.example` is generated from `voice_contracts.VOICE_ENV_VARS` rather than copied from
 `.env.voice.example`, because `test_every_declared_env_var_appears_in_env_example` reads
 `.env.example` and the declared set includes vars the branch's voice example omitted.
+
+## Known stale in the moved code
+
+`test_openrouter_tts_provider.py` fails against the live API with `openrouter_tts_http_400`. It is
+parameterized over the kokoro voice ids `am_adam` and `af_heart` from the example profiles in
+`docs/voice-agent/implementation_plan.md`, but `voice_contracts.VOICE_DEFAULT_TTS_MODEL` is
+`fish-audio/s2.1-pro`, which accepts only `alloy`. The test is cost-gated behind
+`FLEXUS_PROVIDER_TESTS=1` and marked `provider`, so it never runs in the commit gate and this was
+invisible on the branch. It is left untouched here rather than edited, because deciding between
+pinning kokoro for that test and reparameterizing it on `alloy` belongs upstream.
+
+Reproduce with:
+
+```bash
+FLEXUS_PROVIDER_TESTS=1 uv run pytest -q -m provider
+```
 
 ## Not moved, and why
 
