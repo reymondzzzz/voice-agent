@@ -114,27 +114,27 @@
 <body>
 <header>
   <div class="brand">voice-agent <span>&mdash; boss, alice, bob</span></div>
-  <div id="status" class="pill" data-state="idle">idle</div>
+  <div id="status" class="pill" role="status" aria-live="polite" data-state="idle">idle</div>
 </header>
 
-<div id="banner" hidden></div>
+<div id="banner" role="alert" aria-live="assertive" hidden></div>
 
 <main>
   <section class="stage">
     <canvas id="orb" width="520" height="520" aria-hidden="true"></canvas>
     <div class="active">
-      <div class="active-name" id="activeName">Boss</div>
+      <div class="active-name" id="activeName" aria-live="polite">Boss</div>
       <div class="active-role" id="activeRole">answers first and routes the call</div>
     </div>
   </section>
 
   <aside class="panel">
-    <ul class="roster" id="roster">
+    <ul class="roster" id="roster" aria-label="Agents on the call">
       <li data-agent="boss" data-active="true"><i class="dot"></i><span class="who">Boss</span><span class="what">routes</span></li>
       <li data-agent="alice" data-active="false"><i class="dot"></i><span class="who">Alice</span><span class="what">weather</span></li>
       <li data-agent="bob" data-active="false"><i class="dot"></i><span class="who">Bob</span><span class="what">time</span></li>
     </ul>
-    <div class="transcript" id="transcript"></div>
+    <div class="transcript" id="transcript" role="log" aria-live="polite" aria-label="Call transcript"></div>
   </aside>
 </main>
 
@@ -143,6 +143,6 @@
   <button id="mute" disabled>Mute</button>
 </footer>
 
-<script type="module" src="/static/app.js"></script>
+<script type="module" src="/static/app.js?v=2"></script>
 </body>
 </html>

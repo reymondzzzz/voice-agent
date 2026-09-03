@@ -53,7 +53,9 @@ function setActiveAgent(vagentId, vagentName) {
   vui.activeName.textContent = vagentName || vid
   vui.activeRole.textContent = AGENT_ROLES[vid]
   for (const vitem of vui.roster.children) {
-    vitem.dataset.active = String(vitem.dataset.agent === vid)
+    const vactive = vitem.dataset.agent === vid
+    vitem.dataset.active = String(vactive)
+    vitem.setAttribute("aria-current", vactive ? "true" : "false")
   }
 }
 
@@ -175,6 +177,7 @@ async function connect() {
   }
 
   clearBanner()
+  vui.transcript.replaceChildren()
   vui.connect.disabled = true
   setStatus("connecting", "connecting")
 
