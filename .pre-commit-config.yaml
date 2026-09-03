@@ -1,0 +1,22 @@
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: verify-commit
+        name: verify (commit stage)
+        entry: bash -c 'PY=.venv/bin/python; [ -x "$PY" ] || PY=python3; "$PY" scripts/verify.py --stage commit'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+        verbose: true
+
+      - id: verify-push
+        name: verify (push stage, everything)
+        entry: bash -c 'PY=.venv/bin/python; [ -x "$PY" ] || PY=python3; "$PY" scripts/verify.py --stage push'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true
