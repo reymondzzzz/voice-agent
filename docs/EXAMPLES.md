@@ -150,6 +150,58 @@ audio. LiveKit's false-interruption resume covers that case, and the log shows i
 `voice_session_runtime`, `voice_livekit_pcm_sink` and `latency_trace` remain unwired too: they
 belong to the flexus worker that was not moved, and `AgentSession` provides its own equivalents.
 
+## The orb
+
+`examples/web/orb.js` renders a procedural WebGL orb — no CSS gradients, blurred divs or scale
+pulses. The GLSL is flexus's own `voiceOrbShader.ts` (simplex noise, FBM, domain warping, fresnel
+rim, iridescence, tone mapping) with the lighting reworked; the flexus original stays untouched at
+`flexus_frontend/src/components/ui/voiceOrbShader.ts` if you want to diff.
+
+Three bugs had to be fixed before it looked like anything:
+
+- `halo = exp(-3.6 * max(r - radius, 0.0) / …)` evaluates to **1 everywhere inside the body**, and
+  `outc = col * body + haloCol` then floods the whole interior with flat rim colour. Multiplying
+  the halo by `(1.0 - body)` is what turned a khaki disc into a translucent bead.
+- `flow = 0.5 + 0.5 * h` was unclamped while `h` regularly exceeds 1, so `pow(flow, n)` blew up
+  into a uniform wash. It is clamped now.
+- `uIntensity` scaled brightness *and* silhouette deformation (`0.075 * h * uIntensity`), so
+  brightening the orb turned it into a potato. Deformation now has its own budget and follows a
+  low-frequency field (`field(p * 0.30)`) plus bass, so loud audio swells it roundly instead of
+  growing fur along the rim.
+
+Measured while iterating: the interior read 78–94 flat across the body before these fixes, against
+181 at the rim.
+
+### States
+
+Each state interpolates its parameters with a half-life rather than restarting, so transitions are
+continuous and interruptible — verified: glow moves 0.850 → 0.867 in one frame toward a 1.300
+target rather than snapping.
+
+| State | Motion language |
+| --- | --- |
+| `idle` | slow breathing, low deformation, amplitude floor so it never dies |
+| `listening` | responsive surface, brighter rim, full audio gain |
+| `thinking` | larger softer features (low noise scale), deep warp, slow clock, internal swirl |
+| `speaking` | strongest reaction, widest halo, agent audio drives it |
+| `error` | dark red, calm, no audio reaction |
+| `permissionDenied` | amber-grey, dimmer still, distinct from `error` |
+
+`GET /static/orb-states.html` renders all six side by side with synthetic audio — the fastest way
+to review the family after a change. `window.voiceOrb` exposes the live instance for probing.
+
+### Audio and performance
+
+Bands come from the moved `voiceAudioLevel` port: amplitude drives deformation and glow, bass the
+large slow swell, mid the interior light, treble fine shimmer. Nothing updates page state per
+frame; everything lives in shader uniforms and mutable render-loop values, and the parameter key
+list is hoisted so `render()` allocates nothing.
+
+Measured at 1440×900: **120 FPS mean, 8.30 ms median, 10.20 ms p95**. Device pixel ratio is capped
+at 2 (1.5 under 760px wide), rendering stops on `visibilitychange`, WebGL context loss is caught
+and the program rebuilt on restore, and `prefers-reduced-motion` slows the shader clock to ~11% of
+normal rather than freezing it. `pagehide` disposes the program, buffer and audio meter.
+
 ## Verified and not
 
 Verified: 520 offline tests pass, both provider endpoints round-trip live (`fish-audio/s2.1-pro`
@@ -157,5 +209,8 @@ speech transcribed back correctly by `openai/gpt-4o-mini-transcribe` after downs
 LiveKit dev keys authenticate against the local server, and `google/gemini-2.5-flash` answers over
 OpenRouter.
 
-Not verified: a full spoken call through `console` or `dev`. Nobody has run one from this repo yet.
-The first person to should record what happened here, including anything that broke.
+The orb was verified live during a real call: state derived as `listening`, real bands flowing
+(bass 0.96, amplitude 0.178), no console errors, and the transcript populated.
+
+Not verified: `console` mode, and the orb on a real mobile GPU — it was checked at a 390px
+viewport on desktop hardware, not on a phone.

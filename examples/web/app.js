@@ -4,7 +4,8 @@ import {
   Track,
   createLocalAudioTrack,
 } from "https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.esm.mjs"
-import { SILENT_VOICE_LEVELS, VoiceLevelMeter } from "/static/audioLevel.js"
+import { SILENT_VOICE_LEVELS, VoiceLevelMeter } from "/static/audioLevel.js?v=2"
+import { VoiceOrb } from "/static/orb.js?v=16"
 
 const AGENT_ROLES = {
   boss: "answers first and routes the call",
@@ -49,6 +50,7 @@ function clearBanner() {
 
 function setActiveAgent(vagentId, vagentName) {
   const vid = AGENT_ROLES[vagentId] ? vagentId : "boss"
+  vorb.setAgent(vid)
   document.documentElement.style.setProperty("--agent", `var(--${vid})`)
   vui.activeName.textContent = vagentName || vid
   vui.activeRole.textContent = AGENT_ROLES[vid]
@@ -81,61 +83,68 @@ function captureUnsupportedReason() {
   return ""
 }
 
-function orbColor() {
-  const vname = getComputedStyle(document.documentElement).getPropertyValue("--agent").trim()
-  const vresolved = vname.startsWith("var(")
-    ? getComputedStyle(document.documentElement).getPropertyValue(vname.slice(4, -1)).trim()
-    : vname
-  return vresolved || "#f0a742"
+const SPEECH_LEVEL = 0.06
+const THINKING_WINDOW_MS = 6000
+const MAX_FRAME_SECONDS = 0.1
+
+const vorb = new VoiceOrb(vui.orb)
+let vfaultState = ""
+let vlastUserSpeechMs = 0
+let vlastFrameMs = performance.now()
+let vframeHandle = 0
+
+function orbState() {
+  if (vfaultState) {
+    return vfaultState
+  }
+  if (!vroom) {
+    return "idle"
+  }
+  if (vlevels.vagent.vamplitude > SPEECH_LEVEL) {
+    return "speaking"
+  }
+  if (vlevels.vuser.vamplitude > SPEECH_LEVEL) {
+    vlastUserSpeechMs = performance.now()
+    return "listening"
+  }
+  return performance.now() - vlastUserSpeechMs < THINKING_WINDOW_MS ? "thinking" : "listening"
 }
 
-function drawOrb(vtime) {
-  const vcanvas = vui.orb
-  const vctx = vcanvas.getContext("2d")
-  const vsize = vcanvas.width
-  const vcentre = vsize / 2
-  vctx.clearRect(0, 0, vsize, vsize)
+function orbLevels() {
+  const vstate = vorb.vstate
+  if (vstate === "speaking") {
+    return vlevels.vagent
+  }
+  return vstate === "listening" ? vlevels.vuser : SILENT_VOICE_LEVELS.vuser
+}
 
-  const vbands = vlevels.vagent.vamplitude > vlevels.vuser.vamplitude ? vlevels.vagent : vlevels.vuser
-  const vcolor = orbColor()
-  const vcore = vsize * 0.17 * (1 + vbands.vamplitude * 0.28)
-
-  const vglow = vctx.createRadialGradient(vcentre, vcentre, vcore * 0.2, vcentre, vcentre, vcore * 2.6)
-  vglow.addColorStop(0, `${vcolor}cc`)
-  vglow.addColorStop(0.45, `${vcolor}33`)
-  vglow.addColorStop(1, `${vcolor}00`)
-  vctx.fillStyle = vglow
-  vctx.beginPath()
-  vctx.arc(vcentre, vcentre, vcore * 2.6, 0, Math.PI * 2)
-  vctx.fill()
-
-  vctx.fillStyle = vcolor
-  vctx.beginPath()
-  vctx.arc(vcentre, vcentre, vcore, 0, Math.PI * 2)
-  vctx.fill()
-
-  const vrings = [
-    [vbands.vbass, 1.55, 5],
-    [vbands.vmid, 1.95, 3],
-    [vbands.vtreble, 2.35, 1.5],
-  ]
-  vrings.forEach(([venergy, vscale, vwidth], vindex) => {
-    const vradius = vcore * vscale + venergy * vsize * 0.045
-    const vspin = vtime / (2600 + vindex * 900)
-    vctx.strokeStyle = vcolor
-    vctx.globalAlpha = 0.12 + venergy * 0.62
-    vctx.lineWidth = vwidth
-    vctx.beginPath()
-    vctx.arc(vcentre, vcentre, vradius, vspin, vspin + Math.PI * 1.35)
-    vctx.stroke()
-  })
-  vctx.globalAlpha = 1
+function resizeOrb() {
+  const vsize = vui.orb.getBoundingClientRect().width
+  const vbudget = window.innerWidth < 760 ? 1.5 : 2
+  vorb.resize(vsize, Math.min(window.devicePixelRatio || 1, vbudget))
 }
 
 function tick(vtime) {
+  const vdeltaSeconds = Math.min((vtime - vlastFrameMs) / 1000, MAX_FRAME_SECONDS)
+  vlastFrameMs = vtime
   vlevels = vroom ? vmeter.sample(vmicrophone?.mediaStreamTrack ?? null, vagentTrack) : SILENT_VOICE_LEVELS
-  drawOrb(vtime)
-  requestAnimationFrame(tick)
+  vorb.setState(orbState())
+  vorb.render(vdeltaSeconds, orbLevels())
+  vframeHandle = requestAnimationFrame(tick)
+}
+
+function startRendering() {
+  if (!vframeHandle) {
+    vlastFrameMs = performance.now()
+    vframeHandle = requestAnimationFrame(tick)
+  }
+}
+
+function stopRendering() {
+  if (vframeHandle) {
+    cancelAnimationFrame(vframeHandle)
+    vframeHandle = 0
+  }
 }
 
 function onTrackSubscribed(vtrack) {
@@ -177,6 +186,7 @@ async function connect() {
   }
 
   clearBanner()
+  vfaultState = ""
   vui.transcript.replaceChildren()
   vui.connect.disabled = true
   setStatus("connecting", "connecting")
@@ -209,8 +219,14 @@ async function connect() {
     vui.connect.disabled = false
     vui.mute.disabled = false
   } catch (verror) {
-    setStatus("error", "failed")
-    showBanner(`Could not start the call: ${verror.message}`)
+    const vdenied = verror.name === "NotAllowedError" || verror.name === "SecurityError"
+    vfaultState = vdenied ? "permissionDenied" : "error"
+    setStatus("error", vdenied ? "microphone blocked" : "failed")
+    showBanner(
+      vdenied
+        ? "The microphone was blocked. Allow it for this site and connect again."
+        : `Could not start the call: ${verror.message}`,
+    )
     await disconnect()
   }
 }
@@ -260,4 +276,32 @@ if (vunsupported) {
   showBanner(vunsupported)
 }
 setActiveAgent("boss", "Boss")
-requestAnimationFrame(tick)
+
+window.addEventListener("pointermove", (vevent) => {
+  const vbounds = vui.orb.getBoundingClientRect()
+  const vx = (vevent.clientX - (vbounds.left + vbounds.width / 2)) / Math.max(vbounds.width, 1)
+  const vy = (vevent.clientY - (vbounds.top + vbounds.height / 2)) / Math.max(vbounds.height, 1)
+  vorb.setPointer(Math.max(-1.5, Math.min(1.5, vx)), Math.max(-1.5, Math.min(1.5, -vy)))
+})
+
+window.addEventListener("resize", resizeOrb)
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopRendering()
+  } else {
+    startRendering()
+  }
+})
+window.addEventListener("pagehide", () => {
+  stopRendering()
+  vmeter.close()
+  vorb.dispose()
+})
+
+if (!vorb.vsupported) {
+  showBanner("WebGL is unavailable, so the orb cannot render. The call itself still works.")
+}
+resizeOrb()
+startRendering()
+
+window.voiceOrb = vorb

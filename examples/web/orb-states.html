@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orb states</title>
+<style>
+  :root { --bg: #0a0b0f; --line: #272b36; --muted: #8a90a0; --text: #e7e9ee; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px ui-sans-serif, system-ui, sans-serif; }
+  h1 { font-size: 14px; font-weight: 600; padding: 14px 20px; margin: 0; border-bottom: 1px solid var(--line); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); }
+  .cell { background: var(--bg); padding: 18px 12px 22px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  canvas { width: 240px; height: 240px; }
+  .name { font-weight: 600; letter-spacing: -0.01em; }
+  .meta { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } canvas { width: 180px; height: 180px; } }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>orb states — boss palette, synthetic audio</h1>
+<div class="grid" id="grid"></div>
+<script type="module">
+import { VoiceOrb } from "/static/orb.js?v=16"
+
+const STATES = ["idle", "listening", "thinking", "speaking", "error", "permissionDenied"]
+const LEVELS = {
+  idle: { vamplitude: 0.0, vbass: 0.0, vmid: 0.0, vtreble: 0.0 },
+  listening: { vamplitude: 0.42, vbass: 0.35, vmid: 0.30, vtreble: 0.18 },
+  thinking: { vamplitude: 0.10, vbass: 0.12, vmid: 0.06, vtreble: 0.03 },
+  speaking: { vamplitude: 0.78, vbass: 0.62, vmid: 0.55, vtreble: 0.40 },
+  error: { vamplitude: 0.0, vbass: 0.0, vmid: 0.0, vtreble: 0.0 },
+  permissionDenied: { vamplitude: 0.0, vbass: 0.0, vmid: 0.0, vtreble: 0.0 },
+}
+const AGENT_FOR = { idle: "boss", listening: "boss", thinking: "boss", speaking: "alice", error: "boss", permissionDenied: "boss" }
+
+const vgrid = document.getElementById("grid")
+const vorbs = []
+for (const vstate of STATES) {
+  const vcell = document.createElement("div")
+  vcell.className = "cell"
+  const vcanvas = document.createElement("canvas")
+  const vname = document.createElement("div")
+  vname.className = "name"
+  vname.textContent = vstate
+  const vmeta = document.createElement("div")
+  vmeta.className = "meta"
+  vmeta.textContent = `amp ${LEVELS[vstate].vamplitude.toFixed(2)} · ${AGENT_FOR[vstate]}`
+  vcell.append(vcanvas, vname, vmeta)
+  vgrid.append(vcell)
+
+  const vorb = new VoiceOrb(vcanvas)
+  vorb.setState(vstate)
+  vorb.setAgent(AGENT_FOR[vstate])
+  vorb.resize(vcanvas.getBoundingClientRect().width, Math.min(window.devicePixelRatio || 1, 2))
+  vorbs.push({ vorb, vstate })
+}
+
+// settle the interpolators so each cell shows its state at rest, not mid-transition
+for (const { vorb, vstate } of vorbs) {
+  for (let vi = 0; vi < 120; vi++) {
+    vorb.render(0.05, LEVELS[vstate])
+  }
+}
+
+let vlast = performance.now()
+function frame(vnow) {
+  const vdelta = Math.min((vnow - vlast) / 1000, 0.1)
+  vlast = vnow
+  for (const { vorb, vstate } of vorbs) {
+    vorb.render(vdelta, LEVELS[vstate])
+  }
+  requestAnimationFrame(frame)
+}
+requestAnimationFrame(frame)
+window.__orbStatesReady = true
+</script>
+</body>
+</html>
