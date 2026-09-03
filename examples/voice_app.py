@@ -20,7 +20,7 @@ logger = logging.getLogger("voice-agent-example")
 
 load_dotenv(".env.local")
 
-EXAMPLE_LLM_MODEL = "google/gemini-2.5-flash"
+EXAMPLE_LLM_MODEL = "z-ai/glm-5.2"
 
 
 def mirror_flexus_livekit_env() -> None:
@@ -81,8 +81,9 @@ class ExampleCall:
         logger.info("handoff committed source=%s target=%s", vauth.vsource_agent_id, vtarget.vagent_id)
         await self.vsession.generate_reply(
             instructions=(
-                f"You are {vtarget.vname} and have just been handed this live call. "
-                f"Greet the caller in one sentence and confirm this scoped subject: {vauth.vhandoff_summary}"
+                f"You are {vtarget.vname}. The caller has just been transferred to you and asked: "
+                f"{vauth.vhandoff_summary}. Answer that now, in one or two short spoken sentences, "
+                f"using your tools. Do not greet them and do not ask them to repeat the question."
             )
         )
 
@@ -132,6 +133,7 @@ async def entrypoint(ctx: JobContext) -> None:
             interruption={
                 "mode": "vad",
                 "min_duration": vinterruption.vminimum_speech_ms / 1000,
+                "resume_false_interruption": False,
             },
         ),
     )

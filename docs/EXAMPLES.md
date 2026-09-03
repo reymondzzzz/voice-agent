@@ -16,6 +16,10 @@ provider with real voice ids is wired. `get_current_weather` returns invented re
 in its output, so the agent tells the caller it is placeholder data rather than presenting a
 forecast.
 
+The LLM is `z-ai/glm-5.2` over OpenRouter, chosen because it emits tool calls reliably through
+`LLMAdapter` (measured: Boss decides a handoff in ~5s, Bob answers with a tool round trip in
+~10s). Set it in `examples/voice_app.py` as `EXAMPLE_LLM_MODEL`.
+
 ## Running
 
 ```bash
@@ -41,6 +45,10 @@ The handoff is therefore split, and `PendingHandoff` is the seam:
 
 1. **Authorize, in the graph.** `call_agent` validates the request and *arms* the pending handoff,
    returning text to the model. A refusal returns `Error: <reason>` and nothing is armed.
+   `handoff_summary` carries the caller's *actual question*, not a topic, because the receiving
+   agent answers it directly: asking Boss for the time in Tokyo hands Bob
+   `"What time is it in Tokyo?"`, and Bob calls `get_current_time` and answers without greeting
+   or asking again.
 2. **Commit, in the media layer.** `ExampleCall.on_agent_state_changed` waits for
    `agent_state_changed` to go `speaking` → `listening` — the drained speech boundary — then calls
    `update_agent` with the target and publishes `active_agent_id` as a room attribute so a client
@@ -97,7 +105,9 @@ The session takes its thresholds from the moved
 | `vminimum_speech_ms` | 250 ms | interruption `min_duration` |
 | `vutterance_end_silence_ms` | 1200 ms | endpointing `max_delay` |
 
-`turn_detection` and the interruption `mode` are both pinned to `"vad"`. That is not a preference:
+`resume_false_interruption` is off: when the caller speaks the agent stops for good rather than
+pausing and finishing its sentence afterwards. `turn_detection` and the interruption `mode` are
+both pinned to `"vad"`. That is not a preference:
 left on their defaults, livekit-agents calls `agent-gateway.livekit.cloud` for adaptive
 interruption and a cloud turn detector, which returns 401 here and violates AGENTS.md rule 4.
 

@@ -74,11 +74,24 @@ class FlexusChunkedStream(tts.ChunkedStream):
         output_emitter.flush()
 
 
-def has_speech_energy(vpcm: bytes, vconfig: voice_interruption_policy.VoiceInterruptionConfig) -> bool:
+def has_speech_energy(vpcm: bytes, vconfig: voice_interruption_policy.VoiceInterruptionConfig, vsample_rate_hz: int) -> bool:
+    """Whether any short window of this audio is loud enough to be speech.
+
+    flexus applies venergy_threshold per captured frame. LiveKit hands over a whole utterance
+    including its leading and trailing silence, and averaging across that silence pushes real
+    speech under the threshold, so the check runs over probable-speech-sized windows and keeps the
+    loudest one.
+    """
     vsamples = numpy.frombuffer(vpcm, dtype="<i2")
-    if vsamples.size == 0:
+    if vsamples.size == 0 or vsample_rate_hz <= 0:
         return False
-    return int(numpy.abs(vsamples.astype(numpy.int32)).mean()) >= vconfig.venergy_threshold
+    vwindow = max(1, int(vsample_rate_hz * vconfig.vprobable_speech_ms / 1000))
+    vmagnitudes = numpy.abs(vsamples.astype(numpy.int32))
+    if vmagnitudes.size <= vwindow:
+        return int(vmagnitudes.mean()) >= vconfig.venergy_threshold
+    vusable = vmagnitudes[: vmagnitudes.size // vwindow * vwindow]
+    vwindow_means = vusable.reshape(-1, vwindow).mean(axis=1)
+    return int(vwindow_means.max()) >= vconfig.venergy_threshold
 
 
 class FlexusOpenRouterSTT(stt.STT):
@@ -103,7 +116,7 @@ class FlexusOpenRouterSTT(stt.STT):
     ) -> stt.SpeechEvent:
         vframe = rtc.combine_audio_frames(buffer)
         vpcm = bytes(vframe.data)
-        if not has_speech_energy(vpcm, self.vinterruption):
+        if not has_speech_energy(vpcm, self.vinterruption, vframe.sample_rate):
             return self.empty_transcript()
         vconfig = voice_stt.SttConfig(
             sttc_model=os.environ.get("FLEXUS_VOICE_STT_MODEL") or voice_contracts.VOICE_DEFAULT_STT_MODEL,

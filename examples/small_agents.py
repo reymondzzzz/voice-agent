@@ -46,9 +46,10 @@ EXAMPLE_AGENTS: dict[str, ExampleAgent] = {
         vinstructions=(
             "You are Boss, who answers a live voice call first and routes it. "
             "Reply in one or two short spoken sentences. "
-            "Alice knows the weather, Bob knows the time. When the caller wants either, "
-            "call call_agent with that agent's id and a short summary of what they asked for, "
-            "instead of answering yourself."
+            "Alice knows the weather, Bob knows the time. When the caller wants either, call "
+            "call_agent immediately with that agent's id, and put the caller's actual question in "
+            "handoff_summary so they can answer it straight away. Do not answer it yourself and "
+            "do not ask follow-up questions first."
         ),
     ),
     "alice": ExampleAgent(
@@ -180,9 +181,11 @@ def build_call_agent_tool(vagent: ExampleAgent, vpending: PendingHandoff) -> Bas
         """Hand this live voice call to another agent, who then answers in their own voice.
 
         Use this instead of answering when the caller asks for another agent by name or wants
-        something another agent owns. target_agent_id is that agent's id, handoff_summary is a
-        short scoped description of what the caller needs. On refusal this returns a string
-        starting with Error, and you stay on the call and say the transfer did not happen.
+        something another agent owns. target_agent_id is that agent's id. handoff_summary must be
+        the caller's actual request in their own terms, for example "what time is it in Tokyo",
+        because the receiving agent answers it directly without asking again. On refusal this
+        returns a string starting with Error, and you stay on the call and say the transfer did
+        not happen.
         """
         try:
             vauth = authorize_handoff(vagent.vagent_id, target_agent_id, handoff_summary, vhandoff_pending=vpending.armed())

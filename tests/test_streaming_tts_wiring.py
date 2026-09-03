@@ -171,22 +171,22 @@ def test_quiet_audio_is_below_the_moved_energy_threshold():
     from voice_agent.pipeline import voice_interruption_policy
 
     vconfig = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG
-    assert not livekit_providers.has_speech_energy(_pcm(vconfig.venergy_threshold - 100), vconfig)
+    assert not livekit_providers.has_speech_energy(_pcm(vconfig.venergy_threshold - 100), vconfig, 24000)
 
 
 def test_loud_audio_passes_the_energy_gate():
     from voice_agent.pipeline import voice_interruption_policy
 
     vconfig = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG
-    assert livekit_providers.has_speech_energy(_pcm(vconfig.venergy_threshold + 500), vconfig)
+    assert livekit_providers.has_speech_energy(_pcm(vconfig.venergy_threshold + 500), vconfig, 24000)
 
 
 def test_silence_never_passes_the_energy_gate():
     from voice_agent.pipeline import voice_interruption_policy
 
     vconfig = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG
-    assert not livekit_providers.has_speech_energy(b"", vconfig)
-    assert not livekit_providers.has_speech_energy(_pcm(0), vconfig)
+    assert not livekit_providers.has_speech_energy(b"", vconfig, 24000)
+    assert not livekit_providers.has_speech_energy(_pcm(0), vconfig, 24000)
 
 
 def test_backchannels_do_not_commit_a_turn():
@@ -195,3 +195,17 @@ def test_backchannels_do_not_commit_a_turn():
     for vbackchannel in ("mhm", "uh-huh", "угу", "Mhm."):
         assert not voice_interruption_policy.transcript_commits_interruption(vbackchannel)
     assert voice_interruption_policy.transcript_commits_interruption("what is the weather in London")
+
+
+def test_speech_surrounded_by_silence_still_passes_the_gate():
+    """The whole-utterance mean would drop this below threshold; the windowed peak keeps it."""
+    import struct
+
+    from voice_agent.pipeline import voice_interruption_policy
+
+    vconfig = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG
+    vloud = vconfig.venergy_threshold * 4
+    vsilence = [0] * 24000
+    vspeech = [vloud, -vloud] * 1200
+    vpcm = struct.pack(f"<{len(vsilence) * 2 + len(vspeech)}h", *(vsilence + vspeech + vsilence))
+    assert livekit_providers.has_speech_energy(vpcm, vconfig, 24000)
