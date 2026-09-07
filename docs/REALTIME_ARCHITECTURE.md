@@ -290,6 +290,30 @@ Adding a native duplex model should require **one adapter and a capability decla
 
 Nothing else in the codebase should need to change.
 
+## Qwen Omni Realtime adapter
+
+`voice_agent/realtime/qwen/` is the protocol against a hosted duplex model, cherry-picked from the
+`worktree-personaplex-mlx` branch (42d586a) without the PersonaPlex adapter that precedes it there.
+Nothing outside the adapter changed to add it.
+
+| Capability | Qwen Omni Realtime |
+| --- | --- |
+| `function_calling` | true: a tool call arrives as `RealtimeToolCallRequested` with a `call_id`, the answer goes back as `function_call_output` |
+| `requires_transcript_router()` | false |
+| User transcripts | `conversation.item.input_audio_transcription.completed` |
+| Response cancel | `response.cancel` |
+| Languages | 60+ in, 30+ voices out |
+
+Rates are asymmetric and easy to get wrong — **16 kHz in, 24 kHz out** — so microphone audio is
+downsampled through the moved `PcmResampler` on the way out while output passes through at the room
+rate untouched.
+
+Three details came from a live `session.created` rather than the documentation, which is wrong about
+all of them: the default voice is `Tina`, the transcription model is `qwen3-asr-flash-realtime`, and
+turn detection is `server_vad` with `create_response` and `interrupt_response` rather than the
+`semantic_vad` the docs describe. The endpoint interrupts the model itself, so `interrupt()` only
+has to drop queued playback.
+
 ## Unresolved decisions that genuinely depend on the model
 
 - **Who owns barge-in.** If the model detects and stops on its own, `interrupt()` becomes an
