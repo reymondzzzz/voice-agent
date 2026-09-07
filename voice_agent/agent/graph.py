@@ -13,6 +13,26 @@ from voice_agent.agent.state import BackgroundResult, ChatState, HiddenContextIt
 from voice_agent.agent.tasks.models import TaskMode
 
 DelegateFn = Callable[[str, TaskMode, str], Awaitable[dict[str, Any]]]
+
+
+def task_thread_config(vtask_id: str, vconversation_id: str) -> dict[str, Any]:
+    """One LangGraph thread per task, one Store namespace per conversation.
+
+    Concurrent background tasks sharing a thread_id would fight over the same checkpoint, so the
+    task owns the thread and only long-lived memory is shared across them.
+    """
+
+    return {
+        "configurable": {
+            "thread_id": vtask_id,
+            "checkpoint_ns": vconversation_id,
+        },
+        "metadata": {"conversation_id": vconversation_id, "task_id": vtask_id},
+    }
+
+
+def conversation_store_namespace(vconversation_id: str) -> tuple[str, str]:
+    return ("conversation", vconversation_id)
 IntentClassifier = Callable[[str], Awaitable[tuple[str, str]]]
 
 

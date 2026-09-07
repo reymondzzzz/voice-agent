@@ -6,7 +6,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
-from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, TaskSpec, TaskStatus, new_task_record
+from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskRelationship, TaskResult, TaskSpec, TaskStatus, new_task_record
 from voice_agent.agent.tasks.registry import TaskRegistry
 
 logger = logging.getLogger("voice_agent.tasks")
@@ -33,6 +33,7 @@ class TaskSupervisor:
         von_started: TaskObserver | None = None,
         von_progress: TaskObserver | None = None,
         von_finished: TaskObserver | None = None,
+        vmax_active: int = 6,
     ) -> None:
         self.vconversation_id = vconversation_id
         self.vsession_id = vsession_id
@@ -43,6 +44,8 @@ class TaskSupervisor:
         self._von_finished = von_finished
         self._vtasks: dict[str, asyncio.Task[None]] = {}
         self._vclosed = False
+        self.vmax_active = vmax_active
+        self.vrejected = 0
 
     @property
     def vrunning_count(self) -> int:
@@ -68,6 +71,64 @@ class TaskSupervisor:
         )
         return self.vregistry.add(vrecord)
 
+    def at_capacity(self) -> bool:
+        return len([vr for vr in self.vregistry.all() if not vr.vterminal]) >= self.vmax_active
+
+    def ensure_candidate(
+        self,
+        *,
+        vspec: TaskSpec,
+        vconversation_epoch: int,
+        vsource_turn_id: str | None,
+    ) -> TaskRecord | None:
+        """Start work from a partial transcript, before the user has finished speaking.
+
+        Returns the existing record when one already covers this goal, so a stream of partials that
+        keep resolving to the same intent produces one task rather than one per frame.
+        """
+
+        vexisting = [vr for vr in self.vregistry.by_fingerprint(vspec.vfingerprint) if not vr.vterminal]
+        if vexisting:
+            return vexisting[0]
+        if self.at_capacity():
+            self.vrejected += 1
+            logger.warning("task rejected, conversation at capacity", extra={"conversation_id": self.vconversation_id, "goal": vspec.vgoal})
+            return None
+        vrecord = self.create_record(vspec=vspec, vconversation_epoch=vconversation_epoch, vsource_turn_id=vsource_turn_id)
+        vrecord.vstatus = TaskStatus.CANDIDATE
+        return vrecord
+
+    async def reconcile_with_final(
+        self,
+        *,
+        vcandidate: TaskRecord | None,
+        vfinal_spec: TaskSpec,
+        vrelationship: TaskRelationship,
+        vconversation_epoch: int,
+        vsource_turn_id: str | None,
+    ) -> TaskRecord | None:
+        """Settle a speculative task against what the user actually finished saying.
+
+        Same meaning promotes the candidate; different meaning supersedes it, which is why
+        speculation is safe: a wrong guess costs one cancelled task, never a wrong answer.
+        """
+
+        if vcandidate is not None and vcandidate.vfingerprint == vfinal_spec.vfingerprint:
+            if vcandidate.vstatus is TaskStatus.CANDIDATE:
+                vcandidate.vstatus = TaskStatus.PENDING
+                await self.start(vcandidate)
+            return vcandidate
+
+        if vcandidate is not None and vcandidate.vstatus in {TaskStatus.CANDIDATE, TaskStatus.PENDING, TaskStatus.RUNNING}:
+            self.cancel(vcandidate.vtask_id)
+
+        vrecord = self.create_record(vspec=vfinal_spec, vconversation_epoch=vconversation_epoch, vsource_turn_id=vsource_turn_id)
+        vrecord.vrelationship = vrelationship
+        if vrelationship is TaskRelationship.SUPERSEDES:
+            self.supersede_duplicates(vrecord)
+        await self.start(vrecord)
+        return vrecord
+
     def supersede_duplicates(self, vrecord: TaskRecord) -> tuple[TaskRecord, ...]:
         vreplaced = self.vregistry.find_supersedable(vrecord.vfingerprint, vrecord.vtask_id)
         for vold in vreplaced:
@@ -75,12 +136,16 @@ class TaskSupervisor:
         return vreplaced
 
     async def run_quick(self, vrecord: TaskRecord) -> TaskRecord:
+        if vrecord.vstatus is TaskStatus.CANDIDATE:
+            vrecord.vstatus = TaskStatus.PENDING
         await self._execute(vrecord)
         return vrecord
 
     def start_background(self, vrecord: TaskRecord) -> TaskRecord:
         if self._vclosed:
             raise RuntimeError("task supervisor is closed")
+        if vrecord.vstatus is TaskStatus.CANDIDATE:
+            vrecord.vstatus = TaskStatus.PENDING
         vtask = asyncio.create_task(self._execute(vrecord), name=f"voice-task-{vrecord.vtask_id}")
         self._vtasks[vrecord.vtask_id] = vtask
         vtask.add_done_callback(lambda _: self._vtasks.pop(vrecord.vtask_id, None))

@@ -78,6 +78,127 @@ flowchart TB
 | `ActionService` | prepare/confirm/commit, idempotency, audit | trust model arguments at commit |
 | `ReasoningModel` | planning, synthesis, verification | be the speech model |
 
+## The conversation layer
+
+`ConversationDirector` sits above the bridge and makes the semantic decisions: delegate or answer
+locally, extend or supersede, surface a stored result or hold it. It is separate from the bridge
+because none of those belong in transport callbacks.
+
+| Component | Question it answers |
+| --- | --- |
+| `SemanticRouter` (`agent/routing/router.py`) | local, delegate, or wait for more speech? |
+| `classify_relationship` | is this NEW, RELATED, EXTENDS or SUPERSEDES? |
+| `SpeechPolicy` (`agent/speech_policy.py`) | what is the actor allowed to say right now? |
+| `DeliveryPolicy` | does this result deserve the floor? |
+| `ConversationDirector` | all of the above, per utterance |
+
+### Response modes
+
+The speech actor's prompt is a stable base plus a transient block, so a mode change costs a context
+update rather than a new session:
+
+| Mode | When | Allowed |
+| --- | --- | --- |
+| `REFLEX` | trivial turn | acknowledgement, backchannel, one clarifying question |
+| `LOCAL` | nothing pending | small talk, established facts, trivia |
+| `BACKGROUND_PENDING` | a task is running | anything except inventing the pending result |
+| `INFORMED` | a verified result is undelivered | phrase the result naturally, in its own words |
+
+### Speculation
+
+The router runs on partial transcripts. Above `SPECULATION_CONFIDENCE` it creates a **candidate**
+task, which does not run until the final transcript reconciles it. Same meaning promotes the
+candidate; different meaning cancels it and starts the real one. A wrong guess therefore costs one
+cancelled task and never a wrong answer.
+
+## Sequence diagrams
+
+### One background task
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Speech actor
+    participant D as Director
+    participant Sup as TaskSupervisor
+    participant G as LangGraph + reasoning
+    participant M as Mailbox
+
+    U->>S: "research the Moshi architecture"
+    S->>D: UserTranscriptFinal
+    D->>D: route → delegate
+    D->>Sup: start background task
+    Sup-->>D: task_id (immediately)
+    D->>S: mode = BACKGROUND_PENDING
+    S-->>U: "sure, looking into that" (no waiting)
+    Sup->>G: run
+    G-->>Sup: SemanticResult
+    Sup->>M: BackgroundTaskCompleted
+    M->>D: delivery decision
+    D->>S: inject as BACKGROUND context + request response
+    S-->>U: phrases it in its own words
+```
+
+### Two concurrent tasks
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant D as Director
+    participant A as task A
+    participant B as task B
+
+    U->>D: "research A"
+    D->>A: start
+    U->>D: "explain full duplex"
+    D-->>U: answered locally, A untouched
+    U->>D: "research C"
+    D->>B: start
+    Note over A,B: both run concurrently, each with its own LangGraph thread_id
+    A-->>D: completed
+    D->>D: relevance(A, current topic C) < floor → STORE_SILENTLY
+    B-->>D: completed later, stays queryable
+```
+
+### Task superseding
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant D as Director
+    participant Sup as TaskSupervisor
+    participant A as task A
+
+    U->>D: "compare Moshi and PersonaPlex"
+    D->>Sup: start A
+    U->>D: "actually, compare Moshi with Mini-Omni instead"
+    D->>D: classify_relationship → SUPERSEDES
+    D->>Sup: start B, supersede A
+    Sup->>A: logical cancel (status = SUPERSEDED)
+    A-->>Sup: result arrives anyway
+    Sup->>Sup: accepts_result() → false, withheld
+    Note over A: physical completion cannot produce a stale answer
+```
+
+### Result arriving during another topic
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant D as Director
+    participant M as Mailbox
+    participant S as Speech actor
+
+    M->>D: BackgroundTaskCompleted(topic = A)
+    D->>D: user speaking? assistant speaking? relevance to current topic?
+    D-->>M: STORE_SILENTLY (conversation is about C)
+    U->>S: "what did you find about A?"
+    S->>D: UserTranscriptFinal
+    D->>D: looks_like_recall → recall_for(text)
+    D->>S: SPEAK_NOW + mode = INFORMED
+    S-->>U: the stored result, phrased naturally
+```
+
 ## Lifecycles
 
 ### Normal conversation
@@ -187,6 +308,39 @@ Nothing else in the codebase should need to change.
   reconnect, or whether the model reconstructs it.
 - **Playback acknowledgement.** Without `supports_audio_playback_ack`, "the assistant finished
   speaking" is inferred from events rather than known, which weakens correction timing.
+
+## Trade-offs and unresolved decisions
+
+**Decisions taken, with their cost:**
+
+- *Epoch, not turn, decides staleness.* A task survives later turns by design. The cost is that a
+  genuinely abandoned request keeps running until something supersedes it or the user cancels.
+- *Relevance is lexical overlap.* `topic_relevance` is Jaccard over words — cheap and predictable,
+  but it will hold a result whose topic is worded differently. A small embedding would fix it, and
+  the seam is one function.
+- *The router is keyword-based.* Deliberately: it runs on every partial and deciding whether to
+  call a reasoning model must not itself cost one. It will misroute unusual phrasings. Swapping in
+  a small classifier means implementing `SemanticRouter` and nothing else.
+- *Speculation can waste work.* A candidate task that the final transcript contradicts is cancelled
+  and thrown away. That is the price of starting before end of turn.
+- *In-memory stores.* `InMemoryActionStore`, `InMemoryTaskRepository` and the mailbox are process
+  local. The Protocols are the durable boundary; Postgres implementations are drop-ins, and until
+  then "survives restart" is an interface promise rather than a fact.
+- *One `asyncio` mailbox per conversation.* Fine in-process; distributing it means replacing one
+  class, which is why nothing outside it knows the transport.
+
+**Genuinely unresolved, and why:**
+
+- **Where the informed result should live afterwards.** It is injected as transient context and the
+  spoken summary should be persisted separately, but "what exactly enters canonical history" is
+  still open — persist the model's phrasing, the structured result, or both?
+- **Interrupting for a contradiction.** `Criticality.CORRECTION` interrupts, but nothing yet
+  *detects* that a result contradicts what the assistant is currently saying. That needs comparing
+  a result against in-flight speech, which needs the speech text before it is spoken.
+- **Backpressure policy.** There is a cap and a rejection counter; merging near-duplicate requests
+  or queueing instead of rejecting is unimplemented.
+- **Recovery semantics.** Which tasks resume after a restart, and which are stale by then, depends
+  on durable storage that is not wired yet.
 
 ## Testing without a speech model
 

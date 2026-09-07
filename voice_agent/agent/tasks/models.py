@@ -10,6 +10,7 @@ from voice_agent.correlation import TASK_ID_PREFIX, new_id
 
 
 class TaskStatus(enum.Enum):
+    CANDIDATE = "candidate"
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -21,6 +22,7 @@ class TaskStatus(enum.Enum):
 TERMINAL_STATUSES = frozenset({TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.SUPERSEDED})
 
 LEGAL_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
+    TaskStatus.CANDIDATE: frozenset({TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}),
     TaskStatus.PENDING: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED, TaskStatus.SUPERSEDED, TaskStatus.FAILED}),
     TaskStatus.RUNNING: frozenset({TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}),
     TaskStatus.COMPLETED: frozenset(),
@@ -33,6 +35,25 @@ LEGAL_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
 class TaskMode(enum.Enum):
     QUICK = "quick"
     BACKGROUND = "background"
+
+
+class TaskRelationship(enum.Enum):
+    """How a new request relates to work already in flight.
+
+    SUPERSEDES is the only one that invalidates earlier work. EXTENDS deliberately does not: asking
+    a follow-up about the same topic must not throw away the answer being computed.
+    """
+
+    NEW = "new"
+    RELATED = "related"
+    EXTENDS = "extends"
+    SUPERSEDES = "supersedes"
+
+
+class Urgency(enum.Enum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
 
 
 class TaskTransitionError(RuntimeError):
@@ -50,6 +71,8 @@ class TaskSpec:
     vgoal: str
     vmode: TaskMode
     vintent: str = ""
+    vtopic: str = ""
+    vurgency: Urgency = Urgency.NORMAL
     vcontext: dict[str, object] = dataclasses.field(default_factory=dict)
     vmax_attempts: int = 1
 
@@ -89,6 +112,9 @@ class TaskRecord:
     verror: str | None = None
     vsuperseded_by: str | None = None
     vprogress: str = ""
+    vrelationship: TaskRelationship = TaskRelationship.NEW
+    vrelates_to: str | None = None
+    vdelivered: bool = False
     vvalid_while: Callable[["TaskRecord", int], bool] | None = None
 
     @property
@@ -106,6 +132,14 @@ class TaskRecord:
     @property
     def vterminal(self) -> bool:
         return self.vstatus in TERMINAL_STATUSES
+
+    @property
+    def vtopic(self) -> str:
+        return self.vspec.vtopic or self.vspec.vintent
+
+    @property
+    def vurgency(self) -> Urgency:
+        return self.vspec.vurgency
 
     def transition_to(self, vnext: TaskStatus) -> None:
         if vnext not in LEGAL_TRANSITIONS[self.vstatus]:

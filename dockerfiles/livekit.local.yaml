@@ -1,0 +1,30 @@
+port: 7880
+development: true
+bind_addresses:
+  - 0.0.0.0
+prometheus:
+  port: 6789
+redis:
+  address: livekit_redis:6379
+  db: 0
+rtc:
+  # Docker Desktop on macOS runs containers in a VM, so UDP ICE between the host and the
+  # container never completes: the server advertises 127.0.0.1 while the host's binding requests
+  # arrive NAT'd from the bridge gateway, so no response matches. TCP is connection oriented and
+  # survives that, and 7881 is published, so local development forces it.
+  force_tcp: true
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+  node_ip: 127.0.0.1
+  enable_loopback_candidate: true
+turn:
+  enabled: true
+  udp_port: 3478
+  relay_range_start: 30000
+  relay_range_end: 30010
+  ttl_seconds: 300
+logging:
+  level: info
+  pion_level: error
+  json: false

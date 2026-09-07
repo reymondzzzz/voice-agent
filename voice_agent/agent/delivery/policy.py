@@ -25,13 +25,23 @@ class DeliveryDecision(enum.Enum):
     DROP = "drop"
 
 
+def topic_relevance(vleft: str, vright: str) -> float:
+    vleft_words = set(vleft.casefold().split())
+    vright_words = set(vright.casefold().split())
+    if not vleft_words or not vright_words:
+        return 0.0
+    return len(vleft_words & vright_words) / len(vleft_words | vright_words)
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class DeliveryContext:
     vuser_speaking: bool
     vassistant_speaking: bool
     vconversation_epoch: int
     vcurrent_intent: str = ""
+    vcurrent_topic: str = ""
     vidle_seconds: float = 0.0
+    vexplicitly_requested: bool = False
 
 
 class DeliveryPolicy:
@@ -41,8 +51,9 @@ class DeliveryPolicy:
     letting the assistant finish a sentence that is now wrong is worse than cutting it off.
     """
 
-    def __init__(self, *, vrelevant_idle_seconds: float = 1.5) -> None:
+    def __init__(self, *, vrelevant_idle_seconds: float = 1.5, vrelevance_floor: float = 0.25) -> None:
         self.vrelevant_idle_seconds = vrelevant_idle_seconds
+        self.vrelevance_floor = vrelevance_floor
 
     def decide(self, vevent: SemanticEvent, vcontext: DeliveryContext) -> DeliveryDecision:
         if isinstance(vevent, NEVER_SPOKEN):
@@ -64,6 +75,13 @@ class DeliveryPolicy:
             return DeliveryDecision.SPEAK_NOW
 
         if isinstance(vevent, BackgroundTaskCompleted | BackgroundTaskFailed):
+            if vcontext.vexplicitly_requested:
+                return DeliveryDecision.SPEAK_NOW
+            if vevent.vcriticality is Criticality.HIGH:
+                return DeliveryDecision.SPEAK_NOW
+            vrelevance = topic_relevance(vevent.vgoal, vcontext.vcurrent_topic) if vcontext.vcurrent_topic else 1.0
+            if vrelevance < self.vrelevance_floor:
+                return DeliveryDecision.STORE_SILENTLY
             if vcontext.vidle_seconds >= self.vrelevant_idle_seconds:
                 return DeliveryDecision.SPEAK_NOW
             return DeliveryDecision.QUEUE

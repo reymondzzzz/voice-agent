@@ -1,0 +1,7 @@
+# Local macOS override. Use with:
+#   docker compose -f compose.voice.yml -f compose.voice.local.yml up -d
+# It changes only the LiveKit config mount, leaving the moved compose file untouched.
+services:
+  livekit_server:
+    volumes:
+      - ./dockerfiles/livekit.local.yaml:/etc/livekit.yaml:ro
