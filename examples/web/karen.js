@@ -1,0 +1,330 @@
+import {
+  Room,
+  RoomEvent,
+  Track,
+  createLocalAudioTrack,
+} from "https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.esm.mjs"
+import { SILENT_VOICE_LEVELS, VoiceLevelMeter } from "/static/audioLevel.js?v=2"
+import { VoiceOrb } from "/static/orb.js?v=16"
+
+const KAREN_TOPIC = "karen"
+const KAREN_PALETTE = "alice"
+const SPEECH_LEVEL = 0.06
+const THINKING_TIMEOUT_MS = 20000
+const MAX_FRAME_SECONDS = 0.1
+const STICK_TO_BOTTOM_PX = 48
+const STATE_TEXT = {
+  idle: "Not connected",
+  listening: "Listening to the room",
+  thinking: "Thinking…",
+  speaking: "Speaking",
+  error: "Something went wrong",
+  permissionDenied: "Microphone blocked",
+}
+
+const vui = {
+  status: document.getElementById("status"),
+  banner: document.getElementById("banner"),
+  orb: document.getElementById("orb"),
+  state: document.getElementById("state"),
+  tasks: document.getElementById("tasks"),
+  transcript: document.getElementById("transcript"),
+  connect: document.getElementById("connect"),
+  mute: document.getElementById("mute"),
+}
+
+const vmeter = new VoiceLevelMeter()
+const vaudio = new Audio()
+vaudio.autoplay = true
+const vorb = new VoiceOrb(vui.orb)
+vorb.setAgent(KAREN_PALETTE)
+const vdecoder = new TextDecoder()
+const vtaskItems = new Map()
+
+let vroom = null
+let vmicrophone = null
+let vagentTrack = null
+let vlevels = SILENT_VOICE_LEVELS
+let vfaultState = ""
+let vthinkingSince = 0
+let vshownState = ""
+let vlastFrameMs = performance.now()
+let vframeHandle = 0
+
+function setStatus(vstate, vtext) {
+  vui.status.dataset.state = vstate
+  vui.status.textContent = vtext
+}
+
+function showBanner(vtext) {
+  vui.banner.textContent = vtext
+  vui.banner.hidden = false
+}
+
+function captureUnsupportedReason() {
+  if (!window.isSecureContext) {
+    return "Microphone capture needs a secure context. Open this page over localhost or https."
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return "This browser does not expose getUserMedia, so the microphone cannot be opened."
+  }
+  return ""
+}
+
+function clockTime(vseconds) {
+  return new Date(vseconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+}
+
+function lineKind(vturn) {
+  if (vturn.role === "assistant") {
+    return "karen"
+  }
+  if (vturn.role === "system") {
+    return "note"
+  }
+  return isYou(vturn.speaker) ? "you" : "other"
+}
+
+function isYou(vspeaker) {
+  return Boolean(vroom) && vspeaker === vroom.localParticipant.name
+}
+
+function addTurn(vturn) {
+  const vatBottom = vui.transcript.scrollHeight - vui.transcript.scrollTop - vui.transcript.clientHeight < STICK_TO_BOTTOM_PX
+  const vkind = lineKind(vturn)
+  const vline = document.createElement("article")
+  vline.className = "line"
+  vline.dataset.kind = vkind
+  const vhead = document.createElement("header")
+  const vwho = document.createElement("span")
+  vwho.className = "who"
+  vwho.textContent = vkind === "you" ? "You" : vkind === "note" ? "Background result" : vturn.speaker
+  const vtime = document.createElement("time")
+  vtime.dateTime = new Date(vturn.ts * 1000).toISOString()
+  vtime.textContent = clockTime(vturn.ts)
+  vhead.append(vwho, vtime)
+  if (vturn.addressed) {
+    const vto = document.createElement("span")
+    vto.className = "to"
+    vto.textContent = "→ Karen"
+    vhead.append(vto)
+  }
+  const vtext = document.createElement("div")
+  vtext.textContent = vturn.text
+  vline.append(vhead, vtext)
+  vui.transcript.append(vline)
+  if (vatBottom) {
+    vui.transcript.scrollTop = vui.transcript.scrollHeight
+  }
+}
+
+function upsertTask(vtask) {
+  let vitem = vtaskItems.get(vtask.id)
+  if (!vitem) {
+    vitem = document.createElement("li")
+    vitem.className = "task"
+    const vdot = document.createElement("i")
+    vdot.className = "dot"
+    vdot.setAttribute("aria-hidden", "true")
+    const vgoal = document.createElement("span")
+    vgoal.className = "goal"
+    const vmeta = document.createElement("span")
+    vmeta.className = "meta"
+    vitem.append(vdot, vgoal, vmeta)
+    vtaskItems.set(vtask.id, vitem)
+    vui.tasks.prepend(vitem)
+  }
+  vitem.dataset.status = vtask.status
+  vitem.children[1].textContent = vtask.goal
+  vitem.children[1].title = vtask.goal
+  const vlabel = { running: "working", completed: "done", failed: "failed", cancelled: "cancelled", superseded: "replaced" }[vtask.status] ?? vtask.status
+  vitem.children[2].textContent = `${vlabel} · asked by ${isYou(vtask.requester) ? "you" : vtask.requester}`
+}
+
+function onData(vpayload, _vparticipant, _vkind, vtopic) {
+  if (vtopic !== KAREN_TOPIC) {
+    return
+  }
+  const vevent = JSON.parse(vdecoder.decode(vpayload))
+  if (vevent.type === "turn") {
+    addTurn(vevent)
+  } else if (vevent.type === "task") {
+    upsertTask(vevent)
+  } else if (vevent.type === "state") {
+    vthinkingSince = vevent.state === "thinking" ? performance.now() : 0
+  }
+}
+
+function orbState() {
+  if (vfaultState) {
+    return vfaultState
+  }
+  if (!vroom) {
+    return "idle"
+  }
+  if (vlevels.vagent.vamplitude > SPEECH_LEVEL) {
+    vthinkingSince = 0
+    return "speaking"
+  }
+  if (vthinkingSince && performance.now() - vthinkingSince < THINKING_TIMEOUT_MS) {
+    return "thinking"
+  }
+  return "listening"
+}
+
+function orbLevels(vstate) {
+  if (vstate === "speaking") {
+    return vlevels.vagent
+  }
+  return vstate === "listening" ? vlevels.vuser : SILENT_VOICE_LEVELS.vuser
+}
+
+function showState(vstate) {
+  if (vstate !== vshownState) {
+    vshownState = vstate
+    vui.state.textContent = STATE_TEXT[vstate]
+  }
+}
+
+function resizeOrb() {
+  const vsize = vui.orb.getBoundingClientRect().width
+  vorb.resize(vsize, Math.min(window.devicePixelRatio || 1, window.innerWidth < 760 ? 1.5 : 2))
+}
+
+function tick(vtime) {
+  const vdeltaSeconds = Math.min((vtime - vlastFrameMs) / 1000, MAX_FRAME_SECONDS)
+  vlastFrameMs = vtime
+  vlevels = vroom ? vmeter.sample(vmicrophone?.mediaStreamTrack ?? null, vagentTrack) : SILENT_VOICE_LEVELS
+  const vstate = orbState()
+  vorb.setState(vstate)
+  vorb.render(vdeltaSeconds, orbLevels(vstate))
+  showState(vstate)
+  vframeHandle = requestAnimationFrame(tick)
+}
+
+function startRendering() {
+  if (!vframeHandle) {
+    vlastFrameMs = performance.now()
+    vframeHandle = requestAnimationFrame(tick)
+  }
+}
+
+function stopRendering() {
+  if (vframeHandle) {
+    cancelAnimationFrame(vframeHandle)
+    vframeHandle = 0
+  }
+}
+
+function onTrackSubscribed(vtrack) {
+  if (vtrack.kind === Track.Kind.Audio) {
+    vagentTrack = vtrack.mediaStreamTrack
+    vtrack.attach(vaudio)
+  }
+}
+
+function onTrackUnsubscribed(vtrack) {
+  if (vtrack.mediaStreamTrack === vagentTrack) {
+    vagentTrack = null
+  }
+  vtrack.detach(vaudio)
+}
+
+async function connect() {
+  const vreason = captureUnsupportedReason()
+  if (vreason) {
+    setStatus("error", "unsupported")
+    showBanner(vreason)
+    return
+  }
+  vui.banner.hidden = true
+  vfaultState = ""
+  vthinkingSince = 0
+  vui.transcript.replaceChildren()
+  vui.tasks.replaceChildren()
+  vtaskItems.clear()
+  vui.connect.disabled = true
+  setStatus("connecting", "connecting")
+
+  try {
+    const vresponse = await fetch("/token")
+    if (!vresponse.ok) {
+      throw new Error(`token endpoint returned ${vresponse.status}`)
+    }
+    const vgrant = await vresponse.json()
+    vroom = new Room()
+    vroom
+      .on(RoomEvent.TrackSubscribed, onTrackSubscribed)
+      .on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed)
+      .on(RoomEvent.DataReceived, onData)
+      .on(RoomEvent.MediaDevicesError, (verror) => showBanner(`Microphone error: ${verror.message}`))
+      .on(RoomEvent.Disconnected, () => disconnect())
+    await vroom.connect(vgrant.vlk_url, vgrant.vlk_token, { autoSubscribe: true })
+    await vroom.startAudio()
+    vmicrophone = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true })
+    await vroom.localParticipant.publishTrack(vmicrophone, { source: Track.Source.Microphone })
+
+    setStatus("live", `live · ${vgrant.vroom}`)
+    vui.connect.textContent = "Hang up"
+    vui.connect.dataset.live = "true"
+    vui.connect.disabled = false
+    vui.mute.disabled = false
+  } catch (verror) {
+    const vdenied = verror.name === "NotAllowedError" || verror.name === "SecurityError"
+    vfaultState = vdenied ? "permissionDenied" : "error"
+    setStatus("error", vdenied ? "microphone blocked" : "failed")
+    showBanner(vdenied ? "The microphone was blocked. Allow it for this site and connect again." : `Could not start the call: ${verror.message}`)
+    await disconnect()
+  }
+}
+
+async function disconnect() {
+  vui.mute.disabled = true
+  vui.mute.textContent = "Mute"
+  vui.connect.textContent = "Connect"
+  delete vui.connect.dataset.live
+  vui.connect.disabled = false
+  if (vmicrophone) {
+    vmicrophone.stop()
+    vmicrophone = null
+  }
+  vagentTrack = null
+  vlevels = SILENT_VOICE_LEVELS
+  const vprevious = vroom
+  vroom = null
+  if (vprevious) {
+    await vprevious.disconnect()
+  }
+  if (vui.status.dataset.state !== "error") {
+    setStatus("idle", "idle")
+  }
+}
+
+vui.connect.addEventListener("click", () => void (vroom ? disconnect() : connect()))
+
+vui.mute.addEventListener("click", async () => {
+  if (!vmicrophone) {
+    return
+  }
+  const vmuted = !vmicrophone.isMuted
+  await (vmuted ? vmicrophone.mute() : vmicrophone.unmute())
+  vui.mute.textContent = vmuted ? "Unmute" : "Mute"
+})
+
+window.addEventListener("resize", resizeOrb)
+document.addEventListener("visibilitychange", () => (document.hidden ? stopRendering() : startRendering()))
+window.addEventListener("pagehide", () => {
+  stopRendering()
+  vmeter.close()
+  vorb.dispose()
+})
+
+const vunsupported = captureUnsupportedReason()
+if (vunsupported) {
+  showBanner(vunsupported)
+}
+if (!vorb.vsupported) {
+  showBanner("WebGL is unavailable, so the orb cannot render. The call itself still works.")
+}
+resizeOrb()
+startRendering()

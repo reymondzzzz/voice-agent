@@ -215,8 +215,14 @@ uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --nam
 ```
 
 To try Karen without Meet, run `examples.meet_agent dev` with `examples.token_server` and open
-http://127.0.0.1:8080: the page's microphone takes the bridge's place, every speaker is `someone`,
-and the header shows Karen (the Boss / Alice / Bob roster under it is the old demo's and inert).
+http://127.0.0.1:8080/karen: the page's microphone takes the bridge's place and your lines are
+labelled with your participant name. Karen publishes meaning-only events on the `karen` data topic —
+every logged turn (speaker, text, whether it was addressed to her), her thinking/listening state,
+and each background task as it starts and finishes — and `examples/web/karen.html` renders them as a
+transcript, a background-work list and the orb. Checked in Chrome with a fake microphone playing
+`say` clips: the state line moved through listening, thinking and speaking, the delegated task went
+from working to done, the result note shows only GLM's answer, and hanging up and reconnecting
+starts a clean room, at 1280x800 and 390x844, with no console errors.
 
 Both agent servers register without an agent name, so run one of them, not both. Karen needs
 `DASHSCOPE_API_KEY` in `.env.local` next to the OpenRouter key.

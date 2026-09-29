@@ -30,6 +30,7 @@ ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
 PLAYBACK_QUEUE_MS = 20_000
 QUIET_BEFORE_SPEAKING_S = 1.5
 QUIET_POLL_S = 0.25
+KAREN_EVENTS_TOPIC = "karen"
 
 KAREN_RULES = (
     "You are an assistant attending a group meeting by voice. You hear everyone, but most of it is said between "
@@ -126,7 +127,12 @@ class MeetCall:
         self.vuser_speaking = False
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
+        self.vcaller_name = ""
         self._vtasks: set[asyncio.Task[None]] = set()
+
+    def publish(self, **vevent: object) -> None:
+        if self.vroom.isconnected():
+            self.spawn(self.vroom.local_participant.publish_data(json.dumps(vevent, ensure_ascii=False), reliable=True, topic=KAREN_EVENTS_TOPIC))
 
     def spawn(self, vcoro) -> None:
         vtask = asyncio.create_task(vcoro)
@@ -169,6 +175,7 @@ class MeetCall:
     def on_track_subscribed(self, vtrack: rtc.Track, _vpublication: rtc.RemoteTrackPublication, vparticipant: rtc.RemoteParticipant) -> None:
         if vtrack.kind == rtc.TrackKind.KIND_AUDIO:
             logger.info("listening to %s", vparticipant.identity)
+            self.vcaller_name = vparticipant.name or vparticipant.identity
             self.spawn(self.pump_audio(vtrack))
 
     async def pump_audio(self, vtrack: rtc.Track) -> None:
@@ -209,20 +216,21 @@ class MeetCall:
             logger.warning("qwen error: %s", vevent.vmessage)
 
     async def on_heard(self, vtext: str) -> None:
-        vspeaker = self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or "someone"
+        vspeaker = self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"
         vaddressed = self.addressing().is_addressed(vspeaker, vtext, time.monotonic())
-        self.remember(MeetTurn(time.time(), vspeaker, vtext))
+        self.remember(MeetTurn(time.time(), vspeaker, vtext), vaddressed=vaddressed)
         if vaddressed:
             await self.respond()
 
-    async def respond(self) -> None:
+    async def respond(self, vtask: str = "") -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
         assert self.vsession is not None
         self.vlast_bot_activity = time.monotonic()
-        await self.vsession.update_instructions(self.instructions())
+        self.publish(type="state", state="thinking")
+        await self.vsession.update_instructions(self.instructions(vtask))
         await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
 
-    def instructions(self) -> str:
+    def instructions(self, vtask: str = "") -> str:
         vparts = [KAREN_RULES, f"In this meeting people call you {self.addressing().vbot_name}."]
         vrunning = [vrecord for vrecord in self.vregistry.all() if vrecord.vstatus in (TaskStatus.PENDING, TaskStatus.RUNNING)]
         if vrunning:
@@ -232,6 +240,8 @@ class MeetCall:
             f"Who said what in the last {int(MEET_CONTEXT_WINDOW_S // 60)} minutes (you heard the audio; this "
             f"names the speakers). The last line is what was just said to you:\n{self.vmemory.transcript()}"
         )
+        if vtask:
+            vparts.append(vtask)
         return "\n\n".join(vparts)
 
     async def on_tool_call(self, vcall: events.RealtimeToolCallRequested) -> None:
@@ -261,6 +271,7 @@ class MeetCall:
         self.vsupervisor.supersede_duplicates(vrecord)
         self.vsupervisor.start_background(vrecord)
         logger.info("delegated task=%s requester=%s goal=%s", vrecord.vtask_id, vrequester, vgoal)
+        self.publish(type="task", id=vrecord.vtask_id, goal=vgoal, requester=vrequester, status="running")
         return f"Started. Tell {vrequester} in a few words that you are on it; the answer will come later."
 
     async def run_task(self, vrecord: TaskRecord) -> TaskResult:
@@ -276,10 +287,9 @@ class MeetCall:
             return
         vrequester = str(vrecord.vspec.vcontext["requester"])
         logger.info("task finished task=%s status=%s", vrecord.vtask_id, vrecord.vstatus.value)
-        self.remember(
-            MeetTurn(time.time(), "background result", f"For {vrequester}, about {vrecord.vgoal!r}: {vanswer} (tell {vrequester} now, in one or two short spoken sentences)", MeetRole.NOTE)
-        )
-        self.spawn(self.deliver_when_quiet(vrequester))
+        self.publish(type="task", id=vrecord.vtask_id, goal=vrecord.vgoal, requester=vrequester, status=vrecord.vstatus.value)
+        self.remember(MeetTurn(time.time(), "background result", vanswer, MeetRole.NOTE))
+        self.spawn(self.deliver_when_quiet(vrequester, vrecord.vgoal))
 
     def is_quiet(self) -> bool:
         return (
@@ -295,15 +305,16 @@ class MeetCall:
             if not self.is_quiet():
                 vquiet_since = time.monotonic()
 
-    async def deliver_when_quiet(self, vrequester: str) -> None:
+    async def deliver_when_quiet(self, vrequester: str, vgoal: str) -> None:
         # A result is news nobody is waiting on mid-sentence: wait for a real pause instead of cutting in.
         await self.wait_until_quiet()
         self.addressing().engage(vrequester, time.monotonic())
-        await self.respond()
+        await self.respond(f"The last line is the background result for {vrequester}, who asked: {vgoal}. Tell {vrequester} now, in one or two short spoken sentences.")
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()
         self.addressing().bot_finished_speaking(time.monotonic())
+        self.publish(type="state", state="listening")
 
     async def renew_when_window_is_full(self) -> None:
         while self.vsession is not None:
@@ -314,8 +325,9 @@ class MeetCall:
             await self.open_session()
             logger.info("renewed qwen session with the last %ds of transcript", int(MEET_CONTEXT_WINDOW_S))
 
-    def remember(self, vturn: MeetTurn) -> None:
+    def remember(self, vturn: MeetTurn, *, vaddressed: bool = False) -> None:
         self.vmemory.add(vturn)
+        self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat, addressed=vaddressed)
         self.vmemory.forget_before(time.time())
         logger.info("meet turn speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         MEET_TRANSCRIPT_DIR.mkdir(exist_ok=True)

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Karen</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --surface: #14161d;
+    --surface-2: #1b1e27;
+    --line: #272b36;
+    --text: #e7e9ee;
+    --muted: #8a90a0;
+    --karen: #46c8d8;
+    --you: #7ee0a8;
+    --note: #f0a742;
+    --danger: #e2596b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 600; letter-spacing: -0.01em; }
+  .brand span { color: var(--muted); font-weight: 400; }
+  .pill {
+    font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--surface-2); color: var(--muted); border: 1px solid var(--line);
+  }
+  .pill[data-state="live"] { color: var(--you); border-color: #2c5c42; }
+  .pill[data-state="connecting"] { color: var(--note); border-color: #5c4a2c; }
+  .pill[data-state="error"] { color: var(--danger); border-color: #5c2c34; }
+
+  main {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: 1fr 400px; gap: 1px;
+    background: var(--line);
+  }
+  .stage, .panel { background: var(--bg); min-width: 0; min-height: 0; }
+  .stage {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 22px; padding: 32px 20px; text-align: center;
+  }
+  #orb { width: 300px; height: 300px; display: block; }
+  .name { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; color: var(--karen); }
+  .state { color: var(--text); font-size: 14px; min-height: 21px; }
+  .hint { color: var(--muted); font-size: 13px; max-width: 34ch; }
+  .hint kbd {
+    font: inherit; color: var(--text);
+    padding: 1px 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line);
+  }
+
+  .panel { display: flex; flex-direction: column; }
+  .section-title {
+    margin: 0; padding: 12px 14px 6px;
+    color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .tasks { list-style: none; margin: 0; padding: 0 12px 12px; display: grid; gap: 6px; border-bottom: 1px solid var(--line); }
+  .tasks:empty::before { content: "Nothing running. Ask Karen to check something in the background."; color: var(--muted); font-size: 13px; }
+  .task {
+    display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline;
+    padding: 8px 10px; border-radius: 8px; background: var(--surface); font-size: 13px;
+  }
+  .task .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--note); align-self: center; }
+  .task[data-status="running"] .dot { animation: pulse 1.2s ease-in-out infinite; }
+  .task[data-status="completed"] .dot { background: var(--you); }
+  .task[data-status="failed"] .dot, .task[data-status="cancelled"] .dot { background: var(--danger); }
+  .task .goal { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .task .meta { grid-column: 2; color: var(--muted); font-size: 12px; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .transcript { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .transcript:empty::before { content: "Everything said in the room appears here, Karen's replies included."; color: var(--muted); font-size: 13px; }
+  .line { font-size: 14px; overflow-wrap: anywhere; }
+  .line header {
+    all: unset; display: flex; align-items: baseline; gap: 8px;
+    font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+  }
+  .line time { font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
+  .line .to { color: var(--karen); text-transform: none; letter-spacing: 0; }
+  .line[data-kind="you"] .who { color: var(--you); }
+  .line[data-kind="karen"] { padding: 8px 10px; border-radius: 8px; background: color-mix(in oklab, var(--karen) 10%, var(--surface)); border-left: 2px solid var(--karen); }
+  .line[data-kind="karen"] .who { color: var(--karen); }
+  .line[data-kind="note"] { padding: 8px 10px; border-radius: 8px; border: 1px dashed color-mix(in oklab, var(--note) 55%, transparent); color: var(--muted); font-size: 13px; }
+  .line[data-kind="note"] .who { color: var(--note); }
+
+  footer { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
+  button {
+    font: inherit; font-weight: 550; color: var(--text); min-height: 44px;
+    padding: 10px 18px; border-radius: 9px; cursor: pointer;
+    background: var(--surface-2); border: 1px solid var(--line);
+  }
+  button:hover:not(:disabled) { background: #232733; }
+  button:focus-visible { outline: 2px solid var(--karen); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #connect[data-live="true"] { background: color-mix(in oklab, var(--danger) 22%, var(--surface-2)); border-color: #5c2c34; }
+
+  #banner {
+    margin: 14px 20px 0; padding: 10px 12px; border-radius: 9px; font-size: 13px;
+    background: color-mix(in oklab, var(--danger) 14%, var(--surface));
+    border: 1px solid #5c2c34; color: #f4c3ca;
+  }
+
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    #orb { width: 160px; height: 160px; }
+    .name { font-size: 24px; }
+    .stage { padding: 20px 16px; gap: 12px; }
+    .brand span { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .task[data-status="running"] .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Karen <span>&mdash; meeting assistant, local test</span></div>
+  <div id="status" class="pill" role="status" aria-live="polite" data-state="idle">idle</div>
+</header>
+
+<div id="banner" role="alert" aria-live="assertive" hidden></div>
+
+<main>
+  <section class="stage">
+    <canvas id="orb" width="520" height="520" aria-hidden="true"></canvas>
+    <div>
+      <div class="name">Karen</div>
+      <div class="state" id="state" aria-live="polite">Not connected</div>
+    </div>
+    <p class="hint">She listens to everything and answers only when addressed. Start with <kbd>Karen, …</kbd> or <kbd>Карен, …</kbd></p>
+  </section>
+
+  <aside class="panel">
+    <h2 class="section-title" id="tasksTitle">Background work</h2>
+    <ul class="tasks" id="tasks" aria-labelledby="tasksTitle"></ul>
+    <h2 class="section-title" id="transcriptTitle">Transcript</h2>
+    <div class="transcript" id="transcript" role="log" aria-live="polite" aria-labelledby="transcriptTitle"></div>
+  </aside>
+</main>
+
+<footer>
+  <button id="connect">Connect</button>
+  <button id="mute" disabled>Mute</button>
+</footer>
+
+<script type="module" src="/static/karen.js?v=2"></script>
+</body>
+</html>

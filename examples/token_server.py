@@ -51,6 +51,10 @@ async def handle_index(vrequest: web.Request) -> web.StreamResponse:
     return web.FileResponse(WEB_DIR / "index.html")
 
 
+async def handle_karen(vrequest: web.Request) -> web.StreamResponse:
+    return web.FileResponse(WEB_DIR / "karen.html")
+
+
 @middleware
 async def no_store(request: web.Request, handler) -> web.StreamResponse:
     vresponse = await handler(request)
@@ -61,6 +65,7 @@ async def no_store(request: web.Request, handler) -> web.StreamResponse:
 def build_app() -> web.Application:
     vapp = web.Application(middlewares=[no_store])
     vapp.router.add_get("/", handle_index)
+    vapp.router.add_get("/karen", handle_karen)
     vapp.router.add_get("/token", handle_token)
     vapp.router.add_static("/static", WEB_DIR)
     return vapp
