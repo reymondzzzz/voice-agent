@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import time
 
 import aiohttp
 import pytest
@@ -117,3 +118,32 @@ async def test_a_routing_verdict_is_never_spoken_never_logged_as_karen_and_frees
     assert vrequests[0].vtext_only
     assert vremembered == []
     assert not vcall.vfloor.locked()
+
+
+def test_karen_goes_straight_on_after_her_own_answer_but_waits_out_the_people_otherwise() -> None:
+    class Source:
+        queued_duration = 2.0
+
+    vcall = MeetCall.__new__(MeetCall)
+    vcall.vsource = Source()
+    vcall.vuser_speaking = False
+    vnow = time.monotonic()
+    vcall.vlast_bot_activity = vnow - 1
+    vcall.vlast_human_speech = vnow - 1
+    vcall.vlast_bot_reply_done = vnow - 0.9
+    assert vcall.is_quiet(3.0), "her answer is still playing, but she holds the floor"
+    vcall.vlast_bot_reply_done = vnow - 2
+    assert not vcall.is_quiet(3.0), "a person spoke after her answer: wait for them"
+    Source.queued_duration = 0
+    vcall.vlast_human_speech = vnow - 4
+    assert vcall.is_quiet(3.0)
+    vcall.vuser_speaking = True
+    assert not vcall.is_quiet(3.0)
+
+
+def test_reply_latency_splits_the_wait_by_stage() -> None:
+    from examples.meet_agent import reply_latency
+
+    vstages = reply_latency({"speech_end": 10.0, "heard": 10.3, "decided": 11.2, "requested": 11.25}, 12.1)
+    assert {vname: round(vvalue, 2) for vname, vvalue in vstages.items()} == {"heard": 0.3, "decide": 0.9, "voice": 0.85, "total": 2.1}
+    assert reply_latency({"requested": 5.0}, 5.8) == {"voice": 0.8000000000000007} or round(reply_latency({"requested": 5.0}, 5.8)["voice"], 2) == 0.8

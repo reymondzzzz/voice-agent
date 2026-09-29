@@ -362,7 +362,21 @@ quiet. One that someone talks over goes back to the front and is finished at the
 Karen has answered the interruption if it was for her. That was a real-call bug: interrupted mid-fact
 by "Какая погода в Лондоне?", she answered the weather and dropped the fact. Rehearsed on the fixture
 page: interrupted by "Karen, what's the weather in London?", she answered it, then said "So, about
-that science fact, octopuses have three hearts…". Qwen's server VAD waits `TURN_SILENCE_MS` (1.2s)
+that science fact, octopuses have three hearts…". If Karen answered last she still holds the floor: the queue does not wait for the people's pause and
+starts the next reply as soon as her answer has finished generating, so its audio queues right behind
+the answer. Measured on the fixture page with a fact landing during a weather question: 11s of
+silence before this change, 1.8s after dropping a redundant sustained-quiet window, 0.8-0.9s now.
+Waiting results are not folded into the answer itself: asked to do both in one response, Qwen told
+the fact and skipped the weather tool ("I need to check that for you right now").
+
+Every Karen reply logs `latency heard=… decide=… voice=… total=…` and the page shows it under the
+line: `heard` is VAD end of speech to transcript, `decide` transcript to decision (0 when she was named,
+the routing step otherwise), `voice` request to the first audio chunk, `total` end of speech to first
+audio. VAD declares the end of speech `TURN_SILENCE_MS` after the person stops, so add that for the
+wait a person actually hears. On the fixture page: total 1.1-2.2s after the VAD end (the longest with a
+tool call), heard ~0.2s, voice ~1.0s.
+
+Qwen's server VAD waits `TURN_SILENCE_MS` (1.2s)
 before ending a turn, so a pause mid-sentence is not taken as the end of a question. Also rehearsed:
 "Why is that?" after a fact got an answer; "Anna, can you send me the report?" and "How are you doing
 today?" got silence. While it runs, the prompt

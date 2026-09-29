@@ -124,17 +124,33 @@ class PendingResult:
 def delivery_line(vresults: list[PendingResult]) -> str:
     vresumed = any(vresult.vattempts for vresult in vresults)
     vitems = "\n".join(f"- for {vresult.vrequester}, who asked: {vresult.vgoal}: {vresult.vanswer}" for vresult in vresults)
-    vhow = (
-        "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
-        "answered: pick the thread back up the way a person does ('so, about ...') and tell all of it."
-        if vresumed
-        else "Tell all of it now, in one go."
-    )
+    if vresumed:
+        vhow = (
+            "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
+            "answered: pick the thread back up the way a person does ('so, about ...') and tell all of it."
+        )
+    else:
+        vhow = "Tell all of it now, in one go."
     return (
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
         f"asking whether to go on, a sentence or two for each, addressing each person by name. Speak in the language "
         f"the people are using in the latest lines, whatever language this note is in."
     )
+
+
+def reply_latency(vtrace: dict[str, float], vfirst_audio_at: float | None) -> dict[str, float]:
+    """Where a reply's wait went, by stage: speech end, transcript, decision, request, first audio chunk."""
+
+    vstages = {}
+    if "speech_end" in vtrace and "heard" in vtrace:
+        vstages["heard"] = vtrace["heard"] - vtrace["speech_end"]
+    if "heard" in vtrace and "decided" in vtrace:
+        vstages["decide"] = vtrace["decided"] - vtrace["heard"]
+    if "requested" in vtrace and vfirst_audio_at is not None:
+        vstages["voice"] = vfirst_audio_at - vtrace["requested"]
+    if "speech_end" in vtrace and vfirst_audio_at is not None:
+        vstages["total"] = vfirst_audio_at - vtrace["speech_end"]
+    return vstages
 
 
 class RoomAudioSink:
@@ -143,11 +159,14 @@ class RoomAudioSink:
     def __init__(self, vsource: rtc.AudioSource) -> None:
         self.vsource = vsource
         self.vmuted = False
+        self.vfirst_audio_at: float | None = None
         self._vstray = b""
 
     async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
         if self.vmuted:
             return
+        if self.vfirst_audio_at is None:
+            self.vfirst_audio_at = time.monotonic()
         # Deltas can end mid-sample; the odd byte belongs to the next delta.
         vpcm = self._vstray + vpcm
         vwhole = len(vpcm) - len(vpcm) % 2
@@ -191,6 +210,7 @@ class MeetCall:
         )
         self.vuser_speaking = False
         self.vlast_human_speech = 0.0
+        self.vlast_bot_reply_done = 0.0
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
@@ -204,6 +224,7 @@ class MeetCall:
         self.vdiscard_next = False
         self.vtool_followup = False
         self.vfacts: list[str] = []
+        self.vtrace: dict[str, float] = {}
         self._vtasks: set[asyncio.Task[None]] = set()
 
     def publish(self, **vevent: object) -> None:
@@ -354,7 +375,11 @@ class MeetCall:
                 return
             self.vlast_bot_activity = time.monotonic()
             if vreply:
-                self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT))
+                self.vlast_bot_reply_done = time.monotonic()
+                vlatency = reply_latency(self.vtrace, self.vsink.vfirst_audio_at)
+                self.vtrace = {}
+                logger.info("latency %s", " ".join(f"{vname}={vvalue:.2f}s" for vname, vvalue in vlatency.items()))
+                self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT), vlatency=vlatency)
                 self.spawn(self.rearm_after_playout())
             if self.vtool_followup:
                 self.vtool_followup = False
@@ -370,19 +395,21 @@ class MeetCall:
         vcontext = "\n".join(vturn.line() for vturn in self.vmemory.vturns[-GATE_CONTEXT_TURNS:])
         vturn = MeetTurn(time.time(), vspeaker, vtext)
         self.remember(vturn)
+        vtrace = {"speech_end": self.vlast_human_speech, "heard": time.monotonic()}
         # Judged off the event pump: waiting on the gate model must not delay the next speech-started event.
-        self.spawn(self.consider(vturn, vcontext))
+        self.spawn(self.consider(vturn, vcontext, vtrace))
 
-    async def consider(self, vturn: MeetTurn, vcontext: str) -> None:
+    async def consider(self, vturn: MeetTurn, vcontext: str, vtrace: dict[str, float]) -> None:
         if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
             return
+        vtrace["decided"] = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         self.publish(type="addressed", ts=vturn.vat)
-        await self.respond(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
-
-    async def respond(self, vline: str) -> None:
+        # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
+        # weather tool. They follow the moment the answer has played, since Karen then still holds the floor.
         await self.take_floor()
-        await self.speak(vline)
+        self.vtrace = vtrace
+        await self.speak(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
 
     async def speak(self, vline: str) -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
@@ -390,6 +417,8 @@ class MeetCall:
         # it has heard, and invents work for the ones it cannot answer. The caller holds the floor.
         assert self.vsession is not None
         self.vlast_bot_activity = time.monotonic()
+        self.vtrace["requested"] = self.vlast_bot_activity
+        self.vsink.vfirst_audio_at = None
         self.publish(type="state", state="thinking")
         await self.vsession.update_instructions(self.instructions())
         vcorrelation = self.vsession.correlation()
@@ -473,21 +502,21 @@ class MeetCall:
         self.vpending_added.set()
 
     def is_quiet(self, vpause_s: float) -> bool:
-        # Only people's silence counts: Karen may go straight on after her own sentence, as a person holding the
-        # floor does, but must not start while a reply of hers is still being generated or played.
-        return (
-            not self.vuser_speaking
-            and self.vsource.queued_duration == 0
-            and time.monotonic() - self.vlast_human_speech > vpause_s
-            and time.monotonic() - self.vlast_bot_activity > BOT_SETTLE_S
-        )
+        # Only people's silence counts. If Karen answered last she still has the floor and goes straight on, even
+        # while that answer is still playing: the next reply's audio queues behind it, so there is no gap at all.
+        if self.vuser_speaking or time.monotonic() - self.vlast_bot_activity <= BOT_SETTLE_S:
+            return False
+        if self.vlast_bot_reply_done > self.vlast_human_speech:
+            return True
+        return self.vsource.queued_duration == 0 and time.monotonic() - self.vlast_human_speech > vpause_s
 
     async def wait_until_quiet(self, vpause_s: float = QUIET_BEFORE_SPEAKING_S) -> None:
-        vquiet_since = time.monotonic()
-        while time.monotonic() - vquiet_since < vpause_s:
+        # is_quiet already measures the pause since people last spoke; a further sustained window only delayed
+        # Karen when she held the floor after her own answer.
+        while True:
+            if self.is_quiet(vpause_s):
+                return
             await asyncio.sleep(QUIET_POLL_S)
-            if not self.is_quiet(vpause_s):
-                vquiet_since = time.monotonic()
 
     async def deliver_pending(self) -> None:
         # One worker, and everything waiting is told in one turn: once Karen has the floor she says all she has,
@@ -503,17 +532,25 @@ class MeetCall:
                 vresults = list(self.vpending)
                 self.vpending.clear()
                 self.addressing().engage(vresults[-1].vrequester)
-                self.vinterrupted = False
-                self.vplayed.clear()
-                await self.speak(delivery_line(vresults))
-                for vresult in vresults:
-                    vresult.vattempts += 1
-                with contextlib.suppress(TimeoutError):
-                    await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
-                vretry = [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS] if self.vinterrupted else []
-                if vretry:
-                    logger.info("%d background result(s) talked over; will come back to them", len(vretry))
-                    self.vpending.extendleft(reversed(vretry))
+                self.vtrace = {}
+                await self.tell(delivery_line(vresults), vresults)
+
+    async def tell(self, vline: str, vresults: list[PendingResult]) -> None:
+        # The caller holds the floor. Results told in this turn go back to the front if someone talks over it.
+        self.vinterrupted = False
+        self.vplayed.clear()
+        await self.speak(vline)
+        if not vresults:
+            return
+        for vresult in vresults:
+            vresult.vattempts += 1
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
+        vretry = [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS] if self.vinterrupted else []
+        if vretry:
+            logger.info("%d background result(s) talked over; will come back to them", len(vretry))
+            self.vpending.extendleft(reversed(vretry))
+            self.vpending_added.set()
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()
@@ -529,9 +566,9 @@ class MeetCall:
             await self.open_session()
             logger.info("renewed qwen session with the last %ds of transcript", int(MEET_CONTEXT_WINDOW_S))
 
-    def remember(self, vturn: MeetTurn) -> None:
+    def remember(self, vturn: MeetTurn, *, vlatency: dict[str, float] | None = None) -> None:
         self.vmemory.add(vturn)
-        self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat)
+        self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat, latency=vlatency or {})
         self.vmemory.forget_before(time.time())
         logger.info("meet turn speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         MEET_TRANSCRIPT_DIR.mkdir(exist_ok=True)

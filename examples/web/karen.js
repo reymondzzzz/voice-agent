@@ -115,6 +115,13 @@ function addTurn(vturn) {
   vtime.dateTime = new Date(vturn.ts * 1000).toISOString()
   vtime.textContent = clockTime(vturn.ts)
   vhead.append(vwho, vtime)
+  const vlatency = Object.entries(vturn.latency ?? {})
+  if (vlatency.length) {
+    const vspan = document.createElement("span")
+    vspan.className = "latency"
+    vspan.textContent = vlatency.map(([vname, vseconds]) => `${vname} ${vseconds.toFixed(2)}s`).join(" · ")
+    vhead.append(vspan)
+  }
   const vtext = document.createElement("div")
   vtext.textContent = vturn.text
   vline.append(vhead, vtext)
