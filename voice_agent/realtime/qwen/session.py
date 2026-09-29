@@ -65,6 +65,7 @@ class QwenOmniSession:
         vtools: list[dict[str, object]] | None = None,
         vauto_response: bool = True,
         vsilence_ms: int = 800,
+        vtranscription_language: str = "",
     ) -> None:
         self.vconversation_id = vconversation_id
         self.vsession_id = vsession_id
@@ -74,6 +75,7 @@ class QwenOmniSession:
         self.vtools = vtools or []
         self.vauto_response = vauto_response
         self.vsilence_ms = vsilence_ms
+        self.vtranscription_language = vtranscription_language
         self._vapi_key = vapi_key
         self._vbase_url = vbase_url
         self._vepoch_provider = vepoch_provider
@@ -131,7 +133,11 @@ class QwenOmniSession:
         await self._vevents.put(None)
 
     def _session_frame(self) -> dict[str, object]:
-        return protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response)
+        vframe = protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response)
+        if self.vtranscription_language:
+            # Unpinned, the recogniser guesses per utterance and wrote Russian speech as Polish or Chinese.
+            vframe["session"]["input_audio_transcription"]["language"] = self.vtranscription_language  # type: ignore[index]
+        return vframe
 
     async def _send(self, vframe: dict[str, object]) -> None:
         if self._vws is None:

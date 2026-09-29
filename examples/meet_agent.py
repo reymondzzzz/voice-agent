@@ -11,13 +11,15 @@ import pathlib
 import random
 import time
 
+import numpy
 from livekit import agents, rtc
 from livekit.agents import AgentServer, JobContext
 
-from examples import small_agents, voice_app
+from examples import voice_app
 from examples.meet_addressing import MeetAddressing
 from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
-from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn, background_brief
+from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn
+from examples.meet_tools import MEET_TOOLS, MEET_TOOLS_BY_NAME, SCIENCE_FACTS, MeetTool, ToolWeight
 from voice_agent.pipeline import voice_contracts
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, TaskSpec, TaskStatus
 from voice_agent.agent.tasks.registry import TaskRegistry
@@ -29,6 +31,10 @@ logger = logging.getLogger("meet-agent")
 
 MEET_VOICE_MODEL = "qwen3.8-omni-flash-realtime"
 MEET_DELEGATE_MODEL = "z-ai/glm-5.3"
+MEET_LANGUAGE = "ru"
+MEET_LANGUAGE_NAME = "Russian"
+BARGE_IN_DBFS = -40.0
+BARGE_IN_S = 0.15
 MEET_DEFAULT_BOT_NAME = "Karen"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
@@ -42,76 +48,27 @@ DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
 BOT_SETTLE_S = 0.5
 ROUTE_TIMEOUT_S = 5.0
-FLOOR_TIMEOUT_S = 30.0
+FLOOR_TIMEOUT_S = 10.0
+KEEPALIVE_S = 240.0
+FILLER_PHRASES = ("Секунду.", "Так...", "Сейчас посмотрю.", "Хм, сейчас.")
 KAREN_EVENTS_TOPIC = "karen"
-SCIENCE_FACT_DELAY_S = 8.0
-SCIENCE_FACTS = (
-    "A day on Venus is longer than its year: it turns once every 243 Earth days but orbits the Sun in 225.",
-    "Octopuses have three hearts, and two of them stop beating while they swim.",
-    "Honey found in Egyptian tombs was still edible after about 3,000 years.",
-    "A teaspoon of neutron star material would weigh around a billion tonnes on Earth.",
-    "Bananas are slightly radioactive because they contain potassium-40.",
-    "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
-    "Water can boil and freeze at the same time at its triple point, about 0.01 °C and 611 pascals.",
-    "There are more possible chess games than atoms in the observable universe.",
-)
-
 KAREN_RULES = (
     "You are an assistant attending a group meeting by voice. You hear everyone, but almost everything is said "
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
-    "that line's language, in one or two short spoken sentences. You know nothing about the current time or "
-    "weather: for either, call get_current_time or get_current_weather before answering. When someone wants a "
-    "science fact, call science_fact. For anything that needs research, analysis, drafting or careful checking "
-    "beyond what was said, call delegate_task with a self-contained goal. After starting background work say in a "
-    "few words that you are on it. Only say that you started, are running or will return with work if you called "
-    "a tool for it in this reply or it is listed below as running; otherwise say you have not started anything. "
-    "Never guess a result that has not arrived. Speak like a colleague in the room: brief, warm and plain, no "
-    "announcements about yourself or your tools. When you bring back a background result, open with a few words "
-    "that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you are asked an "
-    "internal routing question about who a line was meant for: answer it with the single word asked for, and never "
-    "say RESPOND or IGNORE aloud."
+    "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "
+    "either before answering. A science fact must come from science_fact, never from your own knowledge. For "
+    "anything that needs research, analysis, drafting or careful checking beyond what was said, call research "
+    "with a self-contained question. A tool that runs in the background returns at once: then say in a few words "
+    "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
+    "it in this reply or it is listed below as running; otherwise say you have not started anything. Never guess "
+    "a result that has not arrived. A short filler such as 'Секунду' has already been said before your reply, so "
+    "start with the substance, not with another filler. Speak like a colleague in the room: brief, warm and "
+    "plain, no announcements about yourself or your tools. When you bring back a background result, open with a "
+    "few words that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you "
+    "are asked an internal routing question about who a line was meant for: answer it with the single word asked "
+    "for, and never say RESPOND or IGNORE aloud."
 )
-
-KAREN_TOOLS: list[dict[str, object]] = [
-    {
-        "type": "function",
-        "name": "get_current_time",
-        "description": "Current date and time in an IANA timezone such as Asia/Tokyo.",
-        "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}, "required": []},
-    },
-    {
-        "type": "function",
-        "name": "get_current_weather",
-        "description": "Current weather for a city (placeholder data).",
-        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-    },
-    {
-        "type": "function",
-        "name": "delegate_task",
-        "description": (
-            "Hand slow work to a stronger background model and keep talking: research, analysis, drafting, or "
-            "checking anything the meeting has not already settled. Returns at once; the answer arrives later."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {"goal": {"type": "string", "description": "Self-contained description of the work, naming the facts it depends on"}},
-            "required": ["goal"],
-        },
-    },
-    {
-        "type": "function",
-        "name": "science_fact",
-        "description": "Look up a random science fact in the background. Returns at once; the fact arrives a few seconds later.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-]
-
-FAST_TOOLS = {
-    "get_current_time": small_agents.get_current_time,
-    "get_current_weather": small_agents.get_current_weather,
-}
-
 
 @dataclasses.dataclass
 class PendingResult:
@@ -133,15 +90,23 @@ def delivery_line(vresults: list[PendingResult]) -> str:
         vhow = "Tell all of it now, in one go."
     return (
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
-        f"asking whether to go on, a sentence or two for each, addressing each person by name. Speak in the language "
-        f"the people are using in the latest lines, whatever language this note is in."
+        f"asking whether to go on, a sentence or two for each, addressing each person by name."
     )
+
+
+def loudness_dbfs(vpcm: bytes) -> float:
+    vsamples = numpy.frombuffer(vpcm, dtype="<i2").astype(numpy.float32) / 32768.0
+    if not vsamples.size:
+        return -120.0
+    return float(20 * numpy.log10(numpy.sqrt(numpy.mean(vsamples * vsamples)) + 1e-6))
 
 
 def reply_latency(vtrace: dict[str, float], vfirst_audio_at: float | None) -> dict[str, float]:
     """Where a reply's wait went, by stage: speech end, transcript, decision, request, first audio chunk."""
 
     vstages = {}
+    if "speech_end" in vtrace and "filler" in vtrace:
+        vstages["filler"] = vtrace["filler"] - vtrace["speech_end"]
     if "speech_end" in vtrace and "heard" in vtrace:
         vstages["heard"] = vtrace["heard"] - vtrace["speech_end"]
     if "heard" in vtrace and "decided" in vtrace:
@@ -151,6 +116,51 @@ def reply_latency(vtrace: dict[str, float], vfirst_audio_at: float | None) -> di
     if "speech_end" in vtrace and vfirst_audio_at is not None:
         vstages["total"] = vfirst_audio_at - vtrace["speech_end"]
     return vstages
+
+
+class CaptureAudio:
+    def __init__(self) -> None:
+        self.vpcm = bytearray()
+
+    async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
+        self.vpcm.extend(vpcm)
+
+    async def flush(self) -> None:
+        pass
+
+    async def clear(self) -> None:
+        self.vpcm.clear()
+
+
+async def synthesize_fillers(vapi_key: str) -> list[bytes]:
+    """Karen's own voice saying each filler, made on a throwaway session so her meeting session never holds them."""
+
+    vsink = CaptureAudio()
+    vsession = QwenOmniSession(
+        vapi_key=vapi_key,
+        vconversation_id="fillers",
+        vsession_id="fillers",
+        vepoch_provider=lambda: 0,
+        vaudio_sink=vsink,
+        vmodel=MEET_VOICE_MODEL,
+        vinstructions="You read short phrases aloud exactly as given, in a calm, natural voice.",
+        vtools=[],
+        vauto_response=False,
+    )
+    await vsession.start()
+    vevents = vsession.events()
+    vfillers: list[bytes] = []
+    try:
+        for vphrase in FILLER_PHRASES:
+            await vsink.clear()
+            await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=f"Say exactly this in {MEET_LANGUAGE_NAME}, nothing else: {vphrase}"))
+            while not isinstance(await anext(vevents), events.AssistantSpeechStopped):
+                pass
+            if vsink.vpcm:
+                vfillers.append(bytes(vsink.vpcm[: len(vsink.vpcm) // 2 * 2]))
+    finally:
+        await vsession.close()
+    return vfillers
 
 
 class RoomAudioSink:
@@ -183,20 +193,15 @@ class RoomAudioSink:
 
 
 class MeetCall:
-    """Karen in one meeting: Qwen Omni hears, transcribes, speaks and calls tools; GLM does delegated work.
-
-    Qwen keeps every utterance it hears server-side, and DashScope acknowledges conversation.item.delete
-    without the model forgetting the audio. So its context is bounded by replacing the session once it has
-    heard a full window, at a quiet moment, seeded with the text log of that window: the meeting it knows is
-    always the last ten minutes, never the whole call.
-    """
+    """Karen in one meeting: one Qwen Omni session hears, transcribes, routes, speaks and calls tools; GLM does
+    delegated work. The session lives until DashScope closes it, and is then reopened seeded with the text log
+    of the last ten minutes."""
 
     def __init__(self, vroom: rtc.Room) -> None:
         self.vroom = vroom
         self.vsource = rtc.AudioSource(ROOM_SAMPLE_RATE_HZ, 1, queue_size_ms=PLAYBACK_QUEUE_MS)
         self.vsink = RoomAudioSink(self.vsource)
         self.vsession: QwenOmniSession | None = None
-        self.vsession_started_at = 0.0
         self.vmemory = MeetMemory()
         self.vaddressing: MeetAddressing | None = None
         self.vdelegate_llm = voice_app.build_llm(MEET_DELEGATE_MODEL)
@@ -225,6 +230,9 @@ class MeetCall:
         self.vtool_followup = False
         self.vfacts: list[str] = []
         self.vtrace: dict[str, float] = {}
+        self.vloud_s = 0.0
+        self.vfillers: list[bytes] = []
+        self.vlast_response_at = time.monotonic()
         self._vtasks: set[asyncio.Task[None]] = set()
 
     def publish(self, **vevent: object) -> None:
@@ -293,14 +301,14 @@ class MeetCall:
             vaudio_sink=self.vsink,
             vinstructions=self.instructions(),
             vmodel=MEET_VOICE_MODEL,
-            vtools=KAREN_TOOLS,
+            vtools=[vtool.schema() for vtool in MEET_TOOLS],
             vauto_response=False,
             vsilence_ms=TURN_SILENCE_MS,
+            vtranscription_language=MEET_LANGUAGE,
         )
         await vsession.start()
         # Start first, publish second: the audio pump reads self.vsession on every frame.
         vprevious, self.vsession = self.vsession, vsession
-        self.vsession_started_at = time.monotonic()
         if self.vrouting is not None and not self.vrouting.done():
             self.vrouting.set_result("")
         self.vtool_followup = False
@@ -326,6 +334,7 @@ class MeetCall:
             await self.forward_frame(bytes(vevent.frame.data))
 
     async def forward_frame(self, vpcm: bytes) -> None:
+        await self.watch_for_barge_in(vpcm)
         if self.vsession is None:
             return
         try:
@@ -334,6 +343,29 @@ class MeetCall:
             # DashScope closes a session every few minutes and pump_events replaces it; until then a frame has
             # nowhere to go. Losing 20ms is fine, losing the pump leaves Karen deaf for the rest of the meeting.
             pass
+
+    async def watch_for_barge_in(self, vpcm: bytes) -> None:
+        # Qwen's VAD reports speech only after a round trip to the endpoint, and Karen kept talking meanwhile. A
+        # person audible for BARGE_IN_S while her audio is queued is enough: the bridge carries only the others.
+        vframe_s = len(vpcm) / 2 / ROOM_SAMPLE_RATE_HZ
+        if self.vsource.queued_duration == 0 or self.vsink.vmuted or loudness_dbfs(vpcm) < BARGE_IN_DBFS:
+            self.vloud_s = 0.0
+            return
+        self.vloud_s += vframe_s
+        if self.vloud_s < BARGE_IN_S:
+            return
+        self.vloud_s = 0.0
+        logger.info("barge-in: someone is speaking over Karen")
+        # Qwen's VAD will report this speech about half a second from now; until it does, count it here, or the
+        # delivery queue sees a quiet room, re-sends the talked-over result into the speech, and Qwen cancels that
+        # response without ever finishing it, which left the floor locked.
+        self.vuser_speaking = True
+        self.vlast_human_speech = time.monotonic()
+        await self.vsink.clear()
+        self.vinterrupted = True
+        self.vplayed.set()
+        if self.vsession is not None and self.vfloor.locked():
+            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="barge_in"))
 
     async def pump_events(self, vsession: QwenOmniSession) -> None:
         async for vevent in vsession.events():
@@ -362,6 +394,7 @@ class MeetCall:
             self.vlast_bot_activity = time.monotonic()
             self.vreply_parts.append(vevent.vtext)
         elif isinstance(vevent, events.AssistantSpeechStopped):
+            self.vlast_response_at = time.monotonic()
             if self.vrouting is not None:
                 if not self.vrouting.done():
                     self.vrouting.set_result("".join(self.vroute_parts))
@@ -403,6 +436,8 @@ class MeetCall:
         if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
             return
         vtrace["decided"] = time.monotonic()
+        if await self.play_filler():
+            vtrace["filler"] = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         self.publish(type="addressed", ts=vturn.vat)
         # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
@@ -410,6 +445,32 @@ class MeetCall:
         await self.take_floor()
         self.vtrace = vtrace
         await self.speak(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
+
+    async def play_filler(self) -> bool:
+        # Only into silence: a filler in the middle of Karen's own sentence is worse than none.
+        if not self.vfillers or self.vsink.vmuted or self.vfloor.locked() or self.vsource.queued_duration > 0:
+            return False
+        await self.vsink.write(random.choice(self.vfillers), ROOM_SAMPLE_RATE_HZ)
+        return True
+
+    async def load_fillers(self) -> None:
+        try:
+            self.vfillers = await synthesize_fillers(os.environ["DASHSCOPE_API_KEY"])
+        except Exception:
+            # Fillers are a nicety: a meeting without them still works.
+            logger.warning("could not synthesize fillers; Karen answers without them", exc_info=True)
+            return
+        logger.info("synthesized %d fillers", len(self.vfillers))
+
+    async def keep_session_alive(self) -> None:
+        # DashScope closes a session after 300s without a response, and Karen's meeting context goes with it. A
+        # silent one-word routing-style response keeps it open through a stretch nobody talks to her.
+        while True:
+            await asyncio.sleep(KEEPALIVE_S / 8)
+            if self.vsession is None or self.vfloor.locked() or time.monotonic() - self.vlast_response_at < KEEPALIVE_S:
+                continue
+            logger.info("keepalive response after %ds without one", int(time.monotonic() - self.vlast_response_at))
+            await self.route("Internal keepalive. Reply with exactly one word: OK.")
 
     async def speak(self, vline: str) -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
@@ -426,7 +487,12 @@ class MeetCall:
         await self.vsession.request_response(events.ResponseRequest(vcorrelation=vcorrelation))
 
     def instructions(self) -> str:
-        vparts = [KAREN_RULES, f"In this meeting people call you {self.addressing().vbot_name}."]
+        vparts = [
+            KAREN_RULES,
+            f"In this meeting people call you {self.addressing().vbot_name}. Always speak {MEET_LANGUAGE_NAME}, whatever "
+            f"language a line or a note is written in: speech recognition sometimes writes a {MEET_LANGUAGE_NAME} "
+            f"sentence as another language.",
+        ]
         vrunning = [vrecord for vrecord in self.vregistry.all() if vrecord.vstatus in (TaskStatus.PENDING, TaskStatus.RUNNING)]
         if vrunning:
             vlines = "\n".join(f"- {vrecord.vgoal} (asked by {vrecord.vspec.vcontext['requester']})" for vrecord in vrunning)
@@ -440,52 +506,54 @@ class MeetCall:
     async def on_tool_call(self, vcall: events.RealtimeToolCallRequested) -> None:
         self.vlast_bot_activity = time.monotonic()
         logger.info("tool %s(%s)", vcall.vtool_name, vcall.varguments)
-        if vcall.vtool_name == "delegate_task":
-            vresult = self.start_background(str(vcall.varguments.get("goal", "")), "delegate")
-        elif vcall.vtool_name == "science_fact":
-            vresult = self.start_background("find a random science fact", "science_fact")
-        elif vcall.vtool_name in FAST_TOOLS:
-            vresult = FAST_TOOLS[vcall.vtool_name].invoke(vcall.varguments)
-        else:
+        vtool = MEET_TOOLS_BY_NAME.get(vcall.vtool_name)
+        if vtool is None:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
+        elif vtool.vweight is ToolWeight.LIGHT:
+            vresult = await vtool.vrun(self, vcall.varguments)
+        else:
+            vresult = self.start_background(vtool, vcall.varguments)
         vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
         # Qwen 3.8 often says "I'm on it" in the same response that starts background work; asking it to respond
-        # again to the tool result made it say so twice. A fast tool's result still needs its spoken answer.
-        vrespond = vcall.vtool_name in FAST_TOOLS or not "".join(self.vreply_parts).strip()
+        # again to the tool result made it say so twice. A light tool's result still needs its spoken answer.
+        vrespond = vtool is None or vtool.vweight is ToolWeight.LIGHT or not "".join(self.vreply_parts).strip()
         # The answer to a tool call is a second response that still belongs to this turn: keep the floor for it.
         self.vtool_followup = vrespond
         await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vresult}, vcorrelation=self.vsession.correlation()), vrespond=vrespond)
 
-    def start_background(self, vgoal: str, vkind: str) -> str:
-        if not vgoal.strip():
-            return "Error: goal is empty"
-        vrequester = self.addressing().vengaged_speaker or "the room"
+    def requester(self) -> str:
+        return self.addressing().vengaged_speaker or "the room"
+
+    def next_fact(self) -> str:
+        if not self.vfacts:
+            self.vfacts = random.sample(SCIENCE_FACTS, len(SCIENCE_FACTS))
+        return self.vfacts.pop()
+
+    def start_background(self, vtool: MeetTool, varguments: dict[str, object]) -> str:
+        vgoal = vtool.goal(varguments)
+        vrequester = self.requester()
         vrecord = self.vsupervisor.create_record(
             vspec=TaskSpec(
                 vgoal=vgoal,
                 vmode=TaskMode.BACKGROUND,
-                vcontext={"requester": vrequester, "kind": vkind, "brief": background_brief(vgoal, vrequester, self.vmemory)},
+                vcontext={"requester": vrequester, "tool": vtool.vname, "arguments": varguments},
             ),
             vconversation_epoch=0,
         )
-        if vkind == "delegate":
-            # Asking again for the same check replaces the first; asking for another fact wants another fact.
+        if varguments:
+            # Asking the same question again replaces the first; asking for another fact wants another fact.
             self.vsupervisor.supersede_duplicates(vrecord)
         self.vsupervisor.start_background(vrecord)
-        logger.info("background task=%s kind=%s requester=%s goal=%s", vrecord.vtask_id, vkind, vrequester, vgoal)
+        logger.info("background task=%s tool=%s requester=%s goal=%s", vrecord.vtask_id, vtool.vname, vrequester, vgoal)
         self.publish(type="task", id=vrecord.vtask_id, goal=vgoal, requester=vrequester, status="running")
         return "Started in the background; the answer arrives later."
 
     async def run_task(self, vrecord: TaskRecord) -> TaskResult:
-        if vrecord.vspec.vcontext["kind"] == "science_fact":
-            await asyncio.sleep(SCIENCE_FACT_DELAY_S)
-            if not self.vfacts:
-                self.vfacts = random.sample(SCIENCE_FACTS, len(SCIENCE_FACTS))
-            return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=self.vfacts.pop())
-        vreply = await self.vdelegate_llm.ainvoke(str(vrecord.vspec.vcontext["brief"]))
-        return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=str(vreply.content))
+        vtool = MEET_TOOLS_BY_NAME[str(vrecord.vspec.vcontext["tool"])]
+        vanswer = await vtool.vrun(self, dict(vrecord.vspec.vcontext["arguments"]))  # type: ignore[call-overload]
+        return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=vanswer)
 
     async def on_task_finished(self, vrecord: TaskRecord) -> None:
         if vrecord.vstatus is TaskStatus.COMPLETED and vrecord.vresult is not None:
@@ -557,15 +625,6 @@ class MeetCall:
         self.vplayed.set()
         self.publish(type="state", state="listening")
 
-    async def renew_when_window_is_full(self) -> None:
-        while self.vsession is not None:
-            await asyncio.sleep(MEET_CONTEXT_WINDOW_S / 20)
-            if time.monotonic() - self.vsession_started_at < MEET_CONTEXT_WINDOW_S:
-                continue
-            await self.wait_until_quiet()
-            await self.open_session()
-            logger.info("renewed qwen session with the last %ds of transcript", int(MEET_CONTEXT_WINDOW_S))
-
     def remember(self, vturn: MeetTurn, *, vlatency: dict[str, float] | None = None) -> None:
         self.vmemory.add(vturn)
         self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat, latency=vlatency or {})
@@ -585,6 +644,7 @@ async def entrypoint(ctx: JobContext) -> None:
     vcall = MeetCall(ctx.room)
     ctx.room.on("track_subscribed", vcall.on_track_subscribed)
     ctx.add_shutdown_callback(vcall.aclose)
+    vcall.spawn(vcall.load_fillers())
     await vcall.open_session()
     await ctx.connect()
     await ctx.room.local_participant.publish_track(
@@ -592,7 +652,7 @@ async def entrypoint(ctx: JobContext) -> None:
         rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
     )
     await ctx.room.local_participant.set_attributes({"active_agent_id": "karen", "active_agent_name": MEET_DEFAULT_BOT_NAME})
-    vcall.spawn(vcall.renew_when_window_is_full())
+    vcall.spawn(vcall.keep_session_alive())
     vcall.spawn(vcall.deliver_pending())
 
 

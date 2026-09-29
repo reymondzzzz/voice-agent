@@ -3,6 +3,7 @@ import collections
 import time
 
 import aiohttp
+import numpy
 import pytest
 
 from examples.meet_addressing import MeetAddressing
@@ -27,6 +28,11 @@ class OpenSession:
 @pytest.mark.asyncio
 async def test_a_closing_session_costs_a_frame_not_the_audio_pump() -> None:
     vcall = MeetCall.__new__(MeetCall)
+
+    async def no_barge_in(_vpcm: bytes) -> None:
+        pass
+
+    vcall.watch_for_barge_in = no_barge_in
     vcall.vsession = ClosingSession()
     await vcall.forward_frame(b"\x00\x00" * 480)
     vnext = OpenSession()
@@ -147,3 +153,52 @@ def test_reply_latency_splits_the_wait_by_stage() -> None:
     vstages = reply_latency({"speech_end": 10.0, "heard": 10.3, "decided": 11.2, "requested": 11.25}, 12.1)
     assert {vname: round(vvalue, 2) for vname, vvalue in vstages.items()} == {"heard": 0.3, "decide": 0.9, "voice": 0.85, "total": 2.1}
     assert reply_latency({"requested": 5.0}, 5.8) == {"voice": 0.8000000000000007} or round(reply_latency({"requested": 5.0}, 5.8)["voice"], 2) == 0.8
+
+
+def test_loudness_tells_speech_from_silence() -> None:
+    from examples.meet_agent import loudness_dbfs
+
+    vtone = (numpy.sin(numpy.arange(480) / 3) * 8000).astype(numpy.int16).tobytes()
+    assert loudness_dbfs(vtone) > -20
+    assert loudness_dbfs(bytes(960)) < -100
+
+
+@pytest.mark.asyncio
+async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then() -> None:
+    class Source:
+        queued_duration = 2.0
+
+    class Sink:
+        vmuted = False
+        vcleared = 0
+
+        async def clear(self) -> None:
+            self.vcleared += 1
+
+    class Session:
+        vinterrupts = 0
+
+        def correlation(self):
+            return Correlation.create(vconversation_id="c", vsession_id="s", vconversation_epoch=0, vturn_id=None)
+
+        async def interrupt(self, _vrequest) -> None:
+            self.vinterrupts += 1
+
+    vcall = MeetCall.__new__(MeetCall)
+    vcall.vsource, vcall.vsink, vcall.vsession = Source(), Sink(), Session()
+    vcall.vloud_s, vcall.vinterrupted, vcall.vplayed, vcall.vfloor = 0.0, False, asyncio.Event(), asyncio.Lock()
+    vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
+    await vcall.vfloor.acquire()
+    vspeech = (numpy.sin(numpy.arange(240) / 3) * 8000).astype(numpy.int16).tobytes()
+
+    for _ in range(14):
+        await vcall.watch_for_barge_in(vspeech)
+    assert vcall.vsink.vcleared == 0, "140ms is not yet a barge-in"
+    await vcall.watch_for_barge_in(vspeech)
+    assert vcall.vsink.vcleared == 1 and vcall.vsession.vinterrupts == 1 and vcall.vinterrupted
+    assert vcall.vuser_speaking, "until Qwen reports the end of this speech, the room is not quiet"
+
+    Source.queued_duration = 0
+    for _ in range(30):
+        await vcall.watch_for_barge_in(vspeech)
+    assert vcall.vsink.vcleared == 1, "nothing of Karen's is playing"
