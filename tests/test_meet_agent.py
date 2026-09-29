@@ -33,7 +33,7 @@ async def test_a_closing_session_costs_a_frame_not_the_audio_pump() -> None:
 
 
 @pytest.mark.asyncio
-async def test_results_are_told_one_at_a_time_and_a_talked_over_one_is_finished_first() -> None:
+async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_finished_whole() -> None:
     vcall = MeetCall.__new__(MeetCall)
     vcall.vaddressing = MeetAddressing("Karen", lambda _vprompt: asyncio.sleep(0, ""))
     vcall.vpending = collections.deque([PendingResult("Carl", "a science fact", "honey keeps"), PendingResult("Anna", "the deadline", "it holds")])
@@ -55,13 +55,13 @@ async def test_results_are_told_one_at_a_time_and_a_talked_over_one_is_finished_
     vcall.vpending_added.set()
     vworker = asyncio.create_task(vcall.deliver_pending())
     for _ in range(50):
-        if len(vspoken) == 3:
+        if len(vspoken) == 2:
             break
         await asyncio.sleep(0.01)
+    await asyncio.sleep(0.05)
     vworker.cancel()
 
-    assert [vline.split("]")[0] for vline in vspoken] == [
-        "[background result for Carl, who asked: a science fact",
-        "[you were cut off while telling Carl the background result about 'a science fact'",
-        "[background result for Anna, who asked: the deadline",
-    ]
+    assert len(vspoken) == 2
+    assert "honey keeps" in vspoken[0] and "it holds" in vspoken[0]
+    assert "cut off" in vspoken[1] and "honey keeps" in vspoken[1] and "it holds" in vspoken[1]
+    assert not vcall.vpending

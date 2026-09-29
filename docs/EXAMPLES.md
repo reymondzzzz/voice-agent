@@ -274,17 +274,24 @@ what it is called.
 
 - **The name is the fast path.** Fuzzy, spaces ignored, Cyrillic transliterated: `Caren`,
   `VoiceAgent`, `Карен` all match, with no model call.
-- **Everything else is judged from the dialogue** by `MEET_GATE_MODEL` (`z-ai/glm-5.2`, reasoning
-  off, temperature 0), reading the last `GATE_CONTEXT_TURNS` labelled lines. It answers only
-  whether the latest line is for Karen. Anything but an explicit yes is silence.
+- **Everything else is judged from the dialogue by Qwen Omni itself**, on a text-only session of its
+  own (`QwenJudge`), reading the last `GATE_CONTEXT_TURNS` labelled lines. It answers only whether the
+  latest line is for Karen; anything but an explicit yes is silence.
 
 Keyword rules were tried first and failed on a real call: a word count dropped "Почему?" right after
 Karen answered, and a filler list cannot tell "Почему?" to Karen from "Почему?" between colleagues.
 The prompt also tells the model that speech recognition clips the start of utterances, so "Арон,
-который час в Лондоне?" is read as a question to Karen. On 11 labelled lines from real calls
-(follow-ups, fillers, a sound check, side talk, turning to another participant, clipped names) it
-scored 11/11 on two runs, at about 0.7s median. `glm-5.3-flash` cannot turn reasoning off (the
-endpoint refuses) and missed the clipped Tokyo question at `effort: low`.
+который час в Лондоне?" is read as a question to Karen.
+
+The judge cannot run on Karen's own session: DashScope ignores `conversation: "none"`, so every
+verdict became an assistant message there, and asked afterwards the model recited
+`{"to_assistant": false}` back. On its own session the verdicts pile up harmlessly (each prompt
+carries its transcript); the session is renewed every `JUDGE_RENEW_EVERY` judgments and reopened when
+DashScope closes it, and a timeout means silence. On 15 labelled lines (follow-ups, fillers, a sound
+check, side talk, clipped names, and discourse cases such as "А почему?" after Sasha spoke, which is
+for Sasha) it scored 15/15 and 14/15 on two runs at about 0.6s median; the one miss was a clipped
+question, erring toward silence. A GLM classifier (`z-ai/glm-5.2`, reasoning off) scored 11/11 on the
+first eleven at 0.7s but adds a model; `glm-5.3-flash` cannot turn reasoning off and took 3-22s.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
@@ -330,8 +337,12 @@ including one not meant for her, and claimed to have started work for it; 3/3 ru
 she may only say she started work if a tool call did.
 
 A finished background answer is added to the log and put on a delivery queue that a single worker
-drains, so two results that finish together are told one after the other and never over each other,
-and always after anything Karen was asked directly. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
+drains, always after anything Karen was asked directly. Everything waiting is told in one turn, so two
+facts asked back to back come out as one flowing answer ("Bananas are slightly radioactive… Also, a
+day on Venus…") instead of two answers with a pause between; only people's silence counts as the
+pause, so Karen may go straight on after her own sentence. Asking for the same delegated check again
+replaces the first; asking for another science fact does not, which on the first try silently
+cancelled the first fact. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
 quiet. One that someone talks over goes back to the front and is finished at the next pause, after
 Karen has answered the interruption if it was for her. That was a real-call bug: interrupted mid-fact
 by "Какая погода в Лондоне?", she answered the weather and dropped the fact. Rehearsed on the fixture

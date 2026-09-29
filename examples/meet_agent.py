@@ -28,7 +28,6 @@ from voice_agent.realtime.qwen.session import QwenOmniSession
 logger = logging.getLogger("meet-agent")
 
 MEET_DELEGATE_MODEL = "z-ai/glm-5.3"
-MEET_GATE_MODEL = "z-ai/glm-5.2"
 MEET_DEFAULT_BOT_NAME = "Karen"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
@@ -40,6 +39,9 @@ TURN_SILENCE_MS = 1200
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
+BOT_SETTLE_S = 0.5
+JUDGE_TIMEOUT_S = 5.0
+JUDGE_RENEW_EVERY = 50
 KAREN_EVENTS_TOPIC = "karen"
 SCIENCE_FACT_DELAY_S = 8.0
 SCIENCE_FACTS = (
@@ -115,14 +117,98 @@ class PendingResult:
     vanswer: str
     vattempts: int = 0
 
-    def line(self) -> str:
-        if not self.vattempts:
-            return f"[background result for {self.vrequester}, who asked: {self.vgoal}] {self.vanswer}\nTell {self.vrequester} now, in one or two short spoken sentences."
-        return (
-            f"[you were cut off while telling {self.vrequester} the background result about {self.vgoal!r}] {self.vanswer}\n"
-            f"It is quiet now, and anything you were asked in between is already answered. Finish telling it briefly "
-            f"and naturally, the way a person picks a thread back up: 'so, about ...' or 'as I was saying'."
+
+def delivery_line(vresults: list[PendingResult]) -> str:
+    vresumed = any(vresult.vattempts for vresult in vresults)
+    vitems = "\n".join(f"- for {vresult.vrequester}, who asked: {vresult.vgoal}: {vresult.vanswer}" for vresult in vresults)
+    vhow = (
+        "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
+        "answered: pick the thread back up the way a person does ('so, about ...') and tell all of it."
+        if vresumed
+        else "Tell all of it now, in one go."
+    )
+    return (
+        f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
+        f"asking whether to go on, a sentence or two for each, addressing each person by name."
+    )
+
+
+class DiscardAudio:
+    async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
+        pass
+
+    async def flush(self) -> None:
+        pass
+
+    async def clear(self) -> None:
+        pass
+
+
+class QwenJudge:
+    """Asks Qwen, on a text-only session of its own, whether a line was said to Karen.
+
+    Not Karen's session: DashScope ignores `conversation: "none"`, so every verdict becomes an assistant message,
+    and asked afterwards the model recited them. Each prompt carries its own transcript, so verdicts piling up
+    here cost nothing; the session is renewed every JUDGE_RENEW_EVERY judgments anyway to stay small.
+    """
+
+    def __init__(self, vroom_name: str) -> None:
+        self.vroom_name = vroom_name
+        self.vsession: QwenOmniSession | None = None
+        self.vevents = None
+        self.vjudged = 0
+        self.vlock = asyncio.Lock()
+
+    async def __call__(self, vprompt: str) -> str:
+        async with self.vlock:
+            for _ in range(2):
+                if self.vsession is None or self.vjudged >= JUDGE_RENEW_EVERY:
+                    await self.renew()
+                try:
+                    return await asyncio.wait_for(self.ask(vprompt), JUDGE_TIMEOUT_S)
+                except (StopAsyncIteration, ConnectionResetError):
+                    # DashScope closed the session under us; one fresh session gets the same question.
+                    await self.close()
+                except TimeoutError:
+                    await self.close()
+                    return ""
+            return ""
+
+    async def ask(self, vprompt: str) -> str:
+        assert self.vsession is not None and self.vevents is not None
+        await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation(), vinstructions=vprompt))
+        self.vjudged += 1
+        vparts: list[str] = []
+        while True:
+            vevent = await anext(self.vevents)
+            if isinstance(vevent, events.AssistantTranscript):
+                vparts.append(vevent.vtext)
+            elif isinstance(vevent, events.AssistantSpeechStopped):
+                return "".join(vparts)
+            elif isinstance(vevent, events.RealtimeSessionError):
+                return ""
+
+    async def renew(self) -> None:
+        await self.close()
+        self.vsession = QwenOmniSession(
+            vapi_key=os.environ["DASHSCOPE_API_KEY"],
+            vconversation_id=f"{self.vroom_name}-judge",
+            vsession_id=f"{self.vroom_name}-judge",
+            vepoch_provider=lambda: 0,
+            vaudio_sink=DiscardAudio(),
+            vinstructions="You judge who a line said in a meeting was meant for. Reply with JSON only.",
+            vtools=[],
+            vauto_response=False,
+            vtext_only=True,
         )
+        await self.vsession.start()
+        self.vevents = self.vsession.events()
+        self.vjudged = 0
+
+    async def close(self) -> None:
+        if self.vsession is not None:
+            vsession, self.vsession, self.vevents = self.vsession, None, None
+            await vsession.close()
 
 
 class RoomAudioSink:
@@ -166,7 +252,7 @@ class MeetCall:
         self.vmemory = MeetMemory()
         self.vaddressing: MeetAddressing | None = None
         self.vdelegate_llm = voice_app.build_llm(MEET_DELEGATE_MODEL)
-        self.vgate_llm = voice_app.build_llm(MEET_GATE_MODEL, extra_body={"reasoning": {"enabled": False}}, temperature=0)
+        self.vjudge = QwenJudge(vroom.name)
         self.vregistry = TaskRegistry()
         self.vsupervisor = TaskSupervisor(
             vconversation_id=vroom.name,
@@ -176,6 +262,7 @@ class MeetCall:
             von_finished=self.on_task_finished,
         )
         self.vuser_speaking = False
+        self.vlast_human_speech = 0.0
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
@@ -204,7 +291,7 @@ class MeetCall:
 
     async def judge(self, vprompt: str) -> str:
         try:
-            return str((await self.vgate_llm.ainvoke(vprompt)).content)
+            return await self.vjudge(vprompt)
         except Exception:
             # Unsure means silent: a missed question can be repeated, an unasked-for reply cannot be taken back.
             logger.warning("addressee judge failed; staying silent", exc_info=True)
@@ -232,6 +319,7 @@ class MeetCall:
 
     async def aclose(self) -> None:
         await self.vsupervisor.aclose()
+        await self.vjudge.close()
         if self.vsession is not None:
             vsession, self.vsession = self.vsession, None
             await vsession.close()
@@ -273,6 +361,7 @@ class MeetCall:
                 self.vplayed.set()
         elif isinstance(vevent, events.UserSpeechStopped):
             self.vuser_speaking = False
+            self.vlast_human_speech = time.monotonic()
         elif isinstance(vevent, events.UserTranscriptFinal) and vevent.vtext.strip():
             await self.on_heard(vevent.vtext.strip())
         elif isinstance(vevent, events.AssistantTranscript):
@@ -357,7 +446,9 @@ class MeetCall:
             ),
             vconversation_epoch=0,
         )
-        self.vsupervisor.supersede_duplicates(vrecord)
+        if vkind == "delegate":
+            # Asking again for the same check replaces the first; asking for another fact wants another fact.
+            self.vsupervisor.supersede_duplicates(vrecord)
         self.vsupervisor.start_background(vrecord)
         logger.info("background task=%s kind=%s requester=%s goal=%s", vrecord.vtask_id, vkind, vrequester, vgoal)
         self.publish(type="task", id=vrecord.vtask_id, goal=vgoal, requester=vrequester, status="running")
@@ -385,10 +476,13 @@ class MeetCall:
         self.vpending_added.set()
 
     def is_quiet(self, vpause_s: float) -> bool:
+        # Only people's silence counts: Karen may go straight on after her own sentence, as a person holding the
+        # floor does, but must not start while a reply of hers is still being generated or played.
         return (
             not self.vuser_speaking
             and self.vsource.queued_duration == 0
-            and time.monotonic() - self.vlast_bot_activity > vpause_s
+            and time.monotonic() - self.vlast_human_speech > vpause_s
+            and time.monotonic() - self.vlast_bot_activity > BOT_SETTLE_S
         )
 
     async def wait_until_quiet(self, vpause_s: float = QUIET_BEFORE_SPEAKING_S) -> None:
@@ -399,25 +493,28 @@ class MeetCall:
                 vquiet_since = time.monotonic()
 
     async def deliver_pending(self) -> None:
-        # One worker, so two results that finish together are told one after the other, never over each other.
-        # A result is news nobody is waiting on mid-sentence: it waits for a real pause, after anything Karen was
-        # asked directly, and one that gets talked over goes back to the front to be finished at the next pause.
+        # One worker, and everything waiting is told in one turn: once Karen has the floor she says all she has,
+        # the way a person would, instead of pausing between results. News nobody is waiting on still waits for
+        # the people to go quiet, and a turn that gets talked over goes back whole and is finished at the next pause.
         while True:
             await self.vpending_added.wait()
             self.vpending_added.clear()
             while self.vpending:
                 await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
-                vresult = self.vpending.popleft()
-                self.addressing().engage(vresult.vrequester)
+                vresults = list(self.vpending)
+                self.vpending.clear()
+                self.addressing().engage(vresults[-1].vrequester)
                 self.vinterrupted = False
                 self.vplayed.clear()
-                await self.respond(vresult.line())
-                vresult.vattempts += 1
+                await self.respond(delivery_line(vresults))
+                for vresult in vresults:
+                    vresult.vattempts += 1
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
-                if self.vinterrupted and vresult.vattempts < DELIVERY_ATTEMPTS:
-                    logger.info("background result for %s was talked over; will come back to it", vresult.vrequester)
-                    self.vpending.appendleft(vresult)
+                vretry = [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS] if self.vinterrupted else []
+                if vretry:
+                    logger.info("%d background result(s) talked over; will come back to them", len(vretry))
+                    self.vpending.extendleft(reversed(vretry))
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()

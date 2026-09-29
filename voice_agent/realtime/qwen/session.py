@@ -65,6 +65,7 @@ class QwenOmniSession:
         vtools: list[dict[str, object]] | None = None,
         vauto_response: bool = True,
         vsilence_ms: int = 800,
+        vtext_only: bool = False,
     ) -> None:
         self.vconversation_id = vconversation_id
         self.vsession_id = vsession_id
@@ -74,6 +75,7 @@ class QwenOmniSession:
         self.vtools = vtools or []
         self.vauto_response = vauto_response
         self.vsilence_ms = vsilence_ms
+        self.vtext_only = vtext_only
         self._vapi_key = vapi_key
         self._vbase_url = vbase_url
         self._vepoch_provider = vepoch_provider
@@ -113,7 +115,7 @@ class QwenOmniSession:
             headers={"Authorization": f"Bearer {self._vapi_key}"},
             max_msg_size=0,
         )
-        await self._send(protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response))
+        await self._send(self._session_frame())
         self._vstate = RealtimeSessionState.READY
         self._vreader = asyncio.create_task(self._read_loop(), name="qwen-omni-reader")
 
@@ -129,6 +131,12 @@ class QwenOmniSession:
             await self._vsession.close()
         self._vstate = RealtimeSessionState.CLOSED
         await self._vevents.put(None)
+
+    def _session_frame(self) -> dict[str, object]:
+        vframe = protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response)
+        if self.vtext_only:
+            vframe["session"]["modalities"] = ["text"]  # type: ignore[index]
+        return vframe
 
     async def _send(self, vframe: dict[str, object]) -> None:
         if self._vws is None:
@@ -157,7 +165,7 @@ class QwenOmniSession:
         """Replace the session prompt. Unlike `response.instructions`, which makes the endpoint stop
         calling tools, this keeps function calling, and unlike a message it does not accumulate."""
         self.vinstructions = vinstructions
-        await self._send(protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response))
+        await self._send(self._session_frame())
 
     async def send_tool_result(self, vresult: events.ToolResultPayload) -> None:
         await self._send(protocol.function_output_frame(vresult.vtool_call_id, json.dumps(vresult.vresult)))

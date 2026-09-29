@@ -35,12 +35,11 @@ def mirror_flexus_livekit_env() -> None:
     voice_contracts.require_self_hosted_livekit_url(os.environ["LIVEKIT_URL"])
 
 
-def build_llm(vmodel: str = EXAMPLE_LLM_MODEL, **vmodel_options):
+def build_llm(vmodel: str = EXAMPLE_LLM_MODEL):
     return init_chat_model(
         f"openai:{vmodel}",
         base_url=voice_contracts.OPENROUTER_AUDIO_BASE_URL,
         api_key=os.environ["OPENROUTER_API_KEY"],
-        **vmodel_options,
     )
 
 
