@@ -114,8 +114,10 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
             vbrowser = await vplaywright.chromium.launch(channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"])
             vcontext = await vbrowser.new_context(locale="en-US", permissions=["microphone", "camera"])
         else:
+            # Playwright's mock keychain cannot decrypt cookies the signed-in Chrome stored, and Chrome deletes what it
+            # cannot decrypt: one run with it signs the profile out for good.
             vcontext = await vplaywright.chromium.launch_persistent_context(
-                str(vprofile), channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"],
+                str(vprofile), channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation", "--use-mock-keychain", "--password-store=basic"],
                 locale="en-US", permissions=["microphone", "camera"],
             )
             vbrowser = vcontext

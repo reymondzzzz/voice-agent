@@ -246,6 +246,8 @@ open -na "Google Chrome" --args --user-data-dir="$PWD/.meet-profile" https://acc
 uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --profile .meet-profile --room voice-meet-karen --name Karen
 ```
 
+The profile runs on the real macOS keychain: under Playwright's default `--use-mock-keychain` Chrome cannot
+decrypt the signed-in cookies and deletes them, which silently signs the profile out after one run.
 Signed in, Meet asks for no name and shows the account's name, so an account called Karen makes the
 tile match what people say; `--name` is what Karen answers to either way. The bot's own tile is left
 out of `meet_speaker` by Meet's `data-self-name` marker, since its name no longer equals `--name`.
