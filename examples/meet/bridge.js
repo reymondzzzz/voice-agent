@@ -124,11 +124,13 @@
     });
   }
 
+  // Signed in, the bot's own tile carries its account name rather than --name, so it is excluded by Meet's marker.
   function speakingNames() {
+    const self = document.querySelector("[data-self-name]")?.getAttribute("data-self-name");
     return [...document.querySelectorAll("div[data-participant-id]")]
       .filter(isSpeaking)
       .map((tile) => tile.querySelector("span.notranslate")?.textContent.trim())
-      .filter(Boolean);
+      .filter((name) => name && name !== self);
   }
 
   let lastSpeakers = "";

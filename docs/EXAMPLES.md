@@ -234,6 +234,22 @@ observer saw Anna, Carl, Karen, the tool lines and the background result, and Ka
 Both agent servers register without an agent name, so run one of them, not both. Karen needs
 `DASHSCOPE_API_KEY` in `.env.local` next to the OpenRouter key.
 
+Meet now turns away an anonymous guest from an automated browser before the host is even asked:
+the lobby says "System info will be sent to confirm you're not a bot" and, after Ask to join, "You
+can't join this video call — No one can join a meeting unless invited or admitted by the host"
+(seen on a real call, September 2026). Join with a signed-in Google account instead. Sign in once in
+an ordinary, non-automated Chrome, because Google refuses sign-in inside an automation-controlled one,
+then hand the profile to the bridge:
+
+```bash
+open -na "Google Chrome" --args --user-data-dir="$PWD/.meet-profile" https://accounts.google.com   # sign in, then quit that Chrome
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --profile .meet-profile --room voice-meet-karen --name Karen
+```
+
+Signed in, Meet asks for no name and shows the account's name, so an account called Karen makes the
+tile match what people say; `--name` is what Karen answers to either way. The bot's own tile is left
+out of `meet_speaker` by Meet's `data-self-name` marker, since its name no longer equals `--name`.
+
 The bot asks to join; someone in the call has to admit it. It leaves when the call ends or on
 Ctrl-C. Chrome runs headed by default because every maintained Meet bot does — Meet treats
 headless guests with suspicion. `--headless` exists for when that stops being true. Meeting audio

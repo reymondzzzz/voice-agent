@@ -65,13 +65,16 @@ async def pump_agent_audio(vtrack: rtc.Track, vpage: Page, vjoined: asyncio.Even
 
 async def join_meet(vpage: Page, vmeet_url: str, vbot_name: str) -> None:
     await vpage.goto(vmeet_url)
+    vjoin = vpage.get_by_role("button", name=JOIN_BUTTON_NAME).first
+    await vjoin.wait_for(timeout=30_000)
+    # Only an anonymous guest is asked for a name; a signed-in profile joins under its account name.
     vname_input = vpage.locator('input[type="text"][aria-label="Your name"]')
-    await vname_input.wait_for(timeout=30_000)
-    await vname_input.press_sequentially(vbot_name, delay=60)
+    if await vname_input.count():
+        await vname_input.press_sequentially(vbot_name, delay=60)
     vcamera = vpage.locator('[aria-label="Turn off camera"]')
     if await vcamera.count():
         await vcamera.first.click()
-    await vpage.get_by_role("button", name=JOIN_BUTTON_NAME).first.click()
+    await vjoin.click()
     logger.info("asked to join, waiting for the host to admit %s", vbot_name)
     for _ in range(ADMISSION_TIMEOUT_S):
         if await vpage.locator(IN_CALL_SELECTOR).count():
@@ -87,7 +90,7 @@ async def wait_until_call_ends(vpage: Page) -> None:
     await vpage.wait_for_selector(IN_CALL_SELECTOR, state="detached", timeout=0)
 
 
-async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadless: bool) -> None:
+async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadless: bool, vprofile: pathlib.Path | None = None) -> None:
     voice_app.mirror_flexus_livekit_env()
     vroom = rtc.Room()
     vsource = rtc.AudioSource(MEET_SAMPLE_RATE_HZ, 1)
@@ -107,8 +110,15 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
         await vroom.local_participant.set_attributes({MEET_SPEAKER_ATTRIBUTE: vspeaker})
 
     async with async_playwright() as vplaywright:
-        vbrowser = await vplaywright.chromium.launch(channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"])
-        vcontext = await vbrowser.new_context(locale="en-US", permissions=["microphone", "camera"])
+        if vprofile is None:
+            vbrowser = await vplaywright.chromium.launch(channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"])
+            vcontext = await vbrowser.new_context(locale="en-US", permissions=["microphone", "camera"])
+        else:
+            vcontext = await vplaywright.chromium.launch_persistent_context(
+                str(vprofile), channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"],
+                locale="en-US", permissions=["microphone", "camera"],
+            )
+            vbrowser = vcontext
         await vcontext.expose_function("vmeetCapture", on_capture)
         await vcontext.expose_function("vmeetSpeakers", on_speakers)
         await vcontext.add_init_script(path=MEET_DIR / "bridge.js")
@@ -150,9 +160,10 @@ def main() -> None:
     vparser.add_argument("--room", default=f"voice-meet-{secrets.token_hex(3)}")
     vparser.add_argument("--name", default="Karen")
     vparser.add_argument("--headless", action="store_true")
+    vparser.add_argument("--profile", type=pathlib.Path, help="Chrome profile directory signed in to a Google account; Meet turns away anonymous automated guests")
     vargs = vparser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(run_bridge(vargs.meet_url, vargs.room, vargs.name, vheadless=vargs.headless))
+    asyncio.run(run_bridge(vargs.meet_url, vargs.room, vargs.name, vheadless=vargs.headless, vprofile=vargs.profile))
 
 
 if __name__ == "__main__":
