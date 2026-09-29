@@ -64,3 +64,17 @@ def test_cyrillic_name_engages():
     assert mentions_name("Карен, который час в Токио?", "Karen")
     assert mentions_name("Карин, проверь дедлайн", "Karen")
     assert not mentions_name("Как дела?", "Karen")
+
+
+def test_one_word_follow_up_question_is_answered():
+    vaddressing = MeetAddressing("Karen")
+    vaddressing.is_addressed("Kirill", "Karen, tell me a science fact", 0.0)
+    vaddressing.bot_finished_speaking(5.0)
+    assert vaddressing.is_addressed("Kirill", "Почему?", 8.0)
+
+
+def test_fillers_in_any_language_are_not_questions():
+    vaddressing = MeetAddressing("Karen")
+    vaddressing.is_addressed("Kirill", "Karen, what time is it?", 0.0)
+    for vfiller in ("Угу.", "ага", "Спасибо!", "Okay.", "thank you"):
+        assert not vaddressing.is_addressed("Kirill", vfiller, 1.0)

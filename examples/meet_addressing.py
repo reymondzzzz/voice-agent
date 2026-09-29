@@ -6,7 +6,6 @@ import re
 
 FOLLOW_UP_WINDOW_S = 12.0
 NAME_MATCH_RATIO = 0.8
-MIN_ADDRESSED_WORDS = 2
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 # People address the bot in their own script: "Карен" has to match "Karen".
@@ -20,6 +19,13 @@ _CYRILLIC_TO_LATIN = str.maketrans({
 
 def _words(vtext: str) -> list[str]:
     return _WORD.findall(vtext.casefold().translate(_CYRILLIC_TO_LATIN))
+
+
+# Acknowledgements, not questions. A word count cannot tell them apart: "Почему?" is one word and deserves an answer.
+_FILLERS = frozenset(
+    " ".join(_words(vfiller))
+    for vfiller in ("ok", "okay", "mhm", "hmm", "uh huh", "thanks", "thank you", "got it", "угу", "ага", "ок", "окей", "понятно", "ясно", "спасибо", "хорошо")
+)
 
 
 def mentions_name(vtext: str, vname: str) -> bool:
@@ -58,7 +64,7 @@ class MeetAddressing:
         if not vfollow_up or self._names_another_participant(vspeaker, vtext):
             self.vengaged_speaker = ""
             return False
-        if len(_words(vtext)) < MIN_ADDRESSED_WORDS:
+        if " ".join(_words(vtext)) in _FILLERS:
             return False
         self.engage(vspeaker, vnow)
         return True

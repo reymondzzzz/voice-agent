@@ -275,9 +275,9 @@ what it is called.
 | Turn | Result |
 | --- | --- |
 | Contains the bot's name (fuzzy, spaces ignored, Cyrillic transliterated: `Caren`, `VoiceAgent`, `Карен` match) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
-| Engaged speaker, inside the window, two words or more | Answer without the name |
+| Engaged speaker, inside the window, anything but a filler | Answer without the name, including a one-word "Почему?" |
 | Anyone else, or the engaged speaker naming another participant | Silent (`StopResponse`), and the engagement ends |
-| Backchannel (`okay`) | Silent |
+| Filler (`okay`, `thanks`, `угу`, `понятно`, `спасибо`) | Silent |
 
 The rules only see text. A third-person mention ("like Karen said") still engages, and a follow-up
 the same speaker aimed at a human without naming them is answered. The upgrade for both is a small
@@ -342,6 +342,12 @@ verified: a real Meet call, or a real 10-minute window.
 `SttError`, which LiveKit does not retry: one 15s TLS stall ended recognition for the rest of the
 call. It now translates it into `APIConnectionError` (retryable unless `auth`/`invalid_request`) and
 drops `invalid_audio` as an empty transcript; `tests/test_stt_recovery.py` covers it.
+
+Meet's **Noise cancellation**, on the speaking participant's own client, trims the first 100-300ms of
+speech after a pause. On a real call it turned «Карен, который час…» into «Арон, …» and "Karen, what
+time…" into "And what's time…"; a second, independent recogniser heard the same, so the audio itself
+was clipped before the bridge. With it turned off (Settings → Audio) the same phrases were recognised
+exactly. Ask participants to turn it off, or to put a word before the name ("Слушай, Карен").
 
 Known limits:
 
