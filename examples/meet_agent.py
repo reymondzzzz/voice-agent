@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import collections
+import contextlib
+import dataclasses
 import json
 import logging
 import os
@@ -36,6 +39,7 @@ QUIET_POLL_S = 0.25
 TURN_SILENCE_MS = 1200
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
+DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
 KAREN_EVENTS_TOPIC = "karen"
 SCIENCE_FACT_DELAY_S = 8.0
 SCIENCE_FACTS = (
@@ -104,6 +108,23 @@ FAST_TOOLS = {
 }
 
 
+@dataclasses.dataclass
+class PendingResult:
+    vrequester: str
+    vgoal: str
+    vanswer: str
+    vattempts: int = 0
+
+    def line(self) -> str:
+        if not self.vattempts:
+            return f"[background result for {self.vrequester}, who asked: {self.vgoal}] {self.vanswer}\nTell {self.vrequester} now, in one or two short spoken sentences."
+        return (
+            f"[you were cut off while telling {self.vrequester} the background result about {self.vgoal!r}] {self.vanswer}\n"
+            f"It is quiet now, and anything you were asked in between is already answered. Finish telling it briefly "
+            f"and naturally, the way a person picks a thread back up: 'so, about ...' or 'as I was saying'."
+        )
+
+
 class RoomAudioSink:
     """Qwen's voice, into the LiveKit room the Meet bridge plays back."""
 
@@ -160,7 +181,8 @@ class MeetCall:
         self.vcaller_name = ""
         self.vinterrupted = False
         self.vplayed = asyncio.Event()
-        self.vlast_addressed_at = 0.0
+        self.vpending: collections.deque[PendingResult] = collections.deque()
+        self.vpending_added = asyncio.Event()
         self._vtasks: set[asyncio.Task[None]] = set()
 
     def publish(self, **vevent: object) -> None:
@@ -279,7 +301,6 @@ class MeetCall:
     async def consider(self, vturn: MeetTurn, vcontext: str) -> None:
         if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
             return
-        self.vlast_addressed_at = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         self.publish(type="addressed", ts=vturn.vat)
         await self.respond(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
@@ -360,7 +381,8 @@ class MeetCall:
         logger.info("task finished task=%s status=%s", vrecord.vtask_id, vrecord.vstatus.value)
         self.publish(type="task", id=vrecord.vtask_id, goal=vrecord.vgoal, requester=vrequester, status=vrecord.vstatus.value)
         self.remember(MeetTurn(time.time(), "background result", vanswer, MeetRole.NOTE))
-        self.spawn(self.deliver_when_quiet(vrequester, vrecord.vgoal, vanswer))
+        self.vpending.append(PendingResult(vrequester, vrecord.vgoal, vanswer))
+        self.vpending_added.set()
 
     def is_quiet(self, vpause_s: float) -> bool:
         return (
@@ -376,28 +398,26 @@ class MeetCall:
             if not self.is_quiet(vpause_s):
                 vquiet_since = time.monotonic()
 
-    async def deliver_when_quiet(self, vrequester: str, vgoal: str, vanswer: str) -> None:
-        # A result is news nobody is waiting on mid-sentence: wait for a real pause instead of cutting in, and if
-        # someone talks over it, come back once, unless they spoke to Karen, who then answers with it in context.
-        vline = f"[background result for {vrequester}, who asked: {vgoal}] {vanswer}\nTell {vrequester} now, in one or two short spoken sentences."
-        vcut_at = 0.0
-        for vattempt in range(DELIVERY_ATTEMPTS):
-            await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
-            if vattempt and self.vlast_addressed_at > vcut_at:
-                return
-            self.addressing().engage(vrequester)
-            self.vinterrupted = False
-            self.vplayed.clear()
-            await self.respond(vline)
-            await self.vplayed.wait()
-            if not self.vinterrupted:
-                return
-            vcut_at = time.monotonic()
-            logger.info("background result for %s was talked over; will come back to it", vrequester)
-            vline = (
-                f"[you were cut off while telling {vrequester} the background result about {vgoal!r}] {vanswer}\n"
-                f"It is quiet now. Pick it up again briefly and naturally, the way a person says 'as I was saying'."
-            )
+    async def deliver_pending(self) -> None:
+        # One worker, so two results that finish together are told one after the other, never over each other.
+        # A result is news nobody is waiting on mid-sentence: it waits for a real pause, after anything Karen was
+        # asked directly, and one that gets talked over goes back to the front to be finished at the next pause.
+        while True:
+            await self.vpending_added.wait()
+            self.vpending_added.clear()
+            while self.vpending:
+                await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
+                vresult = self.vpending.popleft()
+                self.addressing().engage(vresult.vrequester)
+                self.vinterrupted = False
+                self.vplayed.clear()
+                await self.respond(vresult.line())
+                vresult.vattempts += 1
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
+                if self.vinterrupted and vresult.vattempts < DELIVERY_ATTEMPTS:
+                    logger.info("background result for %s was talked over; will come back to it", vresult.vrequester)
+                    self.vpending.appendleft(vresult)
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()
@@ -440,6 +460,7 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     await ctx.room.local_participant.set_attributes({"active_agent_id": "karen", "active_agent_name": MEET_DEFAULT_BOT_NAME})
     vcall.spawn(vcall.renew_when_window_is_full())
+    vcall.spawn(vcall.deliver_pending())
 
 
 if __name__ == "__main__":

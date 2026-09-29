@@ -329,14 +329,17 @@ call where she invented a task: the addressed line is also sent as a message bef
 including one not meant for her, and claimed to have started work for it; 3/3 runs, fixed 3/3), and
 she may only say she started work if a tool call did.
 
-A finished background answer is added to the log and spoken, once the room has been quiet for
-`QUIET_BEFORE_DELIVERY_S` (3s), to the person who asked. If someone talks over it, Karen comes back
-to it at the next pause ("As I was saying, Carl, …"), unless they spoke to her in the meantime, in
-which case she answers that with the result already in context. Qwen's server VAD waits
-`TURN_SILENCE_MS` (1.2s) before ending a turn, so a pause mid-sentence is not taken as the end of a
-question. Rehearsed on the fixture page: talked over mid-fact, Karen resumed with "As I was saying";
-"Why is that?" got an answer; "Anna, can you send me the report?" and "How are you doing today?" got
-silence. While it runs, the prompt
+A finished background answer is added to the log and put on a delivery queue that a single worker
+drains, so two results that finish together are told one after the other and never over each other,
+and always after anything Karen was asked directly. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
+quiet. One that someone talks over goes back to the front and is finished at the next pause, after
+Karen has answered the interruption if it was for her. That was a real-call bug: interrupted mid-fact
+by "Какая погода в Лондоне?", she answered the weather and dropped the fact. Rehearsed on the fixture
+page: interrupted by "Karen, what's the weather in London?", she answered it, then said "So, about
+that science fact, octopuses have three hearts…". Qwen's server VAD waits `TURN_SILENCE_MS` (1.2s)
+before ending a turn, so a pause mid-sentence is not taken as the end of a question. Also rehearsed:
+"Why is that?" after a fact got an answer; "Anna, can you send me the report?" and "How are you doing
+today?" got silence. While it runs, the prompt
 lists it, so Karen says it is in progress rather than guessing. When anyone starts speaking over
 Karen, the endpoint cancels her response and her queued audio is dropped.
 
