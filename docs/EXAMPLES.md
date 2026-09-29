@@ -298,6 +298,10 @@ asked twice, "Почему?" once for Karen and once for Sasha):
 Karen runs the second row on `MEET_VOICE_MODEL` (`qwen3.8-omni-flash-realtime`): the routing step hears
 exactly what she heard and knows what she last said, with no second session to keep in sync. Asked
 to quote its own messages afterwards, the model listed only its spoken answers, not the verdicts.
+Qwen 3.8 ignores the text-only request and speaks the verdict as well, about 1.1s of "IGNORE" per line
+(measured), which on a real call was heard in the room; Karen's audio output is muted for the length
+of every routing step. On the fixture page the five lines of side talk now put 0ms of her voice into
+the call.
 The session is still in manual response mode (`create_response` off, server VAD on), so VAD commits
 each turn and nothing speaks until asked. One response runs at a time, so routing steps, answers and
 deliveries take turns on a floor lock; a tool call's follow-up response keeps the floor.

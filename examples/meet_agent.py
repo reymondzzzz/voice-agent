@@ -132,7 +132,8 @@ def delivery_line(vresults: list[PendingResult]) -> str:
     )
     return (
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
-        f"asking whether to go on, a sentence or two for each, addressing each person by name."
+        f"asking whether to go on, a sentence or two for each, addressing each person by name. Speak in the language "
+        f"the people are using in the latest lines, whatever language this note is in."
     )
 
 
@@ -141,9 +142,12 @@ class RoomAudioSink:
 
     def __init__(self, vsource: rtc.AudioSource) -> None:
         self.vsource = vsource
+        self.vmuted = False
         self._vstray = b""
 
     async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
+        if self.vmuted:
+            return
         # Deltas can end mid-sample; the odd byte belongs to the next delta.
         vpcm = self._vstray + vpcm
         vwhole = len(vpcm) - len(vpcm) % 2
@@ -244,6 +248,8 @@ class MeetCall:
         assert vsession is not None
         self.vrouting = asyncio.get_running_loop().create_future()
         self.vroute_parts = []
+        # Qwen 3.8 ignores the text-only request and speaks the verdict too, about a second of "IGNORE".
+        self.vsink.vmuted = True
         try:
             await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=vprompt, vtext_only=True))
             return await asyncio.wait_for(self.vrouting, ROUTE_TIMEOUT_S)
@@ -254,6 +260,7 @@ class MeetCall:
             return ""
         finally:
             self.vrouting = None
+            self.vsink.vmuted = self.vdiscard_next
             self.release_floor()
 
     async def open_session(self) -> None:
@@ -343,6 +350,7 @@ class MeetCall:
             if self.vdiscard_next:
                 # The tail of a routing step that timed out: a verdict, not something Karen said.
                 self.vdiscard_next = False
+                self.vsink.vmuted = False
                 return
             self.vlast_bot_activity = time.monotonic()
             if vreply:

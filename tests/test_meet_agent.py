@@ -5,7 +5,7 @@ import aiohttp
 import pytest
 
 from examples.meet_addressing import MeetAddressing
-from examples.meet_agent import MeetCall, PendingResult
+from examples.meet_agent import MeetCall, PendingResult, RoomAudioSink
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
 
@@ -72,7 +72,7 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
 
 
 @pytest.mark.asyncio
-async def test_a_routing_verdict_is_returned_never_logged_as_karen_and_frees_the_floor() -> None:
+async def test_a_routing_verdict_is_never_spoken_never_logged_as_karen_and_frees_the_floor() -> None:
     vcall = MeetCall.__new__(MeetCall)
     vcall.vfloor = asyncio.Lock()
     vcall.vrouting = None
@@ -93,13 +93,27 @@ async def test_a_routing_verdict_is_returned_never_logged_as_karen_and_frees_the
             vrequests.append(vrequest)
             asyncio.get_running_loop().call_soon(lambda: asyncio.ensure_future(answer()))
 
+    class Source:
+        def __init__(self) -> None:
+            self.vframes = 0
+
+        async def capture_frame(self, _vframe) -> None:
+            self.vframes += 1
+
+    vsource = Source()
+    vcall.vsink = RoomAudioSink(vsource)
+    vspoken_verdict = b"\x01\x00" * 480
+
     async def answer():
+        await vcall.vsink.write(vspoken_verdict, 24000)
         await vcall.on_event(events.AssistantTranscript(vcorrelation=vcorrelation, vtext="IGN"))
         await vcall.on_event(events.AssistantTranscript(vcorrelation=vcorrelation, vtext="ORE"))
         await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=vcorrelation))
 
     vcall.vsession = RoutingSession()
     assert await vcall.route("is it for Karen?") == "IGNORE"
+    assert vsource.vframes == 0
+    assert not vcall.vsink.vmuted
     assert vrequests[0].vtext_only
     assert vremembered == []
     assert not vcall.vfloor.locked()
