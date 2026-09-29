@@ -314,6 +314,17 @@ turn detection is `server_vad` with `create_response` and `interrupt_response` r
 `semantic_vad` the docs describe. The endpoint interrupts the model itself, so `interrupt()` only
 has to drop queued playback.
 
+Two additions for a bot that must stay silent until addressed (the Meet agent, `examples/meet_agent.py`):
+
+- `vauto_response=False` turns `create_response` off while keeping server VAD, so the model answers
+  only a `request_response`.
+- `update_instructions` replaces the session prompt with `session.update`. Use it, not
+  `ResponseRequest.vinstructions`, for per-reply context: DashScope stops calling tools when a
+  `response.create` carries its own instructions.
+
+`conversation.item.delete` is acknowledged but does not make the model forget the deleted item, so
+context cannot be bounded by deleting audio after the fact; keep audio out of the session instead.
+
 ## Unresolved decisions that genuinely depend on the model
 
 - **Who owns barge-in.** If the model detects and stops on its own, `interrupt()` becomes an

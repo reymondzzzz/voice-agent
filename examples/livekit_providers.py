@@ -6,7 +6,7 @@ import os
 import numpy
 
 from livekit import rtc
-from livekit.agents import APIConnectOptions, stt, tts, utils
+from livekit.agents import APIConnectionError, APIConnectOptions, stt, tts, utils
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 from livekit.agents.utils import AudioBuffer
 
@@ -94,6 +94,9 @@ def has_speech_energy(vpcm: bytes, vconfig: voice_interruption_policy.VoiceInter
     return int(vwindow_means.max()) >= vconfig.venergy_threshold
 
 
+STT_FATAL_ERROR_KINDS = ("auth", "invalid_request")
+
+
 class FlexusOpenRouterSTT(stt.STT):
     def __init__(self) -> None:
         super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
@@ -124,7 +127,13 @@ class FlexusOpenRouterSTT(stt.STT):
             sttc_sample_rate_hz=vframe.sample_rate,
             sttc_deadline_s=voice_contracts.VOICE_STT_REQUEST_DEADLINE_S,
         )
-        vevent = await self.vprovider.transcribe_utterance(vpcm, vconfig)
+        try:
+            vevent = await self.vprovider.transcribe_utterance(vpcm, vconfig)
+        except voice_stt.SttError as vexc:
+            # LiveKit retries only its own APIError; anything else ends recognition for the rest of the call.
+            if vexc.sterr_kind == "invalid_audio":
+                return self.empty_transcript()
+            raise APIConnectionError(str(vexc), retryable=vexc.sterr_kind not in STT_FATAL_ERROR_KINDS) from vexc
         vtext = vevent.stte_text if voice_interruption_policy.transcript_commits_interruption(vevent.stte_text) else ""
         return stt.SpeechEvent(
             type=stt.SpeechEventType.FINAL_TRANSCRIPT,

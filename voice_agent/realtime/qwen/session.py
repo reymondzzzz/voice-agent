@@ -63,6 +63,7 @@ class QwenOmniSession:
         vvoice: str = protocol.DEFAULT_VOICE,
         vinstructions: str = protocol.DEFAULT_INSTRUCTIONS,
         vtools: list[dict[str, object]] | None = None,
+        vauto_response: bool = True,
     ) -> None:
         self.vconversation_id = vconversation_id
         self.vsession_id = vsession_id
@@ -70,6 +71,7 @@ class QwenOmniSession:
         self.vvoice = vvoice
         self.vinstructions = vinstructions
         self.vtools = vtools or []
+        self.vauto_response = vauto_response
         self._vapi_key = vapi_key
         self._vbase_url = vbase_url
         self._vepoch_provider = vepoch_provider
@@ -109,7 +111,7 @@ class QwenOmniSession:
             headers={"Authorization": f"Bearer {self._vapi_key}"},
             max_msg_size=0,
         )
-        await self._send(protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools))
+        await self._send(protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vauto_response=self.vauto_response))
         self._vstate = RealtimeSessionState.READY
         self._vreader = asyncio.create_task(self._read_loop(), name="qwen-omni-reader")
 
@@ -148,6 +150,12 @@ class QwenOmniSession:
     async def add_context(self, vupdate: events.SessionContextUpdate) -> None:
         vrole = "user" if vupdate.vrole is events.RealtimeRole.USER else "assistant"
         await self._send(protocol.message_frame(vrole, vupdate.vtext))
+
+    async def update_instructions(self, vinstructions: str) -> None:
+        """Replace the session prompt. Unlike `response.instructions`, which makes the endpoint stop
+        calling tools, this keeps function calling, and unlike a message it does not accumulate."""
+        self.vinstructions = vinstructions
+        await self._send(protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vauto_response=self.vauto_response))
 
     async def send_tool_result(self, vresult: events.ToolResultPayload) -> None:
         await self._send(protocol.function_output_frame(vresult.vtool_call_id, json.dumps(vresult.vresult)))

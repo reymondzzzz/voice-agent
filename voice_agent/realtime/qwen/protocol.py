@@ -53,6 +53,7 @@ def session_update_frame(
     vtools: list[dict[str, object]],
     *,
     vsilence_ms: int = 800,
+    vauto_response: bool = True,
 ) -> dict[str, object]:
     return {
         "type": SESSION_UPDATE,
@@ -70,7 +71,7 @@ def session_update_frame(
                 "silence_duration_ms": vsilence_ms,
                 # The endpoint stops the model itself on barge-in, so interruption is its job and
                 # `interrupt()` only has to drop audio already queued for playback.
-                "create_response": True,
+                "create_response": vauto_response,
                 "interrupt_response": True,
             },
             "tools": vtools,

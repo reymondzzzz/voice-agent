@@ -261,3 +261,10 @@ async def test_interrupt_cancels_the_response_and_drops_playback(server: FakeDas
     assert sent_of_type(server, protocol.RESPONSE_CANCEL)
     assert vsink.vclears == 1
     assert isinstance(vevents[0], events.RealtimeInterrupted)
+
+
+def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:
+    vframe = protocol.session_update_frame("Tina", "You are Karen.", [], vauto_response=False)
+    vturn_detection = vframe["session"]["turn_detection"]  # type: ignore[index]
+    assert vturn_detection["create_response"] is False
+    assert vturn_detection["interrupt_response"] is True
