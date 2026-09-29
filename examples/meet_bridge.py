@@ -127,6 +127,7 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
             rtc.LocalAudioTrack.create_audio_track("meet-audio", vsource),
             rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
         )
+        await vroom.local_participant.set_attributes({voice_app.MEET_BOT_NAME_ATTRIBUTE: vbot_name})
         logger.info("bridge joined room=%s", vroom_name)
         try:
             await join_meet(vpage, vmeet_url, vbot_name)

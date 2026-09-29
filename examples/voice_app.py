@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import pathlib
+import time
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, llm
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, StopResponse, llm
 from livekit.agents.voice.agent_session import TurnHandlingOptions
-from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
+from livekit.agents.voice.events import AgentStateChangedEvent, ConversationItemAddedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
 
 from examples import small_agents
+from examples.meet_addressing import MeetAddressing
 from examples.livekit_providers import FlexusOpenRouterSTT, FlexusOpenRouterTTS
 from voice_agent.pipeline import voice_contracts, voice_interruption_policy, voice_return_intent
 
@@ -22,6 +26,8 @@ load_dotenv(".env.local")
 
 EXAMPLE_LLM_MODEL = "z-ai/glm-5.2"
 MEET_SPEAKER_ATTRIBUTE = "meet_speaker"
+MEET_BOT_NAME_ATTRIBUTE = "meet_bot_name"
+MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 
 
 def mirror_flexus_livekit_env() -> None:
@@ -62,9 +68,20 @@ class PersonaAgent(Agent):
         self.vhandoff_summary = vhandoff_summary
 
     async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
-        vspeaker = self.session.userdata.meet_speaker()
-        if vspeaker:
-            new_message.content = [f"[{vspeaker}] {new_message.text_content}"]
+        vcall = self.session.userdata
+        vspeaker = vcall.meet_attribute(MEET_SPEAKER_ATTRIBUTE)
+        if not vspeaker:
+            return
+        vtext = new_message.text_content or ""
+        new_message.content = [f"[{vspeaker}] {vtext}"]
+        vcall.record_meet_turn(vspeaker, vtext)
+        if vcall.meet_addressing().is_addressed(vspeaker, vtext, time.monotonic()):
+            return
+        # StopResponse drops the turn from context; keep it so a later reply knows what the room discussed.
+        vctx = self.chat_ctx.copy()
+        vctx.items.append(new_message)
+        await self.update_chat_ctx(vctx)
+        raise StopResponse()
 
     async def on_enter(self) -> None:
         if not self.vhandoff_summary:
@@ -100,9 +117,25 @@ class ExampleCall:
         self.vpending = small_agents.PendingHandoff()
         self.vactive = small_agents.resolve_example_agent(small_agents.ENTRY_AGENT_ID)
         self._vtasks: set[asyncio.Task[None]] = set()
+        self.vaddressing: MeetAddressing | None = None
 
-    def meet_speaker(self) -> str:
-        return next((vp.attributes[MEET_SPEAKER_ATTRIBUTE] for vp in self.vroom.remote_participants.values() if MEET_SPEAKER_ATTRIBUTE in vp.attributes), "")
+    def meet_attribute(self, vname: str) -> str:
+        return next((vp.attributes[vname] for vp in self.vroom.remote_participants.values() if vname in vp.attributes), "")
+
+    def meet_addressing(self) -> MeetAddressing:
+        if self.vaddressing is None:
+            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or self.vactive.vname)
+        return self.vaddressing
+
+    def record_meet_turn(self, vspeaker: str, vtext: str) -> None:
+        logger.info("meet turn speaker=%s text=%s", vspeaker, vtext)
+        MEET_TRANSCRIPT_DIR.mkdir(exist_ok=True)
+        with (MEET_TRANSCRIPT_DIR / f"{self.vroom.name}.jsonl").open("a", encoding="utf-8") as vfile:
+            vfile.write(json.dumps({"ts": time.time(), "speaker": vspeaker, "text": vtext}, ensure_ascii=False) + "\n")
+
+    def on_conversation_item_added(self, vev: ConversationItemAddedEvent) -> None:
+        if vev.item.type == "message" and vev.item.role == "assistant" and self.vaddressing is not None:
+            self.record_meet_turn(self.vactive.vname, vev.item.text_content or "")
 
     def spawn(self, vcoro) -> None:
         vtask = asyncio.create_task(vcoro)
@@ -122,6 +155,8 @@ class ExampleCall:
         logger.info("handoff committed source=%s target=%s", vauth.vsource_agent_id, vtarget.vagent_id)
 
     def on_agent_state_changed(self, vev: AgentStateChangedEvent) -> None:
+        if vev.old_state == "speaking" and vev.new_state == "listening" and self.vaddressing is not None:
+            self.vaddressing.bot_finished_speaking(time.monotonic())
         if vev.old_state == "speaking" and vev.new_state == "listening" and self.vpending.armed():
             self.spawn(self.commit_handoff())
 
@@ -177,6 +212,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     vsession.on("agent_state_changed", vcall.on_agent_state_changed)
     vsession.on("user_input_transcribed", vcall.on_user_input_transcribed)
+    vsession.on("conversation_item_added", vcall.on_conversation_item_added)
 
     await vsession.start(agent=build_voice_agent(vcall.vactive, vcall.vpending), room=ctx.room)
     await publish_active_agent(ctx.room, vcall.vactive)

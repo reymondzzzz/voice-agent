@@ -229,6 +229,37 @@ Only meaning crosses into the agent: the speaker name is an attribute, never aud
 `PersonaAgent.on_user_turn_completed` reads it and prefixes the turn, so the graph sees
 `[Anna] What time is it in Tokyo?`. Overlapping speakers come through as `Anna, Bob`.
 
+### Silent until addressed
+
+In a meeting the agent listens to everything and answers only when spoken to.
+`examples/meet_addressing.py` decides per turn; the bridge publishes its `--name` as the
+`meet_bot_name` attribute so the agent knows what it is called.
+
+| Turn | Result |
+| --- | --- |
+| Contains the bot's name (fuzzy, so `jarvys` still matches `Jarvis`) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
+| Engaged speaker, inside the window, two words or more | Answer without the name |
+| Anyone else, or the engaged speaker naming another participant | Silent, and the engagement ends |
+| Backchannel (`okay`) | Silent |
+
+A silent turn raises `StopResponse`, which LiveKit treats as "drop this turn", so it is appended to
+the agent's `chat_ctx` first: when someone finally asks, the graph has heard the whole discussion.
+Every turn, the bot's included, is appended to `meet-transcripts/<room>.jsonl` as
+`{ts, speaker, text}`.
+
+The rules only see text. A third-person mention ("like Jarvis said") still engages, and a follow-up
+the same speaker aimed at a human without naming them is answered. The upgrade for both is a small
+model that reads the last few labelled turns and returns directed/not, applied only inside the
+follow-up window.
+
+Verified end to end against a local LiveKit and the real agent, with `say`-generated speech played
+through a fixture page whose speaking tiles switch between Anna and Carl: side talk got no reply,
+"Voice Agent, what time is it in Tokyo?" and the unnamed "And what about London?" were answered,
+and Anna turning to Carl silenced it again. Asked "who sent the quarterly report?" after two silent
+turns, Boss answered "That was Anna". STT wrote the name as `VoiceAgent`, which is why names are
+compared with spaces removed. A handoff still starts the target with a fresh `chat_ctx` (rule 9),
+so room context gathered before a transfer does not follow it. Not verified: a real Meet call.
+
 Known limits:
 
 - The speaker is whoever was last highlighted when the turn ends, so a turn two people shared is

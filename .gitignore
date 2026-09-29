@@ -8,3 +8,4 @@ __pycache__/
 .env.local
 .DS_Store
 flexus_backend/prisma_stubs
+meet-transcripts/
