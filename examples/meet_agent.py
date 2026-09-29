@@ -27,6 +27,7 @@ from voice_agent.realtime.qwen.session import QwenOmniSession
 
 logger = logging.getLogger("meet-agent")
 
+MEET_VOICE_MODEL = "qwen3.8-omni-flash-realtime"
 MEET_DELEGATE_MODEL = "z-ai/glm-5.3"
 MEET_DEFAULT_BOT_NAME = "Karen"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
@@ -40,8 +41,8 @@ GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
 BOT_SETTLE_S = 0.5
-JUDGE_TIMEOUT_S = 5.0
-JUDGE_RENEW_EVERY = 50
+ROUTE_TIMEOUT_S = 5.0
+FLOOR_TIMEOUT_S = 30.0
 KAREN_EVENTS_TOPIC = "karen"
 SCIENCE_FACT_DELAY_S = 8.0
 SCIENCE_FACTS = (
@@ -67,7 +68,9 @@ KAREN_RULES = (
     "a tool for it in this reply or it is listed below as running; otherwise say you have not started anything. "
     "Never guess a result that has not arrived. Speak like a colleague in the room: brief, warm and plain, no "
     "announcements about yourself or your tools. When you bring back a background result, open with a few words "
-    "that tie it to the question, the way a person would say 'about the deadline, ...'."
+    "that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you are asked an "
+    "internal routing question about who a line was meant for: answer it with the single word asked for, and never "
+    "say RESPOND or IGNORE aloud."
 )
 
 KAREN_TOOLS: list[dict[str, object]] = [
@@ -133,84 +136,6 @@ def delivery_line(vresults: list[PendingResult]) -> str:
     )
 
 
-class DiscardAudio:
-    async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
-        pass
-
-    async def flush(self) -> None:
-        pass
-
-    async def clear(self) -> None:
-        pass
-
-
-class QwenJudge:
-    """Asks Qwen, on a text-only session of its own, whether a line was said to Karen.
-
-    Not Karen's session: DashScope ignores `conversation: "none"`, so every verdict becomes an assistant message,
-    and asked afterwards the model recited them. Each prompt carries its own transcript, so verdicts piling up
-    here cost nothing; the session is renewed every JUDGE_RENEW_EVERY judgments anyway to stay small.
-    """
-
-    def __init__(self, vroom_name: str) -> None:
-        self.vroom_name = vroom_name
-        self.vsession: QwenOmniSession | None = None
-        self.vevents = None
-        self.vjudged = 0
-        self.vlock = asyncio.Lock()
-
-    async def __call__(self, vprompt: str) -> str:
-        async with self.vlock:
-            for _ in range(2):
-                if self.vsession is None or self.vjudged >= JUDGE_RENEW_EVERY:
-                    await self.renew()
-                try:
-                    return await asyncio.wait_for(self.ask(vprompt), JUDGE_TIMEOUT_S)
-                except (StopAsyncIteration, ConnectionResetError):
-                    # DashScope closed the session under us; one fresh session gets the same question.
-                    await self.close()
-                except TimeoutError:
-                    await self.close()
-                    return ""
-            return ""
-
-    async def ask(self, vprompt: str) -> str:
-        assert self.vsession is not None and self.vevents is not None
-        await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation(), vinstructions=vprompt))
-        self.vjudged += 1
-        vparts: list[str] = []
-        while True:
-            vevent = await anext(self.vevents)
-            if isinstance(vevent, events.AssistantTranscript):
-                vparts.append(vevent.vtext)
-            elif isinstance(vevent, events.AssistantSpeechStopped):
-                return "".join(vparts)
-            elif isinstance(vevent, events.RealtimeSessionError):
-                return ""
-
-    async def renew(self) -> None:
-        await self.close()
-        self.vsession = QwenOmniSession(
-            vapi_key=os.environ["DASHSCOPE_API_KEY"],
-            vconversation_id=f"{self.vroom_name}-judge",
-            vsession_id=f"{self.vroom_name}-judge",
-            vepoch_provider=lambda: 0,
-            vaudio_sink=DiscardAudio(),
-            vinstructions="You judge who a line said in a meeting was meant for. Reply with JSON only.",
-            vtools=[],
-            vauto_response=False,
-            vtext_only=True,
-        )
-        await self.vsession.start()
-        self.vevents = self.vsession.events()
-        self.vjudged = 0
-
-    async def close(self) -> None:
-        if self.vsession is not None:
-            vsession, self.vsession, self.vevents = self.vsession, None, None
-            await vsession.close()
-
-
 class RoomAudioSink:
     """Qwen's voice, into the LiveKit room the Meet bridge plays back."""
 
@@ -252,7 +177,6 @@ class MeetCall:
         self.vmemory = MeetMemory()
         self.vaddressing: MeetAddressing | None = None
         self.vdelegate_llm = voice_app.build_llm(MEET_DELEGATE_MODEL)
-        self.vjudge = QwenJudge(vroom.name)
         self.vregistry = TaskRegistry()
         self.vsupervisor = TaskSupervisor(
             vconversation_id=vroom.name,
@@ -270,6 +194,12 @@ class MeetCall:
         self.vplayed = asyncio.Event()
         self.vpending: collections.deque[PendingResult] = collections.deque()
         self.vpending_added = asyncio.Event()
+        self.vfloor = asyncio.Lock()
+        self.vrouting: asyncio.Future[str] | None = None
+        self.vroute_parts: list[str] = []
+        self.vdiscard_next = False
+        self.vtool_followup = False
+        self.vfacts: list[str] = []
         self._vtasks: set[asyncio.Task[None]] = set()
 
     def publish(self, **vevent: object) -> None:
@@ -286,16 +216,45 @@ class MeetCall:
 
     def addressing(self) -> MeetAddressing:
         if self.vaddressing is None:
-            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME, self.judge)
+            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME, self.route)
         return self.vaddressing
 
-    async def judge(self, vprompt: str) -> str:
+    async def take_floor(self) -> None:
+        # A realtime session generates one response at a time: routing steps, answers and deliveries take turns.
         try:
-            return await self.vjudge(vprompt)
-        except Exception:
+            await asyncio.wait_for(self.vfloor.acquire(), FLOOR_TIMEOUT_S)
+        except TimeoutError:
+            logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
+            self.release_floor()
+            await self.vfloor.acquire()
+
+    def release_floor(self) -> None:
+        if self.vfloor.locked():
+            self.vfloor.release()
+
+    async def route(self, vprompt: str) -> str:
+        """Asks Karen's own session whether the latest line was for her, as a text-only response.
+
+        Same session on purpose: it heard the audio and knows what Karen last said. A separate judge session only
+        sees the text; automatic responses cannot be kept silent at all (2/9 on a test dialogue), while this
+        routing step scored 9/9.
+        """
+        await self.take_floor()
+        vsession = self.vsession
+        assert vsession is not None
+        self.vrouting = asyncio.get_running_loop().create_future()
+        self.vroute_parts = []
+        try:
+            await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=vprompt, vtext_only=True))
+            return await asyncio.wait_for(self.vrouting, ROUTE_TIMEOUT_S)
+        except (TimeoutError, ConnectionResetError):
             # Unsure means silent: a missed question can be repeated, an unasked-for reply cannot be taken back.
-            logger.warning("addressee judge failed; staying silent", exc_info=True)
+            logger.warning("routing step got no answer; staying silent")
+            self.vdiscard_next = True
             return ""
+        finally:
+            self.vrouting = None
+            self.release_floor()
 
     async def open_session(self) -> None:
         vsession = QwenOmniSession(
@@ -305,6 +264,7 @@ class MeetCall:
             vepoch_provider=lambda: 0,
             vaudio_sink=self.vsink,
             vinstructions=self.instructions(),
+            vmodel=MEET_VOICE_MODEL,
             vtools=KAREN_TOOLS,
             vauto_response=False,
             vsilence_ms=TURN_SILENCE_MS,
@@ -313,13 +273,16 @@ class MeetCall:
         # Start first, publish second: the audio pump reads self.vsession on every frame.
         vprevious, self.vsession = self.vsession, vsession
         self.vsession_started_at = time.monotonic()
+        if self.vrouting is not None and not self.vrouting.done():
+            self.vrouting.set_result("")
+        self.vtool_followup = False
+        self.release_floor()
         self.spawn(self.pump_events(vsession))
         if vprevious is not None:
             await vprevious.close()
 
     async def aclose(self) -> None:
         await self.vsupervisor.aclose()
-        await self.vjudge.close()
         if self.vsession is not None:
             vsession, self.vsession = self.vsession, None
             await vsession.close()
@@ -365,15 +328,30 @@ class MeetCall:
         elif isinstance(vevent, events.UserTranscriptFinal) and vevent.vtext.strip():
             await self.on_heard(vevent.vtext.strip())
         elif isinstance(vevent, events.AssistantTranscript):
+            if self.vrouting is not None:
+                self.vroute_parts.append(vevent.vtext)
+                return
             self.vlast_bot_activity = time.monotonic()
             self.vreply_parts.append(vevent.vtext)
         elif isinstance(vevent, events.AssistantSpeechStopped):
-            self.vlast_bot_activity = time.monotonic()
+            if self.vrouting is not None:
+                if not self.vrouting.done():
+                    self.vrouting.set_result("".join(self.vroute_parts))
+                return
             vreply = "".join(self.vreply_parts).strip()
             self.vreply_parts.clear()
+            if self.vdiscard_next:
+                # The tail of a routing step that timed out: a verdict, not something Karen said.
+                self.vdiscard_next = False
+                return
+            self.vlast_bot_activity = time.monotonic()
             if vreply:
                 self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT))
                 self.spawn(self.rearm_after_playout())
+            if self.vtool_followup:
+                self.vtool_followup = False
+            else:
+                self.release_floor()
         elif isinstance(vevent, events.RealtimeToolCallRequested):
             await self.on_tool_call(vevent)
         elif isinstance(vevent, events.RealtimeSessionError):
@@ -395,9 +373,13 @@ class MeetCall:
         await self.respond(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
 
     async def respond(self, vline: str) -> None:
+        await self.take_floor()
+        await self.speak(vline)
+
+    async def speak(self, vline: str) -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
         # The line itself is sent as a message too: with only its audio in the session, Qwen answers every question
-        # it has heard, and invents work for the ones it cannot answer.
+        # it has heard, and invents work for the ones it cannot answer. The caller holds the floor.
         assert self.vsession is not None
         self.vlast_bot_activity = time.monotonic()
         self.publish(type="state", state="thinking")
@@ -432,7 +414,12 @@ class MeetCall:
         vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
-        await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vresult}, vcorrelation=self.vsession.correlation()))
+        # Qwen 3.8 often says "I'm on it" in the same response that starts background work; asking it to respond
+        # again to the tool result made it say so twice. A fast tool's result still needs its spoken answer.
+        vrespond = vcall.vtool_name in FAST_TOOLS or not "".join(self.vreply_parts).strip()
+        # The answer to a tool call is a second response that still belongs to this turn: keep the floor for it.
+        self.vtool_followup = vrespond
+        await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vresult}, vcorrelation=self.vsession.correlation()), vrespond=vrespond)
 
     def start_background(self, vgoal: str, vkind: str) -> str:
         if not vgoal.strip():
@@ -457,7 +444,9 @@ class MeetCall:
     async def run_task(self, vrecord: TaskRecord) -> TaskResult:
         if vrecord.vspec.vcontext["kind"] == "science_fact":
             await asyncio.sleep(SCIENCE_FACT_DELAY_S)
-            return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=random.choice(SCIENCE_FACTS))
+            if not self.vfacts:
+                self.vfacts = random.sample(SCIENCE_FACTS, len(SCIENCE_FACTS))
+            return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=self.vfacts.pop())
         vreply = await self.vdelegate_llm.ainvoke(str(vrecord.vspec.vcontext["brief"]))
         return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=str(vreply.content))
 
@@ -501,12 +490,14 @@ class MeetCall:
             self.vpending_added.clear()
             while self.vpending:
                 await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
+                await self.take_floor()
+                # Read the queue only once Karen has the floor, so a result that finished meanwhile joins this turn.
                 vresults = list(self.vpending)
                 self.vpending.clear()
                 self.addressing().engage(vresults[-1].vrequester)
                 self.vinterrupted = False
                 self.vplayed.clear()
-                await self.respond(delivery_line(vresults))
+                await self.speak(delivery_line(vresults))
                 for vresult in vresults:
                     vresult.vattempts += 1
                 with contextlib.suppress(TimeoutError):

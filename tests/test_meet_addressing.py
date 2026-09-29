@@ -33,7 +33,7 @@ def test_cyrillic_name_engages():
 
 @pytest.mark.asyncio
 async def test_the_name_needs_no_judge():
-    vjudge = ScriptedJudge('{"to_assistant": false}')
+    vjudge = ScriptedJudge("IGNORE")
     vaddressing = MeetAddressing("Karen", vjudge)
     assert await vaddressing.is_addressed("Anna", "Карен, который час?", "")
     assert vjudge.vprompts == []
@@ -42,7 +42,7 @@ async def test_the_name_needs_no_judge():
 
 @pytest.mark.asyncio
 async def test_without_the_name_the_dialogue_decides():
-    vjudge = ScriptedJudge('```json\n{"to_assistant": true}\n```')
+    vjudge = ScriptedJudge("RESPOND.")
     vaddressing = MeetAddressing("Karen", vjudge)
     vtranscript = "[Kirill] Karen, расскажи факт\n[Karen] Бананы слегка радиоактивны."
     assert await vaddressing.is_addressed("Kirill", "Почему?", vtranscript)
@@ -52,14 +52,17 @@ async def test_without_the_name_the_dialogue_decides():
 
 @pytest.mark.asyncio
 async def test_a_no_leaves_karen_silent_and_unengaged():
-    vaddressing = MeetAddressing("Karen", ScriptedJudge('{"to_assistant": false}'))
+    vaddressing = MeetAddressing("Karen", ScriptedJudge("IGNORE"))
     assert not await vaddressing.is_addressed("Anna", "Carl, can you review it?", "")
     assert vaddressing.vengaged_speaker == ""
 
 
 def test_anything_but_an_explicit_yes_is_a_no():
-    assert parse_addressee('{"to_assistant": true}')
-    assert not parse_addressee('{"to_assistant": false}')
+    assert parse_addressee("RESPOND")
+    assert parse_addressee("respond.")
+    assert not parse_addressee("IGNORE")
+    assert not parse_addressee("RESPOND or IGNORE")
+    assert not parse_addressee("RESPONDING later")
     assert not parse_addressee("I think it probably is")
     assert not parse_addressee("")
 

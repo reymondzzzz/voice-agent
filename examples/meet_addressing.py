@@ -15,7 +15,7 @@ _CYRILLIC_TO_LATIN = str.maketrans({
     "у": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "",
     "э": "e", "ю": "yu", "я": "ya",
 })
-_VERDICT = re.compile(r'"to_assistant"\s*:\s*(true|false)')
+_RESPOND = re.compile(r"\bRESPOND\b")
 
 ADDRESSEE_PROMPT = """You decide whether the latest line in a meeting transcript is said to {name}, an AI assistant attending the meeting, or to the other people.
 
@@ -28,7 +28,7 @@ Transcript, oldest first:
 
 Latest line, from {speaker}: {text}
 
-Reply with JSON only: {{"to_assistant": true or false}}"""
+Reply with exactly one word: RESPOND if the latest line is for {name}, IGNORE otherwise."""
 
 AddresseeJudge = Callable[[str], Awaitable[str]]
 
@@ -57,15 +57,15 @@ def addressee_prompt(vbot_name: str, vtranscript: str, vspeaker: str, vtext: str
 def parse_addressee(vreply: str) -> bool:
     """Anything but an explicit yes is a no: speaking when not asked costs more than staying quiet."""
 
-    vverdict = _VERDICT.search(vreply)
-    return vverdict is not None and vverdict.group(1) == "true"
+    vupper = vreply.upper()
+    return bool(_RESPOND.search(vupper)) and "IGNORE" not in vupper
 
 
 @dataclasses.dataclass
 class MeetAddressing:
     """Decides whether a meeting turn is meant for the bot; silence is the default.
 
-    The name is the fast path. Everything else is judged from the dialogue by a small model, because only
+    The name is the fast path. Everything else is judged from the dialogue by the model, because only
     the context tells "Почему?" after Karen's answer from "Почему?" between two colleagues, and a clipped
     "Арон, который час?" from a question to the room.
     """

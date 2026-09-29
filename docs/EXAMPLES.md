@@ -274,24 +274,33 @@ what it is called.
 
 - **The name is the fast path.** Fuzzy, spaces ignored, Cyrillic transliterated: `Caren`,
   `VoiceAgent`, `Карен` all match, with no model call.
-- **Everything else is judged from the dialogue by Qwen Omni itself**, on a text-only session of its
-  own (`QwenJudge`), reading the last `GATE_CONTEXT_TURNS` labelled lines. It answers only whether the
-  latest line is for Karen; anything but an explicit yes is silence.
+- **Everything else is routed inside Karen's own Qwen session**: a text-only `response.create`
+  whose instructions carry the labelled last `GATE_CONTEXT_TURNS` lines and ask for one word, RESPOND
+  or IGNORE. Only RESPOND is followed by a spoken response; anything else, a timeout included, is
+  silence.
 
 Keyword rules were tried first and failed on a real call: a word count dropped "Почему?" right after
 Karen answered, and a filler list cannot tell "Почему?" to Karen from "Почему?" between colleagues.
 The prompt also tells the model that speech recognition clips the start of utterances, so "Арон,
 который час в Лондоне?" is read as a question to Karen.
 
-The judge cannot run on Karen's own session: DashScope ignores `conversation: "none"`, so every
-verdict became an assistant message there, and asked afterwards the model recited
-`{"to_assistant": false}` back. On its own session the verdicts pile up harmlessly (each prompt
-carries its transcript); the session is renewed every `JUDGE_RENEW_EVERY` judgments and reopened when
-DashScope closes it, and a timeout means silence. On 15 labelled lines (follow-ups, fillers, a sound
-check, side talk, clipped names, and discourse cases such as "А почему?" after Sasha spoke, which is
-for Sasha) it scored 15/15 and 14/15 on two runs at about 0.6s median; the one miss was a clipped
-question, erring toward silence. A GLM classifier (`z-ai/glm-5.2`, reasoning off) scored 11/11 on the
-first eleven at 0.7s but adds a model; `glm-5.3-flash` cannot turn reasoning off and took 3-22s.
+How routing got here, all measured on a 9-line Russian dialogue (Kirill and Sasha talking, Karen
+asked twice, "Почему?" once for Karen and once for Sasha):
+
+| Setup | Correct |
+| --- | --- |
+| One session, automatic responses, prompt says "produce no output" | 2/9 on 3.5 Plus (twice) and 3.8 Flash: it answered every line |
+| One session, manual mode, text RESPOND/IGNORE routing step, then speech | 9/9 on 3.8 Flash and 3.5 Plus, ~0.9s decision, ~0.9s to first audio |
+| Same, routing as a `route_turn` function call | 9/9, 9/9 on 3.8 Flash; 8/9 on 3.5 Plus |
+| A separate text-only Qwen judge session | 29/30 on 15 labelled lines, ~0.6s, but a second context |
+| GLM 5.2 classifier | 11/11, ~0.7s, but a second model |
+
+Karen runs the second row on `MEET_VOICE_MODEL` (`qwen3.8-omni-flash-realtime`): the routing step hears
+exactly what she heard and knows what she last said, with no second session to keep in sync. Asked
+to quote its own messages afterwards, the model listed only its spoken answers, not the verdicts.
+The session is still in manual response mode (`create_response` off, server VAD on), so VAD commits
+each turn and nothing speaks until asked. One response runs at a time, so routing steps, answers and
+deliveries take turns on a floor lock; a tool call's follow-up response keeps the floor.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
@@ -342,7 +351,9 @@ facts asked back to back come out as one flowing answer ("Bananas are slightly r
 day on Venus…") instead of two answers with a pause between; only people's silence counts as the
 pause, so Karen may go straight on after her own sentence. Asking for the same delegated check again
 replaces the first; asking for another science fact does not, which on the first try silently
-cancelled the first fact. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
+cancelled the first fact. Qwen 3.8 often says "I'm on it" in the same response that starts background work,
+so a background tool's result is returned without asking for another spoken response when something
+was already said; otherwise it acknowledged twice. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
 quiet. One that someone talks over goes back to the front and is finished at the next pause, after
 Karen has answered the interruption if it was for her. That was a real-call bug: interrupted mid-fact
 by "Какая погода в Лондоне?", she answered the weather and dropped the fact. Rehearsed on the fixture

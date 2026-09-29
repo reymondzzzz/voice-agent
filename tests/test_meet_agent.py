@@ -6,6 +6,8 @@ import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples.meet_agent import MeetCall, PendingResult
+from voice_agent.correlation import Correlation
+from voice_agent.realtime import events
 
 
 class ClosingSession:
@@ -45,13 +47,15 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     async def quiet(_vpause_s: float) -> None:
         pass
 
-    async def respond(vline: str) -> None:
+    async def speak(vline: str) -> None:
         vspoken.append(vline)
         vcall.vinterrupted = len(vspoken) == 1
         vcall.vplayed.set()
+        vcall.release_floor()
 
     vcall.wait_until_quiet = quiet
-    vcall.respond = respond
+    vcall.speak = speak
+    vcall.vfloor = asyncio.Lock()
     vcall.vpending_added.set()
     vworker = asyncio.create_task(vcall.deliver_pending())
     for _ in range(50):
@@ -65,3 +69,37 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     assert "honey keeps" in vspoken[0] and "it holds" in vspoken[0]
     assert "cut off" in vspoken[1] and "honey keeps" in vspoken[1] and "it holds" in vspoken[1]
     assert not vcall.vpending
+
+
+@pytest.mark.asyncio
+async def test_a_routing_verdict_is_returned_never_logged_as_karen_and_frees_the_floor() -> None:
+    vcall = MeetCall.__new__(MeetCall)
+    vcall.vfloor = asyncio.Lock()
+    vcall.vrouting = None
+    vcall.vroute_parts = []
+    vcall.vdiscard_next = False
+    vcall.vtool_followup = False
+    vcall.vreply_parts = []
+    vremembered = []
+    vcall.remember = vremembered.append
+    vcorrelation = Correlation.create(vconversation_id="c", vsession_id="s", vconversation_epoch=0, vturn_id=None)
+    vrequests = []
+
+    class RoutingSession:
+        def correlation(self):
+            return vcorrelation
+
+        async def request_response(self, vrequest):
+            vrequests.append(vrequest)
+            asyncio.get_running_loop().call_soon(lambda: asyncio.ensure_future(answer()))
+
+    async def answer():
+        await vcall.on_event(events.AssistantTranscript(vcorrelation=vcorrelation, vtext="IGN"))
+        await vcall.on_event(events.AssistantTranscript(vcorrelation=vcorrelation, vtext="ORE"))
+        await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=vcorrelation))
+
+    vcall.vsession = RoutingSession()
+    assert await vcall.route("is it for Karen?") == "IGNORE"
+    assert vrequests[0].vtext_only
+    assert vremembered == []
+    assert not vcall.vfloor.locked()

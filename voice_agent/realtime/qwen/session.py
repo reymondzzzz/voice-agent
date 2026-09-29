@@ -65,7 +65,6 @@ class QwenOmniSession:
         vtools: list[dict[str, object]] | None = None,
         vauto_response: bool = True,
         vsilence_ms: int = 800,
-        vtext_only: bool = False,
     ) -> None:
         self.vconversation_id = vconversation_id
         self.vsession_id = vsession_id
@@ -75,7 +74,6 @@ class QwenOmniSession:
         self.vtools = vtools or []
         self.vauto_response = vauto_response
         self.vsilence_ms = vsilence_ms
-        self.vtext_only = vtext_only
         self._vapi_key = vapi_key
         self._vbase_url = vbase_url
         self._vepoch_provider = vepoch_provider
@@ -133,10 +131,7 @@ class QwenOmniSession:
         await self._vevents.put(None)
 
     def _session_frame(self) -> dict[str, object]:
-        vframe = protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response)
-        if self.vtext_only:
-            vframe["session"]["modalities"] = ["text"]  # type: ignore[index]
-        return vframe
+        return protocol.session_update_frame(self.vvoice, self.vinstructions, self.vtools, vsilence_ms=self.vsilence_ms, vauto_response=self.vauto_response)
 
     async def _send(self, vframe: dict[str, object]) -> None:
         if self._vws is None:
@@ -167,14 +162,20 @@ class QwenOmniSession:
         self.vinstructions = vinstructions
         await self._send(self._session_frame())
 
-    async def send_tool_result(self, vresult: events.ToolResultPayload) -> None:
+    async def send_tool_result(self, vresult: events.ToolResultPayload, *, vrespond: bool = True) -> None:
         await self._send(protocol.function_output_frame(vresult.vtool_call_id, json.dumps(vresult.vresult)))
-        await self._send({"type": protocol.RESPONSE_CREATE})
+        if vrespond:
+            await self._send({"type": protocol.RESPONSE_CREATE})
 
     async def request_response(self, vrequest: events.ResponseRequest) -> None:
-        vframe: dict[str, object] = {"type": protocol.RESPONSE_CREATE}
+        vresponse: dict[str, object] = {}
         if vrequest.vinstructions:
-            vframe["response"] = {"instructions": vrequest.vinstructions}
+            vresponse["instructions"] = vrequest.vinstructions
+        if vrequest.vtext_only:
+            vresponse["modalities"] = ["text"]
+        vframe: dict[str, object] = {"type": protocol.RESPONSE_CREATE}
+        if vresponse:
+            vframe["response"] = vresponse
         await self._send(vframe)
 
     async def interrupt(self, vrequest: events.InterruptRequest) -> None:

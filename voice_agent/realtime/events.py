@@ -133,6 +133,7 @@ class ToolResultPayload:
 class ResponseRequest:
     vcorrelation: Correlation
     vinstructions: str = ""
+    vtext_only: bool = False
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
