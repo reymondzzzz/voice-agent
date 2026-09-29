@@ -338,6 +338,7 @@ async def entrypoint(ctx: JobContext) -> None:
         rtc.LocalAudioTrack.create_audio_track("karen", vcall.vsource),
         rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
     )
+    await ctx.room.local_participant.set_attributes({"active_agent_id": "karen", "active_agent_name": MEET_DEFAULT_BOT_NAME})
     vcall.spawn(vcall.renew_when_window_is_full())
 
 

@@ -214,6 +214,10 @@ uv run python -m examples.meet_agent dev                                  # Kare
 uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name Karen
 ```
 
+To try Karen without Meet, run `examples.meet_agent dev` with `examples.token_server` and open
+http://127.0.0.1:8080: the page's microphone takes the bridge's place, every speaker is `someone`,
+and the header shows Karen (the Boss / Alice / Bob roster under it is the old demo's and inert).
+
 Both agent servers register without an agent name, so run one of them, not both. Karen needs
 `DASHSCOPE_API_KEY` in `.env.local` next to the OpenRouter key.
 
@@ -239,7 +243,7 @@ what it is called.
 
 | Turn | Result |
 | --- | --- |
-| Contains the bot's name (fuzzy, spaces ignored: `Caren`, `VoiceAgent` match) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
+| Contains the bot's name (fuzzy, spaces ignored, Cyrillic transliterated: `Caren`, `VoiceAgent`, `Карен` match) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
 | Engaged speaker, inside the window, two words or more | Answer without the name |
 | Anyone else, or the engaged speaker naming another participant | Silent (`StopResponse`), and the engagement ends |
 | Backchannel (`okay`) | Silent |

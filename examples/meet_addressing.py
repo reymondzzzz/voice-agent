@@ -9,10 +9,17 @@ NAME_MATCH_RATIO = 0.8
 MIN_ADDRESSED_WORDS = 2
 
 _WORD = re.compile(r"\w+", re.UNICODE)
+# People address the bot in their own script: "Карен" has to match "Karen".
+_CYRILLIC_TO_LATIN = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh", "з": "z", "и": "i",
+    "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t",
+    "у": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "",
+    "э": "e", "ю": "yu", "я": "ya",
+})
 
 
 def _words(vtext: str) -> list[str]:
-    return _WORD.findall(vtext.casefold())
+    return _WORD.findall(vtext.casefold().translate(_CYRILLIC_TO_LATIN))
 
 
 def mentions_name(vtext: str, vname: str) -> bool:

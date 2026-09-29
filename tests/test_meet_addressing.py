@@ -58,3 +58,9 @@ def test_backchannel_is_not_a_question():
     vaddressing = MeetAddressing("Jarvis")
     vaddressing.is_addressed("Anna", "Jarvis, what time is it?", 0.0)
     assert not vaddressing.is_addressed("Anna", "okay", 1.0)
+
+
+def test_cyrillic_name_engages():
+    assert mentions_name("Карен, который час в Токио?", "Karen")
+    assert mentions_name("Карин, проверь дедлайн", "Karen")
+    assert not mentions_name("Как дела?", "Karen")
