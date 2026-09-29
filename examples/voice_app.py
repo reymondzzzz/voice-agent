@@ -50,6 +50,15 @@ def build_llm():
     )
 
 
+def meet_briefing(vbot_name: str, vspeaker: str) -> str:
+    return (
+        f"You are in a group meeting where people call you {vbot_name}. The user messages are the "
+        f"meeting transcript, each prefixed with its speaker; most of them were not said to you. "
+        f"{vspeaker} has just spoken to you: answer {vspeaker}'s last message, using what the room "
+        f"discussed when it is relevant."
+    )
+
+
 class PersonaAgent(Agent):
     def __init__(
         self,
@@ -75,7 +84,9 @@ class PersonaAgent(Agent):
         vtext = new_message.text_content or ""
         new_message.content = [f"[{vspeaker}] {vtext}"]
         vcall.record_meet_turn(vspeaker, vtext)
-        if vcall.meet_addressing().is_addressed(vspeaker, vtext, time.monotonic()):
+        vaddressing = vcall.meet_addressing()
+        if vaddressing.is_addressed(vspeaker, vtext, time.monotonic()):
+            turn_ctx.add_message(role="system", content=meet_briefing(vaddressing.vbot_name, vspeaker))
             return
         # StopResponse drops the turn from context; keep it so a later reply knows what the room discussed.
         vctx = self.chat_ctx.copy()

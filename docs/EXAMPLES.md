@@ -210,7 +210,7 @@ LiveKit room as an ordinary caller. The agent code does not know Meet exists.
 
 ```bash
 uv run python -m examples.voice_app dev                                   # the agent, as usual
-uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name "Voice Agent"
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name Karen
 ```
 
 The bot asks to join; someone in the call has to admit it. It leaves when the call ends or on
@@ -259,6 +259,14 @@ and Anna turning to Carl silenced it again. Asked "who sent the quarterly report
 turns, Boss answered "That was Anna". STT wrote the name as `VoiceAgent`, which is why names are
 compared with spaces removed. A handoff still starts the target with a fresh `chat_ctx` (rule 9),
 so room context gathered before a transfer does not follow it. Not verified: a real Meet call.
+
+The persona prompts say "You are Boss", so an addressed turn also gets a one-reply system note
+(`meet_briefing`): people call you Karen, the user messages are a labelled meeting transcript, and
+only the last one was said to you. With it, after five unaddressed turns about a billing migration,
+"Karen, can you check the details, what is the deadline and who owns the webhooks?" got October 15th
+and Dimitri, and the unnamed follow-up "how long do we keep the old system?" got "one month". The
+whole meeting is resent on every reply; a long meeting eventually needs older turns folded into a
+running summary.
 
 Known limits:
 

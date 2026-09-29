@@ -17,6 +17,8 @@ def test_name_engages_and_same_speaker_follows_up_without_it():
 def test_misheard_name_still_engages():
     assert mentions_name("hey jarvys what's the weather", "Jarvis")
     assert not mentions_name("we should check the invoice", "Jarvis")
+    assert mentions_name("Caren, can you check the deadline?", "Karen")
+    assert not mentions_name("we can check the deadline", "Karen")
 
 
 def test_name_glued_into_one_word_still_engages():
