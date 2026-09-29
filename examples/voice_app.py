@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, llm
 from livekit.agents.voice.agent_session import TurnHandlingOptions
 from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
@@ -21,6 +21,7 @@ logger = logging.getLogger("voice-agent-example")
 load_dotenv(".env.local")
 
 EXAMPLE_LLM_MODEL = "z-ai/glm-5.2"
+MEET_SPEAKER_ATTRIBUTE = "meet_speaker"
 
 
 def mirror_flexus_livekit_env() -> None:
@@ -60,6 +61,11 @@ class PersonaAgent(Agent):
         self.vagent = vagent
         self.vhandoff_summary = vhandoff_summary
 
+    async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
+        vspeaker = self.session.userdata.meet_speaker()
+        if vspeaker:
+            new_message.content = [f"[{vspeaker}] {new_message.text_content}"]
+
     async def on_enter(self) -> None:
         if not self.vhandoff_summary:
             return
@@ -94,6 +100,9 @@ class ExampleCall:
         self.vpending = small_agents.PendingHandoff()
         self.vactive = small_agents.resolve_example_agent(small_agents.ENTRY_AGENT_ID)
         self._vtasks: set[asyncio.Task[None]] = set()
+
+    def meet_speaker(self) -> str:
+        return next((vp.attributes[MEET_SPEAKER_ATTRIBUTE] for vp in self.vroom.remote_participants.values() if MEET_SPEAKER_ATTRIBUTE in vp.attributes), "")
 
     def spawn(self, vcoro) -> None:
         vtask = asyncio.create_task(vcoro)
@@ -164,6 +173,7 @@ async def entrypoint(ctx: JobContext) -> None:
         ),
     )
     vcall = ExampleCall(vsession, ctx.room)
+    vsession.userdata = vcall
 
     vsession.on("agent_state_changed", vcall.on_agent_state_changed)
     vsession.on("user_input_transcribed", vcall.on_user_input_transcribed)

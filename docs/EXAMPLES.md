@@ -202,6 +202,55 @@ at 2 (1.5 under 760px wide), rendering stops on `visibilitychange`, WebGL contex
 and the program rebuilt on restore, and `prefers-reduced-motion` slows the shader clock to ~11% of
 normal rather than freezing it. `pagehide` disposes the program, buffer and audio meter.
 
+## Google Meet
+
+`examples/meet_bridge.py` puts the agent into a Google Meet call. Meet has no API a bot can speak
+through, so a Playwright-driven Chrome joins as a guest and the bridge carries that page into a
+LiveKit room as an ordinary caller. The agent code does not know Meet exists.
+
+```bash
+uv run python -m examples.voice_app dev                                   # the agent, as usual
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name "Voice Agent"
+```
+
+The bot asks to join; someone in the call has to admit it. It leaves when the call ends or on
+Ctrl-C. Chrome runs headed by default because every maintained Meet bot does — Meet treats
+headless guests with suspicion. `--headless` exists for when that stops being true. Meeting audio
+plays out of the local speakers while it runs; `--mute-audio` would silence it but also stops Chrome
+rendering Web Audio, which kills the capture.
+
+| Direction | How |
+| --- | --- |
+| Meet → agent | `examples/meet/bridge.js` wraps `RTCPeerConnection`, mixes every remote audio track in a 48kHz `AudioContext`, and hands 20ms PCM frames to Python through a Playwright binding. The bridge publishes them as its microphone track. |
+| agent → Meet | The bridge subscribes to the agent's track and pushes 20ms frames into the page. `getUserMedia` is replaced so Meet's microphone is a stream fed from those frames. |
+| who is speaking | Every 250ms the page reads the participant tiles (`div[data-participant-id]`, name in `span.notranslate`) and reports those whose speaking border is visible. The bridge drops its own name and publishes the rest as the `meet_speaker` participant attribute. |
+
+Only meaning crosses into the agent: the speaker name is an attribute, never audio (rule 14).
+`PersonaAgent.on_user_turn_completed` reads it and prefixes the turn, so the graph sees
+`[Anna] What time is it in Tokyo?`. Overlapping speakers come through as `Anna, Bob`.
+
+Known limits:
+
+- The speaker is whoever was last highlighted when the turn ends, so a turn two people shared is
+  credited to the later one. The upgrade is Meet's own roster: RTP contributing sources mapped
+  through the `collections` data channel, which is what Attendee and MeetingBaas do.
+- The speaking check and the join flow read Meet's DOM, which Google changes without notice. The
+  selectors are the ones current open-source bots used in September 2026.
+- Editing the turn invalidates LiveKit's preemptive generation, so the reply starts only after the
+  turn is committed.
+- `RTCRtpReceiver.createEncodedStreams` is deleted before Meet loads; with it present Meet decodes
+  audio in its own worklet and the receiver tracks go silent.
+- The bridge mints its own token with `can_update_own_metadata`. Without it LiveKit refuses the
+  attribute update with `NOT_ALLOWED` and the Python SDK does not raise, so names silently vanish.
+
+Verified: `tests/test_meet_bridge.py` (marked `integration`, needs a LiveKit server and Chrome)
+runs the bridge against a local page with real WebRTC — a 440Hz remote track arrives in the room
+at 440Hz, a 660Hz agent track arrives on the page's microphone at 660Hz, and a highlighted tile
+becomes `meet_speaker`. End to end with the real agent and a spoken question on that page, the
+graph received `[Anna] Hi, what time is it in Tokyo right now?`, Boss handed off to Bob, and Bob's
+answer played back into the page's microphone. Not verified: a real Meet call. The join flow and
+tile selectors have not been exercised against meet.google.com.
+
 ## Verified and not
 
 Verified: 520 offline tests pass, both provider endpoints round-trip live (`fish-audio/s2.1-pro`

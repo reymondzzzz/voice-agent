@@ -20,6 +20,7 @@ dependencies = [
     "langgraph>=1.2.11",
     "langchain-openai>=1.6.0",
     "aiohttp>=3.14.3",
+    "playwright>=1.63.0",
 ]
 
 [dependency-groups]
@@ -51,6 +52,6 @@ timeout_method = "thread"
 pythonpath = ["."]
 testpaths = ["flexus_backend/tests", "tests"]
 markers = [
-    "integration: needs a live redis. The unit tier runs -m 'not integration'.",
+    "integration: needs live infrastructure (redis, a LiveKit server, Chrome). The unit tier runs -m 'not integration'.",
     "provider: makes an explicitly enabled, cost-bounded call to an external provider.",
 ]
