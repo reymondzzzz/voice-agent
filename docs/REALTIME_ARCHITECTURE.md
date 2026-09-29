@@ -323,7 +323,8 @@ Two additions for a bot that must stay silent until addressed (the Meet agent, `
   `response.create` carries its own instructions.
 
 `conversation.item.delete` is acknowledged but does not make the model forget the deleted item, so
-context cannot be bounded by deleting audio after the fact; keep audio out of the session instead.
+context cannot be bounded by deleting audio after the fact. The Meet agent bounds it by renewing the
+session once it has heard a full window, seeded with the text log of that window.
 
 ## Unresolved decisions that genuinely depend on the model
 

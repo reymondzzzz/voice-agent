@@ -249,56 +249,56 @@ the same speaker aimed at a human without naming them is answered. The upgrade f
 model that reads the last few labelled turns and returns directed/not, applied only inside the
 follow-up window.
 
-### Hearing, speaking, and what each model sees
+### Two models: Qwen Omni hears and speaks, GLM does the slow work
 
-Karen is Qwen Omni (`qwen3.5-omni-plus-realtime`, through `voice_agent/realtime/qwen/`), but Qwen never
-hears the meeting. Hearing and speaking are split so that Qwen's context cannot fill up:
+| Job | Model |
+| --- | --- |
+| Hear the meeting, transcribe it, answer by voice, call fast tools | Qwen Omni (`qwen3.5-omni-plus-realtime`, `voice_agent/realtime/qwen/`), `create_response` off so it speaks only when asked |
+| Delegated work | `z-ai/glm-5.3` via `TaskSupervisor` |
 
-| Job | Who | Context |
-| --- | --- | --- |
-| Follow the meeting | a listener `AgentSession`: silero VAD + the moved OpenRouter STT, no LLM, no audio out | none: each utterance is transcribed on its own and forgotten once it is text |
-| Remember it | `MeetMemory` | running notes + every turn from the last `MEET_CONTEXT_WINDOW_S` (5 minutes), labelled `[Anna] …` |
-| Speak as Karen | Qwen Omni, `create_response` off, asked only when addressed | session prompt: rules, name, notes, running tasks, the window (replaced every reply). Conversation: only the lines said *to* Karen, her replies, and tool calls |
-| Fold old turns | `z-ai/glm-5.3` | old notes + the turns leaving the window |
-| Background work | `z-ai/glm-5.3` via `TaskSupervisor` | `background_brief`: who asked, the goal Karen wrote, notes, window at delegation time |
+Meet audio from the bridge goes straight into the Qwen session; its server VAD and transcription
+(`qwen3-asr-flash-realtime`, part of the session) produce the text. Each transcript is labelled with
+the `meet_speaker` of the moment and added to `MeetMemory`, which keeps the last
+`MEET_CONTEXT_WINDOW_S` (10 minutes) and drops older turns; the full log is
+`meet-transcripts/<room>.jsonl`. No notes, no summaries.
 
-Three things decided this shape, all found against the live endpoint:
+When Karen is addressed, the session prompt is replaced (`QwenOmniSession.update_instructions`, a
+`session.update`) with her rules, name, running background tasks and the labelled 10-minute log, then
+a plain `response.create` asks her to answer. Qwen has heard the audio itself; the log adds who said
+it. Two things decided this, both found against the live endpoint:
 
-- Streaming the meeting into Qwen would make every utterance a server-side conversation item.
-  `conversation.item.delete` is acknowledged (`conversation.item.deleted`), but asked afterwards the
-  model still repeats the deleted audio word for word, so deletion does not bound its context.
-  Keeping meeting audio out of Qwen is the only thing that does, and it needs no session rotation.
-- `response.create` with its own `instructions` makes the model stop calling tools: asked the time
-  in Tokyo it said "I'm on it" and invented nothing better. The meeting therefore travels in the
-  session prompt (`QwenOmniSession.update_instructions`, a `session.update`), which keeps tools and
-  replaces rather than accumulates, and only the addressed line is sent as a message.
-- With `create_response` off Qwen transcribes nothing and says nothing until asked; the first audio
-  of a reply arrives about 0.9s after `response.create`.
+- `response.create` with its own `instructions` makes the model stop calling tools, so the log has to
+  travel in the session prompt, which keeps tools and is replaced rather than accumulated.
+- Qwen keeps every utterance it hears server-side. `conversation.item.delete` is acknowledged but
+  the model still repeats the deleted audio word for word, so deleting cannot bound it. Instead the
+  session is renewed once it has heard a full window, at a quiet moment (nobody speaking, Karen
+  silent, 1.5s): the new one starts with the 10-minute log in its prompt and takes over the audio
+  before the old one closes. Qwen's context is therefore at most two windows of meeting, never the
+  whole call.
 
 | Tool | Runs | Result |
 | --- | --- | --- |
 | `get_current_time`, `get_current_weather` | Qwen native function call, executed inline | answered in the same reply |
-| `delegate_task(goal)` | `TaskSupervisor.start_background` on GLM 5.3 | returns "started" at once; Karen says she is on it |
+| `delegate_task(goal)` | `TaskSupervisor.start_background` on GLM 5.3 with `background_brief` (who asked, the goal, the 10-minute log) | returns "started" at once; Karen says she is on it |
 
-A finished background answer is added to the memory as a system line and spoken, once the room has
-been quiet for 1.5s, to the person who asked, who is then engaged again for follow-ups. While it
-runs, the prompt lists it, so Karen says it is in progress rather than guessing. When anyone starts
-speaking over Karen, her queued audio is dropped and the response cancelled.
+A finished background answer is added to the log and spoken, once the room has been quiet for
+1.5s, to the person who asked, who is then engaged again for follow-ups. While it runs, the prompt
+lists it, so Karen says it is in progress rather than guessing. When anyone starts speaking over
+Karen, the endpoint cancels her response and her queued audio is dropped.
 
-The STT provider used to raise its own `SttError`, which LiveKit does not retry: one 15s TLS stall
-ended recognition for the rest of the meeting. `FlexusOpenRouterSTT` now translates it into
-`APIConnectionError` (retryable unless `auth`/`invalid_request`) and drops `invalid_audio` as an
-empty transcript; `tests/test_stt_recovery.py` covers it. The Boss / Alice / Bob call benefits too.
+Verified end to end against a local LiveKit, live Qwen and live GLM, with `say`-generated speech and
+a 90s window patched in the test process only, so the session renewed mid-meeting. All transcripts
+came from Qwen. Five turns of side talk got no reply. "Karen, what time is it in Tokyo?" called
+`get_current_time(Asia/Tokyo)` and answered 11:26 PM, correct. After the renewal, "please check in
+the background whether the deadline still works if Dmitry only starts the webhooks on October 13th"
+called `delegate_task`, got "I'm on it, Carl", and GLM's answer (he would finish on the 16th; start
+by the 12th) was spoken 8s later. "What was the migration deadline again?" got October 15th. Not
+verified: a real Meet call, or a real 10-minute window.
 
-Verified end to end against a local LiveKit, live Qwen and live GLM, with `say`-generated speech
-and a 40s window patched in the test process only. Five turns of billing-migration side talk got no
-reply and folded into notes. "Karen, what time is it in Tokyo?" called
-`get_current_time(Asia/Tokyo)` and answered "22:22". "Caren, please check in the background whether
-the deadline still works if Dimitri only starts the webhooks on October 13th" called `delegate_task`,
-got "I'm on it, Carl", and 40s later Karen told Carl it would finish right on the deadline day.
-"What was the migration deadline again?" was answered from the notes. Karen's voice reached the
-page's microphone for 3.8-12.2s per exchange. Not verified: a real Meet call, or a real 5-minute
-window.
+`FlexusOpenRouterSTT` (used by the Boss / Alice / Bob call, no longer by Karen) raised its own
+`SttError`, which LiveKit does not retry: one 15s TLS stall ended recognition for the rest of the
+call. It now translates it into `APIConnectionError` (retryable unless `auth`/`invalid_request`) and
+drops `invalid_audio` as an empty transcript; `tests/test_stt_recovery.py` covers it.
 
 Known limits:
 
@@ -311,11 +311,9 @@ Known limits:
   turn is committed.
 - A delegated answer can run long when spoken; the reasoning model is asked for five sentences at
   most, and Karen relays it in her own words.
-- Anyone speaking cuts Karen off, including a cough. When her reply has already been generated and
-  only playback is left, the cancel is answered with a harmless "Conversation has none active
-  response" warning.
-- Qwen's conversation still grows by one short exchange per time Karen is addressed. A meeting that
-  addresses her hundreds of times would need a fresh session; nothing does that yet.
+- Anyone speaking cuts Karen off, including a cough.
+- A session renewal and an utterance can overlap only if someone starts talking in the instant the
+  new session takes over; the renewal waits for a 1.5s pause to make that unlikely, not impossible.
 - `RTCRtpReceiver.createEncodedStreams` is deleted before Meet loads; with it present Meet decodes
   audio in its own worklet and the receiver tracks go silent.
 - The bridge mints its own token with `can_update_own_metadata`. Without it LiveKit refuses the
