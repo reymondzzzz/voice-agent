@@ -22,6 +22,11 @@ def test_meet_speaker_drops_the_bot_and_joins_overlapping_speakers() -> None:
     assert meet_bridge.meet_speaker(["Voice Agent"], "Voice Agent") == ""
 
 
+def test_meet_opens_in_english_whatever_the_account_language() -> None:
+    assert meet_bridge.english_meet_url("https://meet.google.com/pte-bavf-guh") == "https://meet.google.com/pte-bavf-guh?hl=en"
+    assert meet_bridge.english_meet_url("https://meet.google.com/abc?authuser=1&hl=ru") == "https://meet.google.com/abc?authuser=1&hl=en"
+
+
 def peak_hz(vpcm: bytes) -> float:
     vsamples = np.frombuffer(vpcm, np.int16).astype(float)
     vspectrum = np.abs(np.fft.rfft(vsamples * np.hanning(len(vsamples))))

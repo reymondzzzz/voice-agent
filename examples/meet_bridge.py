@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import secrets
+import urllib.parse
 
 from livekit import api, rtc
 from playwright.async_api import Page, async_playwright
@@ -63,8 +64,15 @@ async def pump_agent_audio(vtrack: rtc.Track, vpage: Page, vjoined: asyncio.Even
         await vpage.evaluate("vpcm => window.vmeetPlay(vpcm)", vpcm)
 
 
+def english_meet_url(vmeet_url: str) -> str:
+    """Meet follows the signed-in account's language; the join flow reads English labels."""
+    vparts = urllib.parse.urlsplit(vmeet_url)
+    vquery = dict(urllib.parse.parse_qsl(vparts.query), hl="en")
+    return urllib.parse.urlunsplit(vparts._replace(query=urllib.parse.urlencode(vquery)))
+
+
 async def join_meet(vpage: Page, vmeet_url: str, vbot_name: str) -> None:
-    await vpage.goto(vmeet_url)
+    await vpage.goto(english_meet_url(vmeet_url))
     vjoin = vpage.get_by_role("button", name=JOIN_BUTTON_NAME).first
     await vjoin.wait_for(timeout=30_000)
     # Only an anonymous guest is asked for a name; a signed-in profile joins under its account name.
