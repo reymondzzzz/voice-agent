@@ -34,15 +34,27 @@ def mint_caller_token(vroom: str, videntity: str) -> str:
     )
 
 
+def mint_observer_token(vroom: str, videntity: str) -> str:
+    # Hidden and unable to publish: an agent that listens to every audio track must never hear the observer.
+    return (
+        api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"])
+        .with_identity(videntity)
+        .with_name("Observer")
+        .with_grants(api.VideoGrants(room_join=True, room=vroom, hidden=True, can_publish=False, can_publish_data=False))
+        .to_jwt()
+    )
+
+
 async def handle_token(vrequest: web.Request) -> web.Response:
     vroom = vrequest.query.get("room", "").strip() or f"voice-{secrets.token_hex(4)}"
-    videntity = f"caller-{secrets.token_hex(3)}"
+    vobserve = vrequest.query.get("observe") == "1"
+    videntity = f"{'observer' if vobserve else 'caller'}-{secrets.token_hex(3)}"
     return web.json_response(
         {
             "vroom": vroom,
             "videntity": videntity,
             "vlk_url": os.environ["LIVEKIT_URL"],
-            "vlk_token": mint_caller_token(vroom, videntity),
+            "vlk_token": (mint_observer_token if vobserve else mint_caller_token)(vroom, videntity),
         }
     )
 

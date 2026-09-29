@@ -22,6 +22,10 @@ const STATE_TEXT = {
   permissionDenied: "Microphone blocked",
 }
 
+const vparams = new URLSearchParams(location.search)
+const VOBSERVE = vparams.get("observe") === "1"
+const VROOM = vparams.get("room")?.trim() ?? ""
+
 const vui = {
   status: document.getElementById("status"),
   banner: document.getElementById("banner"),
@@ -31,11 +35,15 @@ const vui = {
   transcript: document.getElementById("transcript"),
   connect: document.getElementById("connect"),
   mute: document.getElementById("mute"),
+  brandNote: document.getElementById("brandNote"),
+  hint: document.getElementById("hint"),
 }
 
 const vmeter = new VoiceLevelMeter()
 const vaudio = new Audio()
 vaudio.autoplay = true
+// Watching a Meet call, Karen is already heard through Meet; the element stays muted and only feeds the orb.
+vaudio.muted = VOBSERVE
 const vorb = new VoiceOrb(vui.orb)
 vorb.setAgent(KAREN_PALETTE)
 const vdecoder = new TextDecoder()
@@ -62,6 +70,9 @@ function showBanner(vtext) {
 }
 
 function captureUnsupportedReason() {
+  if (VOBSERVE) {
+    return VROOM ? "" : "Add the bridge's room to the address: /karen?observe=1&room=voice-meet-…"
+  }
   if (!window.isSecureContext) {
     return "Microphone capture needs a secure context. Open this page over localhost or https."
   }
@@ -247,7 +258,8 @@ async function connect() {
   setStatus("connecting", "connecting")
 
   try {
-    const vresponse = await fetch("/token")
+    const vquery = new URLSearchParams({ room: VROOM, ...(VOBSERVE ? { observe: "1" } : {}) })
+    const vresponse = await fetch(`/token?${vquery}`)
     if (!vresponse.ok) {
       throw new Error(`token endpoint returned ${vresponse.status}`)
     }
@@ -261,14 +273,16 @@ async function connect() {
       .on(RoomEvent.Disconnected, () => disconnect())
     await vroom.connect(vgrant.vlk_url, vgrant.vlk_token, { autoSubscribe: true })
     await vroom.startAudio()
-    vmicrophone = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true })
-    await vroom.localParticipant.publishTrack(vmicrophone, { source: Track.Source.Microphone })
+    if (!VOBSERVE) {
+      vmicrophone = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true })
+      await vroom.localParticipant.publishTrack(vmicrophone, { source: Track.Source.Microphone })
+    }
 
-    setStatus("live", `live · ${vgrant.vroom}`)
-    vui.connect.textContent = "Hang up"
+    setStatus("live", `${VOBSERVE ? "watching" : "live"} · ${vgrant.vroom}`)
+    vui.connect.textContent = VOBSERVE ? "Stop watching" : "Hang up"
     vui.connect.dataset.live = "true"
     vui.connect.disabled = false
-    vui.mute.disabled = false
+    vui.mute.disabled = VOBSERVE
   } catch (verror) {
     const vdenied = verror.name === "NotAllowedError" || verror.name === "SecurityError"
     vfaultState = vdenied ? "permissionDenied" : "error"
@@ -281,7 +295,7 @@ async function connect() {
 async function disconnect() {
   vui.mute.disabled = true
   vui.mute.textContent = "Mute"
-  vui.connect.textContent = "Connect"
+  vui.connect.textContent = VOBSERVE ? "Watch" : "Connect"
   delete vui.connect.dataset.live
   vui.connect.disabled = false
   if (vmicrophone) {
@@ -319,6 +333,12 @@ window.addEventListener("pagehide", () => {
   vorb.dispose()
 })
 
+if (VOBSERVE) {
+  vui.connect.textContent = "Watch"
+  vui.mute.hidden = true
+  vui.brandNote.textContent = `— watching the Meet call${VROOM ? ` · ${VROOM}` : ""}`
+  vui.hint.textContent = "You talk to Karen in Meet. This page only watches: what she hears, the tools she calls and her background work."
+}
 const vunsupported = captureUnsupportedReason()
 if (vunsupported) {
   showBanner(vunsupported)

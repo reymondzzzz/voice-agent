@@ -129,7 +129,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">Karen <span>&mdash; meeting assistant, local test</span></div>
+  <div class="brand">Karen <span id="brandNote">&mdash; meeting assistant, local test</span></div>
   <div id="status" class="pill" role="status" aria-live="polite" data-state="idle">idle</div>
 </header>
 
@@ -142,7 +142,7 @@
       <div class="name">Karen</div>
       <div class="state" id="state" aria-live="polite">Not connected</div>
     </div>
-    <p class="hint">She listens to everything and answers only when addressed. Start with <kbd>Karen, …</kbd> or <kbd>Карен, …</kbd></p>
+    <p class="hint" id="hint">She listens to everything and answers only when addressed. Start with <kbd>Karen, …</kbd> or <kbd>Карен, …</kbd></p>
   </section>
 
   <aside class="panel">
@@ -158,6 +158,6 @@
   <button id="mute" disabled>Mute</button>
 </footer>
 
-<script type="module" src="/static/karen.js?v=3"></script>
+<script type="module" src="/static/karen.js?v=4"></script>
 </body>
 </html>

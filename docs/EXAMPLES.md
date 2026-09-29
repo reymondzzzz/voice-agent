@@ -224,6 +224,13 @@ transcript, a background-work list and the orb. Checked in Chrome with a fake mi
 from working to done, the result note shows only GLM's answer, and hanging up and reconnecting
 starts a clean room, at 1280x800 and 390x844, with no console errors.
 
+To watch a real Meet call, run the bridge with a known room and open the same page as an observer:
+`/karen?observe=1&room=<room>`. The token server then mints a hidden, publish-nothing token, so Karen
+(who listens to every audio track in the room) never hears the page; the page plays nothing aloud and
+only uses Karen's track to drive the orb. Rehearsed with the bridge on a fixture Meet page: the
+observer saw Anna, Carl, Karen, the tool lines and the background result, and Karen listened only to
+`meet-bridge`.
+
 Both agent servers register without an agent name, so run one of them, not both. Karen needs
 `DASHSCOPE_API_KEY` in `.env.local` next to the OpenRouter key.
 
