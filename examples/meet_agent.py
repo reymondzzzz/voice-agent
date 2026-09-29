@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import pathlib
+import random
 import time
 
 from livekit import agents, rtc
@@ -31,14 +32,29 @@ PLAYBACK_QUEUE_MS = 20_000
 QUIET_BEFORE_SPEAKING_S = 1.5
 QUIET_POLL_S = 0.25
 KAREN_EVENTS_TOPIC = "karen"
+SCIENCE_FACT_DELAY_S = 8.0
+SCIENCE_FACTS = (
+    "A day on Venus is longer than its year: it turns once every 243 Earth days but orbits the Sun in 225.",
+    "Octopuses have three hearts, and two of them stop beating while they swim.",
+    "Honey found in Egyptian tombs was still edible after about 3,000 years.",
+    "A teaspoon of neutron star material would weigh around a billion tonnes on Earth.",
+    "Bananas are slightly radioactive because they contain potassium-40.",
+    "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+    "Water can boil and freeze at the same time at its triple point, about 0.01 °C and 611 pascals.",
+    "There are more possible chess games than atoms in the observable universe.",
+)
 
 KAREN_RULES = (
-    "You are an assistant attending a group meeting by voice. You hear everyone, but most of it is said between "
-    "the participants, and you only speak when asked to. Answer in the language you were addressed in, in one or "
-    "two short spoken sentences, using what the room discussed. Use get_current_time and get_current_weather "
-    "directly. For anything that needs research, analysis, drafting or careful checking beyond what was said, "
-    "call delegate_task with a self-contained goal and say in a few words that you are on it; the answer arrives "
-    "later as a background result. Never guess a result that has not arrived."
+    "You are an assistant attending a group meeting by voice. You hear everyone, but almost everything is said "
+    "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
+    "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
+    "that line's language, in one or two short spoken sentences. You know nothing about the current time or "
+    "weather: for either, call get_current_time or get_current_weather before answering. When someone wants a "
+    "science fact, call science_fact. For anything that needs research, analysis, drafting or careful checking "
+    "beyond what was said, call delegate_task with a self-contained goal. After starting background work say in a "
+    "few words that you are on it. Only say that you started, are running or will return with work if you called "
+    "a tool for it in this reply or it is listed below as running; otherwise say you have not started anything. "
+    "Never guess a result that has not arrived."
 )
 
 KAREN_TOOLS: list[dict[str, object]] = [
@@ -66,6 +82,12 @@ KAREN_TOOLS: list[dict[str, object]] = [
             "properties": {"goal": {"type": "string", "description": "Self-contained description of the work, naming the facts it depends on"}},
             "required": ["goal"],
         },
+    },
+    {
+        "type": "function",
+        "name": "science_fact",
+        "description": "Look up a random science fact in the background. Returns at once; the fact arrives a few seconds later.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
 ]
 
@@ -220,17 +242,21 @@ class MeetCall:
         vaddressed = self.addressing().is_addressed(vspeaker, vtext, time.monotonic())
         self.remember(MeetTurn(time.time(), vspeaker, vtext), vaddressed=vaddressed)
         if vaddressed:
-            await self.respond()
+            await self.respond(f"[{vspeaker}, to {self.addressing().vbot_name}] {vtext}")
 
-    async def respond(self, vtask: str = "") -> None:
+    async def respond(self, vline: str) -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
+        # The line itself is sent as a message too: with only its audio in the session, Qwen answers every question
+        # it has heard, and invents work for the ones it cannot answer.
         assert self.vsession is not None
         self.vlast_bot_activity = time.monotonic()
         self.publish(type="state", state="thinking")
-        await self.vsession.update_instructions(self.instructions(vtask))
-        await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
+        await self.vsession.update_instructions(self.instructions())
+        vcorrelation = self.vsession.correlation()
+        await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=vcorrelation, vrole=events.RealtimeRole.USER))
+        await self.vsession.request_response(events.ResponseRequest(vcorrelation=vcorrelation))
 
-    def instructions(self, vtask: str = "") -> str:
+    def instructions(self) -> str:
         vparts = [KAREN_RULES, f"In this meeting people call you {self.addressing().vbot_name}."]
         vrunning = [vrecord for vrecord in self.vregistry.all() if vrecord.vstatus in (TaskStatus.PENDING, TaskStatus.RUNNING)]
         if vrunning:
@@ -238,25 +264,27 @@ class MeetCall:
             vparts.append(f"Background work still running, result not known yet:\n{vlines}")
         vparts.append(
             f"Who said what in the last {int(MEET_CONTEXT_WINDOW_S // 60)} minutes (you heard the audio; this "
-            f"names the speakers). The last line is what was just said to you:\n{self.vmemory.transcript()}"
+            f"names the speakers, and [tool] lines are the tools you called):\n{self.vmemory.transcript()}"
         )
-        if vtask:
-            vparts.append(vtask)
         return "\n\n".join(vparts)
 
     async def on_tool_call(self, vcall: events.RealtimeToolCallRequested) -> None:
         self.vlast_bot_activity = time.monotonic()
         logger.info("tool %s(%s)", vcall.vtool_name, vcall.varguments)
         if vcall.vtool_name == "delegate_task":
-            vresult = self.delegate(str(vcall.varguments.get("goal", "")))
+            vresult = self.start_background(str(vcall.varguments.get("goal", "")), "delegate")
+        elif vcall.vtool_name == "science_fact":
+            vresult = self.start_background("find a random science fact", "science_fact")
         elif vcall.vtool_name in FAST_TOOLS:
             vresult = FAST_TOOLS[vcall.vtool_name].invoke(vcall.varguments)
         else:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
+        vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
+        self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
         await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vresult}, vcorrelation=self.vsession.correlation()))
 
-    def delegate(self, vgoal: str) -> str:
+    def start_background(self, vgoal: str, vkind: str) -> str:
         if not vgoal.strip():
             return "Error: goal is empty"
         vrequester = self.addressing().vengaged_speaker or "the room"
@@ -264,17 +292,20 @@ class MeetCall:
             vspec=TaskSpec(
                 vgoal=vgoal,
                 vmode=TaskMode.BACKGROUND,
-                vcontext={"requester": vrequester, "brief": background_brief(vgoal, vrequester, self.vmemory)},
+                vcontext={"requester": vrequester, "kind": vkind, "brief": background_brief(vgoal, vrequester, self.vmemory)},
             ),
             vconversation_epoch=0,
         )
         self.vsupervisor.supersede_duplicates(vrecord)
         self.vsupervisor.start_background(vrecord)
-        logger.info("delegated task=%s requester=%s goal=%s", vrecord.vtask_id, vrequester, vgoal)
+        logger.info("background task=%s kind=%s requester=%s goal=%s", vrecord.vtask_id, vkind, vrequester, vgoal)
         self.publish(type="task", id=vrecord.vtask_id, goal=vgoal, requester=vrequester, status="running")
-        return f"Started. Tell {vrequester} in a few words that you are on it; the answer will come later."
+        return "Started in the background; the answer arrives later."
 
     async def run_task(self, vrecord: TaskRecord) -> TaskResult:
+        if vrecord.vspec.vcontext["kind"] == "science_fact":
+            await asyncio.sleep(SCIENCE_FACT_DELAY_S)
+            return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=random.choice(SCIENCE_FACTS))
         vreply = await self.vdelegate_llm.ainvoke(str(vrecord.vspec.vcontext["brief"]))
         return TaskResult(vtask_id=vrecord.vtask_id, vpayload={}, vsummary=str(vreply.content))
 
@@ -289,7 +320,7 @@ class MeetCall:
         logger.info("task finished task=%s status=%s", vrecord.vtask_id, vrecord.vstatus.value)
         self.publish(type="task", id=vrecord.vtask_id, goal=vrecord.vgoal, requester=vrequester, status=vrecord.vstatus.value)
         self.remember(MeetTurn(time.time(), "background result", vanswer, MeetRole.NOTE))
-        self.spawn(self.deliver_when_quiet(vrequester, vrecord.vgoal))
+        self.spawn(self.deliver_when_quiet(vrequester, vrecord.vgoal, vanswer))
 
     def is_quiet(self) -> bool:
         return (
@@ -305,11 +336,11 @@ class MeetCall:
             if not self.is_quiet():
                 vquiet_since = time.monotonic()
 
-    async def deliver_when_quiet(self, vrequester: str, vgoal: str) -> None:
+    async def deliver_when_quiet(self, vrequester: str, vgoal: str, vanswer: str) -> None:
         # A result is news nobody is waiting on mid-sentence: wait for a real pause instead of cutting in.
         await self.wait_until_quiet()
         self.addressing().engage(vrequester, time.monotonic())
-        await self.respond(f"The last line is the background result for {vrequester}, who asked: {vgoal}. Tell {vrequester} now, in one or two short spoken sentences.")
+        await self.respond(f"[background result for {vrequester}, who asked: {vgoal}] {vanswer}\nTell {vrequester} now, in one or two short spoken sentences.")
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()

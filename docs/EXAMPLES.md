@@ -290,6 +290,14 @@ it. Two things decided this, both found against the live endpoint:
 | --- | --- | --- |
 | `get_current_time`, `get_current_weather` | Qwen native function call, executed inline | answered in the same reply |
 | `delegate_task(goal)` | `TaskSupervisor.start_background` on GLM 5.3 with `background_brief` (who asked, the goal, the 10-minute log) | returns "started" at once; Karen says she is on it |
+| `science_fact()` | a dummy background task: waits `SCIENCE_FACT_DELAY_S` (8s), then returns one of `SCIENCE_FACTS` | exercises the background path without a model |
+
+Every tool call is logged as a `[tool]` line (`get_current_time(timezone='Europe/London') → …`), so it
+shows on the page and Karen can see what she actually ran. Two prompt rules came from a live Russian
+call where she invented a task: the addressed line is also sent as a message before
+`response.create` (with only its audio in the session, Qwen answered every question it had heard,
+including one not meant for her, and claimed to have started work for it; 3/3 runs, fixed 3/3), and
+she may only say she started work if a tool call did.
 
 A finished background answer is added to the log and spoken, once the room has been quiet for
 1.5s, to the person who asked, who is then engaged again for follow-ups. While it runs, the prompt

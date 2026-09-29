@@ -95,6 +95,8 @@
   .line[data-kind="karen"] .who { color: var(--karen); }
   .line[data-kind="note"] { padding: 8px 10px; border-radius: 8px; border: 1px dashed color-mix(in oklab, var(--note) 55%, transparent); color: var(--muted); font-size: 13px; }
   .line[data-kind="note"] .who { color: var(--note); }
+  .line[data-kind="tool"] { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); padding-left: 10px; border-left: 2px solid var(--line); }
+  .line[data-kind="tool"] .who { color: var(--karen); font-family: ui-sans-serif, system-ui, sans-serif; }
 
   footer { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
   button {
@@ -156,6 +158,6 @@
   <button id="mute" disabled>Mute</button>
 </footer>
 
-<script type="module" src="/static/karen.js?v=2"></script>
+<script type="module" src="/static/karen.js?v=3"></script>
 </body>
 </html>

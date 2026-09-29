@@ -80,7 +80,7 @@ function lineKind(vturn) {
     return "karen"
   }
   if (vturn.role === "system") {
-    return "note"
+    return vturn.speaker === "tool" ? "tool" : "note"
   }
   return isYou(vturn.speaker) ? "you" : "other"
 }
@@ -98,7 +98,7 @@ function addTurn(vturn) {
   const vhead = document.createElement("header")
   const vwho = document.createElement("span")
   vwho.className = "who"
-  vwho.textContent = vkind === "you" ? "You" : vkind === "note" ? "Background result" : vturn.speaker
+  vwho.textContent = { you: "You", note: "Background result", tool: "Tool" }[vkind] ?? vturn.speaker
   const vtime = document.createElement("time")
   vtime.dateTime = new Date(vturn.ts * 1000).toISOString()
   vtime.textContent = clockTime(vturn.ts)
