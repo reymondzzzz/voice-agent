@@ -45,7 +45,7 @@ class MeetAddressing:
     def is_addressed(self, vspeaker: str, vtext: str, vnow: float) -> bool:
         self.vseen_speakers.add(vspeaker)
         if mentions_name(vtext, self.vbot_name):
-            self._engage(vspeaker, vnow)
+            self.engage(vspeaker, vnow)
             return True
         vfollow_up = vspeaker == self.vengaged_speaker and vnow < self.vengaged_until
         if not vfollow_up or self._names_another_participant(vspeaker, vtext):
@@ -53,14 +53,14 @@ class MeetAddressing:
             return False
         if len(_words(vtext)) < MIN_ADDRESSED_WORDS:
             return False
-        self._engage(vspeaker, vnow)
+        self.engage(vspeaker, vnow)
         return True
 
     def bot_finished_speaking(self, vnow: float) -> None:
         if self.vengaged_speaker:
             self.vengaged_until = vnow + FOLLOW_UP_WINDOW_S
 
-    def _engage(self, vspeaker: str, vnow: float) -> None:
+    def engage(self, vspeaker: str, vnow: float) -> None:
         self.vengaged_speaker = vspeaker
         self.vengaged_until = vnow + FOLLOW_UP_WINDOW_S
 

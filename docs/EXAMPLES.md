@@ -206,12 +206,15 @@ normal rather than freezing it. `pagehide` disposes the program, buffer and audi
 
 `examples/meet_bridge.py` puts the agent into a Google Meet call. Meet has no API a bot can speak
 through, so a Playwright-driven Chrome joins as a guest and the bridge carries that page into a
-LiveKit room as an ordinary caller. The agent code does not know Meet exists.
+LiveKit room as an ordinary caller. In the room, `examples/meet_agent.py` serves one agent, Karen,
+instead of the Boss / Alice / Bob call.
 
 ```bash
-uv run python -m examples.voice_app dev                                   # the agent, as usual
+uv run python -m examples.meet_agent dev                                  # Karen, instead of voice_app
 uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name Karen
 ```
+
+Both agent servers register without an agent name, so run one of them, not both.
 
 The bot asks to join; someone in the call has to admit it. It leaves when the call ends or on
 Ctrl-C. Chrome runs headed by default because every maintained Meet bot does — Meet treats
@@ -226,47 +229,59 @@ rendering Web Audio, which kills the capture.
 | who is speaking | Every 250ms the page reads the participant tiles (`div[data-participant-id]`, name in `span.notranslate`) and reports those whose speaking border is visible. The bridge drops its own name and publishes the rest as the `meet_speaker` participant attribute. |
 
 Only meaning crosses into the agent: the speaker name is an attribute, never audio (rule 14).
-`PersonaAgent.on_user_turn_completed` reads it and prefixes the turn, so the graph sees
-`[Anna] What time is it in Tokyo?`. Overlapping speakers come through as `Anna, Bob`.
 
 ### Silent until addressed
 
-In a meeting the agent listens to everything and answers only when spoken to.
-`examples/meet_addressing.py` decides per turn; the bridge publishes its `--name` as the
-`meet_bot_name` attribute so the agent knows what it is called.
+Karen listens to everything and answers only when spoken to. `examples/meet_addressing.py` decides
+per turn; the bridge publishes its `--name` as the `meet_bot_name` attribute so the agent knows
+what it is called.
 
 | Turn | Result |
 | --- | --- |
-| Contains the bot's name (fuzzy, so `jarvys` still matches `Jarvis`) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
+| Contains the bot's name (fuzzy, spaces ignored: `Caren`, `VoiceAgent` match) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
 | Engaged speaker, inside the window, two words or more | Answer without the name |
-| Anyone else, or the engaged speaker naming another participant | Silent, and the engagement ends |
+| Anyone else, or the engaged speaker naming another participant | Silent (`StopResponse`), and the engagement ends |
 | Backchannel (`okay`) | Silent |
 
-A silent turn raises `StopResponse`, which LiveKit treats as "drop this turn", so it is appended to
-the agent's `chat_ctx` first: when someone finally asks, the graph has heard the whole discussion.
-Every turn, the bot's included, is appended to `meet-transcripts/<room>.jsonl` as
-`{ts, speaker, text}`.
-
-The rules only see text. A third-person mention ("like Jarvis said") still engages, and a follow-up
+The rules only see text. A third-person mention ("like Karen said") still engages, and a follow-up
 the same speaker aimed at a human without naming them is answered. The upgrade for both is a small
 model that reads the last few labelled turns and returns directed/not, applied only inside the
 follow-up window.
 
-Verified end to end against a local LiveKit and the real agent, with `say`-generated speech played
-through a fixture page whose speaking tiles switch between Anna and Carl: side talk got no reply,
-"Voice Agent, what time is it in Tokyo?" and the unnamed "And what about London?" were answered,
-and Anna turning to Carl silenced it again. Asked "who sent the quarterly report?" after two silent
-turns, Boss answered "That was Anna". STT wrote the name as `VoiceAgent`, which is why names are
-compared with spaces removed. A handoff still starts the target with a fresh `chat_ctx` (rule 9),
-so room context gathered before a transfer does not follow it. Not verified: a real Meet call.
+### What each model sees
 
-The persona prompts say "You are Boss", so an addressed turn also gets a one-reply system note
-(`meet_briefing`): people call you Karen, the user messages are a labelled meeting transcript, and
-only the last one was said to you. With it, after five unaddressed turns about a billing migration,
-"Karen, can you check the details, what is the deadline and who owns the webhooks?" got October 15th
-and Dimitri, and the unnamed follow-up "how long do we keep the old system?" got "one month". The
-whole meeting is resent on every reply; a long meeting eventually needs older turns folded into a
-running summary.
+Karen has no handoffs, so there is one history, and it is `MeetMemory`, not LiveKit's `chat_ctx`.
+Every turn, answered or not, lands there and in `meet-transcripts/<room>.jsonl`. On an addressed
+turn `KarenAgent.on_user_turn_completed` replaces the context LiveKit would send with:
+
+| Part | Content |
+| --- | --- |
+| system | Karen's rules (graph prompt), then the briefing: her name in this meeting, the running notes, and every background task still running with who asked |
+| window | Every turn not yet folded, labelled `[Anna] …`; Karen's own lines as assistant messages; finished background results as system lines |
+| current | The addressed turn, labelled |
+
+Turns older than `MEET_CONTEXT_WINDOW_S` (5 minutes) are folded into the notes by the fast model
+in the background. A turn leaves the window only once the notes replacing it exist, so a fold in
+flight costs nothing but a few extra lines.
+
+| Tool | Runs | Result |
+| --- | --- | --- |
+| `get_current_time`, `get_current_weather` | inline, in the graph | answered in the same reply |
+| `delegate_task(goal)` | `TaskSupervisor.start_background` on `MEET_REASONING_MODEL` (`anthropic/claude-sonnet-5.5`) | returns "started" at once; Karen says she is on it |
+
+The background model never sees Karen's history. It gets `background_brief`: who asked, the goal
+Karen wrote, the notes, and the window as it was at delegation time. Its answer is added to the
+memory as a system line and spoken once the room has been quiet for 1.5s, to the person who asked,
+who is then engaged again for follow-ups. While it runs, the briefing lists it, so Karen says it is
+still in progress rather than guessing. A failure is delivered the same way.
+
+Verified end to end against a local LiveKit with `say`-generated speech and a 40s window (patched in
+the test process only): five turns of billing-migration side talk got no reply and folded into
+notes; "Karen, what time is it in Tokyo?" was answered inline; "Karen, please check in the background
+whether the deadline still works if Dmitry only starts the webhooks on October 13th" got "On it,
+Carl" and, about five seconds later, the reasoning model's answer spoken to Carl; "what was the
+migration deadline again?" was answered from the notes. Not verified: a real Meet call, or a
+genuinely 5-minute window.
 
 Known limits:
 
@@ -277,6 +292,8 @@ Known limits:
   selectors are the ones current open-source bots used in September 2026.
 - Editing the turn invalidates LiveKit's preemptive generation, so the reply starts only after the
   turn is committed.
+- A delegated answer can run long when spoken; the reasoning model is asked for five sentences at
+  most, and Karen relays it in her own words.
 - `RTCRtpReceiver.createEncodedStreams` is deleted before Meet loads; with it present Meet decodes
   audio in its own worklet and the receiver tracks go silent.
 - The bridge mints its own token with `can_update_own_metadata`. Without it LiveKit refuses the

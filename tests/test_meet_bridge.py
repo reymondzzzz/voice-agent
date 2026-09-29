@@ -65,7 +65,7 @@ class FakeAgent:
         self.spawn(self.speak(vsource))
         while not (self.vheard_hz and self.vspeaker):
             await asyncio.sleep(0.1)
-            self.vspeaker = next((vp.attributes.get(voice_app.MEET_SPEAKER_ATTRIBUTE, "") for vp in self.vroom.remote_participants.values()), "")
+            self.vspeaker = next((vp.attributes.get(meet_bridge.MEET_SPEAKER_ATTRIBUTE, "") for vp in self.vroom.remote_participants.values()), "")
         self.vdone.set()
 
 

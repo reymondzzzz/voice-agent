@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import pathlib
-import time
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, StopResponse, llm
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext
 from livekit.agents.voice.agent_session import TurnHandlingOptions
-from livekit.agents.voice.events import AgentStateChangedEvent, ConversationItemAddedEvent, UserInputTranscribedEvent
+from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
 
 from examples import small_agents
-from examples.meet_addressing import MeetAddressing
 from examples.livekit_providers import FlexusOpenRouterSTT, FlexusOpenRouterTTS
 from voice_agent.pipeline import voice_contracts, voice_interruption_policy, voice_return_intent
 
@@ -25,9 +21,6 @@ logger = logging.getLogger("voice-agent-example")
 load_dotenv(".env.local")
 
 EXAMPLE_LLM_MODEL = "z-ai/glm-5.2"
-MEET_SPEAKER_ATTRIBUTE = "meet_speaker"
-MEET_BOT_NAME_ATTRIBUTE = "meet_bot_name"
-MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 
 
 def mirror_flexus_livekit_env() -> None:
@@ -42,20 +35,11 @@ def mirror_flexus_livekit_env() -> None:
     voice_contracts.require_self_hosted_livekit_url(os.environ["LIVEKIT_URL"])
 
 
-def build_llm():
+def build_llm(vmodel: str = EXAMPLE_LLM_MODEL):
     return init_chat_model(
-        f"openai:{EXAMPLE_LLM_MODEL}",
+        f"openai:{vmodel}",
         base_url=voice_contracts.OPENROUTER_AUDIO_BASE_URL,
         api_key=os.environ["OPENROUTER_API_KEY"],
-    )
-
-
-def meet_briefing(vbot_name: str, vspeaker: str) -> str:
-    return (
-        f"You are in a group meeting where people call you {vbot_name}. The user messages are the "
-        f"meeting transcript, each prefixed with its speaker; most of them were not said to you. "
-        f"{vspeaker} has just spoken to you: answer {vspeaker}'s last message, using what the room "
-        f"discussed when it is relevant."
     )
 
 
@@ -75,24 +59,6 @@ class PersonaAgent(Agent):
         )
         self.vagent = vagent
         self.vhandoff_summary = vhandoff_summary
-
-    async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
-        vcall = self.session.userdata
-        vspeaker = vcall.meet_attribute(MEET_SPEAKER_ATTRIBUTE)
-        if not vspeaker:
-            return
-        vtext = new_message.text_content or ""
-        new_message.content = [f"[{vspeaker}] {vtext}"]
-        vcall.record_meet_turn(vspeaker, vtext)
-        vaddressing = vcall.meet_addressing()
-        if vaddressing.is_addressed(vspeaker, vtext, time.monotonic()):
-            turn_ctx.add_message(role="system", content=meet_briefing(vaddressing.vbot_name, vspeaker))
-            return
-        # StopResponse drops the turn from context; keep it so a later reply knows what the room discussed.
-        vctx = self.chat_ctx.copy()
-        vctx.items.append(new_message)
-        await self.update_chat_ctx(vctx)
-        raise StopResponse()
 
     async def on_enter(self) -> None:
         if not self.vhandoff_summary:
@@ -128,25 +94,6 @@ class ExampleCall:
         self.vpending = small_agents.PendingHandoff()
         self.vactive = small_agents.resolve_example_agent(small_agents.ENTRY_AGENT_ID)
         self._vtasks: set[asyncio.Task[None]] = set()
-        self.vaddressing: MeetAddressing | None = None
-
-    def meet_attribute(self, vname: str) -> str:
-        return next((vp.attributes[vname] for vp in self.vroom.remote_participants.values() if vname in vp.attributes), "")
-
-    def meet_addressing(self) -> MeetAddressing:
-        if self.vaddressing is None:
-            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or self.vactive.vname)
-        return self.vaddressing
-
-    def record_meet_turn(self, vspeaker: str, vtext: str) -> None:
-        logger.info("meet turn speaker=%s text=%s", vspeaker, vtext)
-        MEET_TRANSCRIPT_DIR.mkdir(exist_ok=True)
-        with (MEET_TRANSCRIPT_DIR / f"{self.vroom.name}.jsonl").open("a", encoding="utf-8") as vfile:
-            vfile.write(json.dumps({"ts": time.time(), "speaker": vspeaker, "text": vtext}, ensure_ascii=False) + "\n")
-
-    def on_conversation_item_added(self, vev: ConversationItemAddedEvent) -> None:
-        if vev.item.type == "message" and vev.item.role == "assistant" and self.vaddressing is not None:
-            self.record_meet_turn(self.vactive.vname, vev.item.text_content or "")
 
     def spawn(self, vcoro) -> None:
         vtask = asyncio.create_task(vcoro)
@@ -166,8 +113,6 @@ class ExampleCall:
         logger.info("handoff committed source=%s target=%s", vauth.vsource_agent_id, vtarget.vagent_id)
 
     def on_agent_state_changed(self, vev: AgentStateChangedEvent) -> None:
-        if vev.old_state == "speaking" and vev.new_state == "listening" and self.vaddressing is not None:
-            self.vaddressing.bot_finished_speaking(time.monotonic())
         if vev.old_state == "speaking" and vev.new_state == "listening" and self.vpending.armed():
             self.spawn(self.commit_handoff())
 
@@ -193,11 +138,9 @@ class ExampleCall:
 server = AgentServer()
 
 
-@server.rtc_session()
-async def entrypoint(ctx: JobContext) -> None:
-    mirror_flexus_livekit_env()
+def build_agent_session() -> AgentSession:
     vinterruption = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG.validated()
-    vsession = AgentSession(
+    return AgentSession(
         stt=FlexusOpenRouterSTT(),
         vad=silero.VAD.load(
             min_speech_duration=vinterruption.vminimum_speech_ms / 1000,
@@ -218,12 +161,16 @@ async def entrypoint(ctx: JobContext) -> None:
             },
         ),
     )
+
+
+@server.rtc_session()
+async def entrypoint(ctx: JobContext) -> None:
+    mirror_flexus_livekit_env()
+    vsession = build_agent_session()
     vcall = ExampleCall(vsession, ctx.room)
-    vsession.userdata = vcall
 
     vsession.on("agent_state_changed", vcall.on_agent_state_changed)
     vsession.on("user_input_transcribed", vcall.on_user_input_transcribed)
-    vsession.on("conversation_item_added", vcall.on_conversation_item_added)
 
     await vsession.start(agent=build_voice_agent(vcall.vactive, vcall.vpending), room=ctx.room)
     await publish_active_agent(ctx.room, vcall.vactive)

@@ -21,6 +21,8 @@ MEET_SAMPLE_RATE_HZ = 48000
 MEET_FRAME_SAMPLES = 960
 AGENT_FRAME_MS = 20
 BRIDGE_IDENTITY = "meet-bridge"
+MEET_SPEAKER_ATTRIBUTE = "meet_speaker"
+MEET_BOT_NAME_ATTRIBUTE = "meet_bot_name"
 ADMISSION_TIMEOUT_S = 300
 IN_CALL_SELECTOR = "[data-participant-id], [data-self-name]"
 JOIN_BUTTON_NAME = re.compile(r"^(Ask to join|Ask to join anyway|Join now|Join anyway)$")
@@ -102,7 +104,7 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
             return
         vlast_speaker = vspeaker
         logger.info("meet speaker=%s", vspeaker)
-        await vroom.local_participant.set_attributes({voice_app.MEET_SPEAKER_ATTRIBUTE: vspeaker})
+        await vroom.local_participant.set_attributes({MEET_SPEAKER_ATTRIBUTE: vspeaker})
 
     async with async_playwright() as vplaywright:
         vbrowser = await vplaywright.chromium.launch(channel="chrome", headless=vheadless, args=CHROME_ARGS, ignore_default_args=["--enable-automation"])
@@ -127,7 +129,7 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
             rtc.LocalAudioTrack.create_audio_track("meet-audio", vsource),
             rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
         )
-        await vroom.local_participant.set_attributes({voice_app.MEET_BOT_NAME_ATTRIBUTE: vbot_name})
+        await vroom.local_participant.set_attributes({MEET_BOT_NAME_ATTRIBUTE: vbot_name})
         logger.info("bridge joined room=%s", vroom_name)
         try:
             await join_meet(vpage, vmeet_url, vbot_name)
