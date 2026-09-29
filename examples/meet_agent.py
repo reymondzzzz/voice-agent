@@ -222,8 +222,17 @@ class MeetCall:
 
     async def pump_audio(self, vtrack: rtc.Track) -> None:
         async for vevent in rtc.AudioStream.from_track(track=vtrack, sample_rate=ROOM_SAMPLE_RATE_HZ, num_channels=1):
-            if self.vsession is not None:
-                await self.vsession.send_audio(events.InputAudioChunk(vpcm=bytes(vevent.frame.data), vsample_rate_hz=ROOM_SAMPLE_RATE_HZ))
+            await self.forward_frame(bytes(vevent.frame.data))
+
+    async def forward_frame(self, vpcm: bytes) -> None:
+        if self.vsession is None:
+            return
+        try:
+            await self.vsession.send_audio(events.InputAudioChunk(vpcm=vpcm, vsample_rate_hz=ROOM_SAMPLE_RATE_HZ))
+        except ConnectionResetError:
+            # DashScope closes a session every few minutes and pump_events replaces it; until then a frame has
+            # nowhere to go. Losing 20ms is fine, losing the pump leaves Karen deaf for the rest of the meeting.
+            pass
 
     async def pump_events(self, vsession: QwenOmniSession) -> None:
         async for vevent in vsession.events():

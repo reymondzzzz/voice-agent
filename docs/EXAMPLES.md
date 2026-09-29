@@ -360,6 +360,13 @@ time…" into "And what's time…"; a second, independent recogniser heard the s
 was clipped before the bridge. With it turned off (Settings → Audio) the same phrases were recognised
 exactly. Ask participants to turn it off, or to put a word before the name ("Слушай, Карен").
 
+DashScope closed Karen's Qwen session exactly every five minutes on a real call (20:09, 20:14, 20:19, …,
+while nobody was speaking; whether that is an idle timeout or a hard cap is not known). `pump_events`
+reopens it seeded with the 10-minute log, but the first close caught the audio pump mid-write, and
+`ClientConnectionResetError` killed it: every later session was healthy and heard nothing.
+`MeetCall.forward_frame` now drops the one frame that hits a closing session instead;
+`tests/test_meet_agent.py` covers it.
+
 Known limits:
 
 - The speaker is whoever was last highlighted when the turn ends, so a turn two people shared is
