@@ -1,17 +1,16 @@
-from examples.meet_addressing import FOLLOW_UP_WINDOW_S, MeetAddressing, mentions_name
+import pytest
+
+from examples.meet_addressing import MeetAddressing, addressee_prompt, mentions_name, parse_addressee
 
 
-def test_humans_talking_to_each_other_stay_unanswered():
-    vaddressing = MeetAddressing("Jarvis")
-    assert not vaddressing.is_addressed("Anna", "Bob, did you ship the release?", 0.0)
-    assert not vaddressing.is_addressed("Bob", "Yes, it went out this morning.", 1.0)
+class ScriptedJudge:
+    def __init__(self, vreply: str) -> None:
+        self.vreply = vreply
+        self.vprompts: list[str] = []
 
-
-def test_name_engages_and_same_speaker_follows_up_without_it():
-    vaddressing = MeetAddressing("Jarvis")
-    assert vaddressing.is_addressed("Anna", "Jarvis, what time is it in Tokyo?", 0.0)
-    vaddressing.bot_finished_speaking(3.0)
-    assert vaddressing.is_addressed("Anna", "And in London?", 5.0)
+    async def __call__(self, vprompt: str) -> str:
+        self.vprompts.append(vprompt)
+        return self.vreply
 
 
 def test_misheard_name_still_engages():
@@ -26,55 +25,46 @@ def test_name_glued_into_one_word_still_engages():
     assert not mentions_name("my voice is gone today", "Voice Agent")
 
 
-def test_follow_up_expires():
-    vaddressing = MeetAddressing("Jarvis")
-    vaddressing.is_addressed("Anna", "Jarvis, what time is it?", 0.0)
-    vaddressing.bot_finished_speaking(2.0)
-    assert not vaddressing.is_addressed("Anna", "And in London?", 2.0 + FOLLOW_UP_WINDOW_S + 1)
-
-
-def test_other_participant_cannot_ride_the_follow_up():
-    vaddressing = MeetAddressing("Jarvis")
-    vaddressing.is_addressed("Anna", "Jarvis, what time is it?", 0.0)
-    assert not vaddressing.is_addressed("Bob", "What about London?", 1.0)
-
-
-def test_another_human_answering_ends_the_engagement():
-    vaddressing = MeetAddressing("Jarvis")
-    vaddressing.is_addressed("Anna", "Jarvis, what time is it?", 0.0)
-    vaddressing.is_addressed("Bob", "It's almost noon here.", 1.0)
-    assert not vaddressing.is_addressed("Anna", "Thanks, that helps a lot.", 2.0)
-
-
-def test_turning_to_another_participant_ends_the_engagement():
-    vaddressing = MeetAddressing("Jarvis")
-    vaddressing.is_addressed("Bob Smith", "Morning everyone.", 0.0)
-    vaddressing.is_addressed("Anna", "Jarvis, summarize the plan.", 1.0)
-    assert not vaddressing.is_addressed("Anna", "Bob, does that match what you heard?", 2.0)
-    assert not vaddressing.is_addressed("Anna", "Great, let's continue then.", 3.0)
-
-
-def test_backchannel_is_not_a_question():
-    vaddressing = MeetAddressing("Jarvis")
-    vaddressing.is_addressed("Anna", "Jarvis, what time is it?", 0.0)
-    assert not vaddressing.is_addressed("Anna", "okay", 1.0)
-
-
 def test_cyrillic_name_engages():
     assert mentions_name("Карен, который час в Токио?", "Karen")
     assert mentions_name("Карин, проверь дедлайн", "Karen")
     assert not mentions_name("Как дела?", "Karen")
 
 
-def test_one_word_follow_up_question_is_answered():
-    vaddressing = MeetAddressing("Karen")
-    vaddressing.is_addressed("Kirill", "Karen, tell me a science fact", 0.0)
-    vaddressing.bot_finished_speaking(5.0)
-    assert vaddressing.is_addressed("Kirill", "Почему?", 8.0)
+@pytest.mark.asyncio
+async def test_the_name_needs_no_judge():
+    vjudge = ScriptedJudge('{"to_assistant": false}')
+    vaddressing = MeetAddressing("Karen", vjudge)
+    assert await vaddressing.is_addressed("Anna", "Карен, который час?", "")
+    assert vjudge.vprompts == []
+    assert vaddressing.vengaged_speaker == "Anna"
 
 
-def test_fillers_in_any_language_are_not_questions():
-    vaddressing = MeetAddressing("Karen")
-    vaddressing.is_addressed("Kirill", "Karen, what time is it?", 0.0)
-    for vfiller in ("Угу.", "ага", "Спасибо!", "Okay.", "thank you"):
-        assert not vaddressing.is_addressed("Kirill", vfiller, 1.0)
+@pytest.mark.asyncio
+async def test_without_the_name_the_dialogue_decides():
+    vjudge = ScriptedJudge('```json\n{"to_assistant": true}\n```')
+    vaddressing = MeetAddressing("Karen", vjudge)
+    vtranscript = "[Kirill] Karen, расскажи факт\n[Karen] Бананы слегка радиоактивны."
+    assert await vaddressing.is_addressed("Kirill", "Почему?", vtranscript)
+    assert vtranscript in vjudge.vprompts[0]
+    assert "Latest line, from Kirill: Почему?" in vjudge.vprompts[0]
+
+
+@pytest.mark.asyncio
+async def test_a_no_leaves_karen_silent_and_unengaged():
+    vaddressing = MeetAddressing("Karen", ScriptedJudge('{"to_assistant": false}'))
+    assert not await vaddressing.is_addressed("Anna", "Carl, can you review it?", "")
+    assert vaddressing.vengaged_speaker == ""
+
+
+def test_anything_but_an_explicit_yes_is_a_no():
+    assert parse_addressee('{"to_assistant": true}')
+    assert not parse_addressee('{"to_assistant": false}')
+    assert not parse_addressee("I think it probably is")
+    assert not parse_addressee("")
+
+
+def test_prompt_names_the_bot_and_marks_an_empty_meeting():
+    vprompt = addressee_prompt("Karen", "", "Anna", "Как дела?")
+    assert "said to Karen" in vprompt
+    assert "(nothing yet)" in vprompt

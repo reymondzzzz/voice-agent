@@ -272,17 +272,22 @@ Karen listens to everything and answers only when spoken to. `examples/meet_addr
 per turn; the bridge publishes its `--name` as the `meet_bot_name` attribute so the agent knows
 what it is called.
 
-| Turn | Result |
-| --- | --- |
-| Contains the bot's name (fuzzy, spaces ignored, Cyrillic transliterated: `Caren`, `VoiceAgent`, `Карен` match) | Answer, and engage that speaker for `FOLLOW_UP_WINDOW_S` (12s, re-armed when the bot stops speaking) |
-| Engaged speaker, inside the window, anything but a filler | Answer without the name, including a one-word "Почему?" |
-| Anyone else, or the engaged speaker naming another participant | Silent (`StopResponse`), and the engagement ends |
-| Filler (`okay`, `thanks`, `угу`, `понятно`, `спасибо`) | Silent |
+- **The name is the fast path.** Fuzzy, spaces ignored, Cyrillic transliterated: `Caren`,
+  `VoiceAgent`, `Карен` all match, with no model call.
+- **Everything else is judged from the dialogue** by `MEET_GATE_MODEL` (`z-ai/glm-5.2`, reasoning
+  off, temperature 0), reading the last `GATE_CONTEXT_TURNS` labelled lines. It answers only
+  whether the latest line is for Karen. Anything but an explicit yes is silence.
 
-The rules only see text. A third-person mention ("like Karen said") still engages, and a follow-up
-the same speaker aimed at a human without naming them is answered. The upgrade for both is a small
-model that reads the last few labelled turns and returns directed/not, applied only inside the
-follow-up window.
+Keyword rules were tried first and failed on a real call: a word count dropped "Почему?" right after
+Karen answered, and a filler list cannot tell "Почему?" to Karen from "Почему?" between colleagues.
+The prompt also tells the model that speech recognition clips the start of utterances, so "Арон,
+который час в Лондоне?" is read as a question to Karen. On 11 labelled lines from real calls
+(follow-ups, fillers, a sound check, side talk, turning to another participant, clipped names) it
+scored 11/11 on two runs, at about 0.7s median. `glm-5.3-flash` cannot turn reasoning off (the
+endpoint refuses) and missed the clipped Tokyo question at `effort: low`.
+
+The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
+never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 
 ### Two models: Qwen Omni hears and speaks, GLM does the slow work
 
@@ -325,7 +330,13 @@ including one not meant for her, and claimed to have started work for it; 3/3 ru
 she may only say she started work if a tool call did.
 
 A finished background answer is added to the log and spoken, once the room has been quiet for
-1.5s, to the person who asked, who is then engaged again for follow-ups. While it runs, the prompt
+`QUIET_BEFORE_DELIVERY_S` (3s), to the person who asked. If someone talks over it, Karen comes back
+to it at the next pause ("As I was saying, Carl, …"), unless they spoke to her in the meantime, in
+which case she answers that with the result already in context. Qwen's server VAD waits
+`TURN_SILENCE_MS` (1.2s) before ending a turn, so a pause mid-sentence is not taken as the end of a
+question. Rehearsed on the fixture page: talked over mid-fact, Karen resumed with "As I was saying";
+"Why is that?" got an answer; "Anna, can you send me the report?" and "How are you doing today?" got
+silence. While it runs, the prompt
 lists it, so Karen says it is in progress rather than guessing. When anyone starts speaking over
 Karen, the endpoint cancels her response and her queued audio is dropped.
 

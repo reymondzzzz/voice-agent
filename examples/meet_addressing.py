@@ -3,8 +3,8 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import re
+from collections.abc import Awaitable, Callable
 
-FOLLOW_UP_WINDOW_S = 12.0
 NAME_MATCH_RATIO = 0.8
 
 _WORD = re.compile(r"\w+", re.UNICODE)
@@ -15,17 +15,26 @@ _CYRILLIC_TO_LATIN = str.maketrans({
     "у": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "",
     "э": "e", "ю": "yu", "я": "ya",
 })
+_VERDICT = re.compile(r'"to_assistant"\s*:\s*(true|false)')
+
+ADDRESSEE_PROMPT = """You decide whether the latest line in a meeting transcript is said to {name}, an AI assistant attending the meeting, or to the other people.
+
+The transcript comes from speech recognition over a video call. The start of an utterance is often clipped, so a first word like "Арон", "Aaron", "Парень" or "And" can be a mangled "{name}". Lines marked [{name}] are the assistant's own replies.
+
+Say it is for {name} when the line names {name}, or continues an exchange with {name}: a follow-up or reaction to what {name} just said, a question aimed at the assistant, or a request for the assistant to do something. Say it is not when it is talk between the participants, addresses someone else by name, is a filler or acknowledgement (угу, ok, thanks), is a sound check, or is too garbled to be meant for anyone. Greetings and small talk ("как дела?", "how are you?") are for the people unless they name {name} or answer something {name} just said.
+
+Transcript, oldest first:
+{transcript}
+
+Latest line, from {speaker}: {text}
+
+Reply with JSON only: {{"to_assistant": true or false}}"""
+
+AddresseeJudge = Callable[[str], Awaitable[str]]
 
 
 def _words(vtext: str) -> list[str]:
     return _WORD.findall(vtext.casefold().translate(_CYRILLIC_TO_LATIN))
-
-
-# Acknowledgements, not questions. A word count cannot tell them apart: "Почему?" is one word and deserves an answer.
-_FILLERS = frozenset(
-    " ".join(_words(vfiller))
-    for vfiller in ("ok", "okay", "mhm", "hmm", "uh huh", "thanks", "thank you", "got it", "угу", "ага", "ок", "окей", "понятно", "ясно", "спасибо", "хорошо")
-)
 
 
 def mentions_name(vtext: str, vname: str) -> bool:
@@ -41,45 +50,35 @@ def mentions_name(vtext: str, vname: str) -> bool:
     )
 
 
+def addressee_prompt(vbot_name: str, vtranscript: str, vspeaker: str, vtext: str) -> str:
+    return ADDRESSEE_PROMPT.format(name=vbot_name, transcript=vtranscript or "(nothing yet)", speaker=vspeaker, text=vtext)
+
+
+def parse_addressee(vreply: str) -> bool:
+    """Anything but an explicit yes is a no: speaking when not asked costs more than staying quiet."""
+
+    vverdict = _VERDICT.search(vreply)
+    return vverdict is not None and vverdict.group(1) == "true"
+
+
 @dataclasses.dataclass
 class MeetAddressing:
     """Decides whether a meeting turn is meant for the bot; silence is the default.
 
-    Naming the bot engages whoever said it. That speaker may then follow up without the name until
-    the window lapses. Anyone else speaking, or the engaged speaker naming another participant, hands
-    the floor back to the humans: a reply nobody asked for costs more than one that needs the name.
+    The name is the fast path. Everything else is judged from the dialogue by a small model, because only
+    the context tells "Почему?" after Karen's answer from "Почему?" between two colleagues, and a clipped
+    "Арон, который час?" from a question to the room.
     """
 
     vbot_name: str
+    vjudge: AddresseeJudge
     vengaged_speaker: str = ""
-    vengaged_until: float = 0.0
-    vseen_speakers: set[str] = dataclasses.field(default_factory=set)
 
-    def is_addressed(self, vspeaker: str, vtext: str, vnow: float) -> bool:
-        self.vseen_speakers.add(vspeaker)
-        if mentions_name(vtext, self.vbot_name):
-            self.engage(vspeaker, vnow)
-            return True
-        vfollow_up = vspeaker == self.vengaged_speaker and vnow < self.vengaged_until
-        if not vfollow_up or self._names_another_participant(vspeaker, vtext):
-            self.vengaged_speaker = ""
-            return False
-        if " ".join(_words(vtext)) in _FILLERS:
-            return False
-        self.engage(vspeaker, vnow)
-        return True
+    async def is_addressed(self, vspeaker: str, vtext: str, vtranscript: str) -> bool:
+        vaddressed = mentions_name(vtext, self.vbot_name) or parse_addressee(await self.vjudge(addressee_prompt(self.vbot_name, vtranscript, vspeaker, vtext)))
+        if vaddressed:
+            self.engage(vspeaker)
+        return vaddressed
 
-    def bot_finished_speaking(self, vnow: float) -> None:
-        if self.vengaged_speaker:
-            self.vengaged_until = vnow + FOLLOW_UP_WINDOW_S
-
-    def engage(self, vspeaker: str, vnow: float) -> None:
+    def engage(self, vspeaker: str) -> None:
         self.vengaged_speaker = vspeaker
-        self.vengaged_until = vnow + FOLLOW_UP_WINDOW_S
-
-    def _names_another_participant(self, vspeaker: str, vtext: str) -> bool:
-        return any(
-            mentions_name(vtext, vother.split()[0])
-            for vother in self.vseen_speakers
-            if vother != vspeaker and vother.strip()
-        )

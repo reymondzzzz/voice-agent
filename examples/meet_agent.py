@@ -25,12 +25,17 @@ from voice_agent.realtime.qwen.session import QwenOmniSession
 logger = logging.getLogger("meet-agent")
 
 MEET_DELEGATE_MODEL = "z-ai/glm-5.3"
+MEET_GATE_MODEL = "z-ai/glm-5.2"
 MEET_DEFAULT_BOT_NAME = "Karen"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
 PLAYBACK_QUEUE_MS = 20_000
 QUIET_BEFORE_SPEAKING_S = 1.5
+QUIET_BEFORE_DELIVERY_S = 3.0
 QUIET_POLL_S = 0.25
+TURN_SILENCE_MS = 1200
+GATE_CONTEXT_TURNS = 12
+DELIVERY_ATTEMPTS = 2
 KAREN_EVENTS_TOPIC = "karen"
 SCIENCE_FACT_DELAY_S = 8.0
 SCIENCE_FACTS = (
@@ -54,7 +59,9 @@ KAREN_RULES = (
     "beyond what was said, call delegate_task with a self-contained goal. After starting background work say in a "
     "few words that you are on it. Only say that you started, are running or will return with work if you called "
     "a tool for it in this reply or it is listed below as running; otherwise say you have not started anything. "
-    "Never guess a result that has not arrived."
+    "Never guess a result that has not arrived. Speak like a colleague in the room: brief, warm and plain, no "
+    "announcements about yourself or your tools. When you bring back a background result, open with a few words "
+    "that tie it to the question, the way a person would say 'about the deadline, ...'."
 )
 
 KAREN_TOOLS: list[dict[str, object]] = [
@@ -138,6 +145,7 @@ class MeetCall:
         self.vmemory = MeetMemory()
         self.vaddressing: MeetAddressing | None = None
         self.vdelegate_llm = voice_app.build_llm(MEET_DELEGATE_MODEL)
+        self.vgate_llm = voice_app.build_llm(MEET_GATE_MODEL, extra_body={"reasoning": {"enabled": False}}, temperature=0)
         self.vregistry = TaskRegistry()
         self.vsupervisor = TaskSupervisor(
             vconversation_id=vroom.name,
@@ -150,6 +158,9 @@ class MeetCall:
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
+        self.vinterrupted = False
+        self.vplayed = asyncio.Event()
+        self.vlast_addressed_at = 0.0
         self._vtasks: set[asyncio.Task[None]] = set()
 
     def publish(self, **vevent: object) -> None:
@@ -166,8 +177,16 @@ class MeetCall:
 
     def addressing(self) -> MeetAddressing:
         if self.vaddressing is None:
-            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME)
+            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME, self.judge)
         return self.vaddressing
+
+    async def judge(self, vprompt: str) -> str:
+        try:
+            return str((await self.vgate_llm.ainvoke(vprompt)).content)
+        except Exception:
+            # Unsure means silent: a missed question can be repeated, an unasked-for reply cannot be taken back.
+            logger.warning("addressee judge failed; staying silent", exc_info=True)
+            return ""
 
     async def open_session(self) -> None:
         vsession = QwenOmniSession(
@@ -179,6 +198,7 @@ class MeetCall:
             vinstructions=self.instructions(),
             vtools=KAREN_TOOLS,
             vauto_response=False,
+            vsilence_ms=TURN_SILENCE_MS,
         )
         await vsession.start()
         # Start first, publish second: the audio pump reads self.vsession on every frame.
@@ -218,6 +238,8 @@ class MeetCall:
             self.vuser_speaking = True
             if self.vsource.queued_duration > 0:
                 await self.vsink.clear()
+                self.vinterrupted = True
+                self.vplayed.set()
         elif isinstance(vevent, events.UserSpeechStopped):
             self.vuser_speaking = False
         elif isinstance(vevent, events.UserTranscriptFinal) and vevent.vtext.strip():
@@ -239,10 +261,19 @@ class MeetCall:
 
     async def on_heard(self, vtext: str) -> None:
         vspeaker = self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"
-        vaddressed = self.addressing().is_addressed(vspeaker, vtext, time.monotonic())
-        self.remember(MeetTurn(time.time(), vspeaker, vtext), vaddressed=vaddressed)
-        if vaddressed:
-            await self.respond(f"[{vspeaker}, to {self.addressing().vbot_name}] {vtext}")
+        vcontext = "\n".join(vturn.line() for vturn in self.vmemory.vturns[-GATE_CONTEXT_TURNS:])
+        vturn = MeetTurn(time.time(), vspeaker, vtext)
+        self.remember(vturn)
+        # Judged off the event pump: waiting on the gate model must not delay the next speech-started event.
+        self.spawn(self.consider(vturn, vcontext))
+
+    async def consider(self, vturn: MeetTurn, vcontext: str) -> None:
+        if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
+            return
+        self.vlast_addressed_at = time.monotonic()
+        logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
+        self.publish(type="addressed", ts=vturn.vat)
+        await self.respond(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
 
     async def respond(self, vline: str) -> None:
         # Per-response instructions make DashScope stop calling tools, so the labelled log goes in the session prompt.
@@ -322,29 +353,46 @@ class MeetCall:
         self.remember(MeetTurn(time.time(), "background result", vanswer, MeetRole.NOTE))
         self.spawn(self.deliver_when_quiet(vrequester, vrecord.vgoal, vanswer))
 
-    def is_quiet(self) -> bool:
+    def is_quiet(self, vpause_s: float) -> bool:
         return (
             not self.vuser_speaking
             and self.vsource.queued_duration == 0
-            and time.monotonic() - self.vlast_bot_activity > QUIET_BEFORE_SPEAKING_S
+            and time.monotonic() - self.vlast_bot_activity > vpause_s
         )
 
-    async def wait_until_quiet(self) -> None:
+    async def wait_until_quiet(self, vpause_s: float = QUIET_BEFORE_SPEAKING_S) -> None:
         vquiet_since = time.monotonic()
-        while time.monotonic() - vquiet_since < QUIET_BEFORE_SPEAKING_S:
+        while time.monotonic() - vquiet_since < vpause_s:
             await asyncio.sleep(QUIET_POLL_S)
-            if not self.is_quiet():
+            if not self.is_quiet(vpause_s):
                 vquiet_since = time.monotonic()
 
     async def deliver_when_quiet(self, vrequester: str, vgoal: str, vanswer: str) -> None:
-        # A result is news nobody is waiting on mid-sentence: wait for a real pause instead of cutting in.
-        await self.wait_until_quiet()
-        self.addressing().engage(vrequester, time.monotonic())
-        await self.respond(f"[background result for {vrequester}, who asked: {vgoal}] {vanswer}\nTell {vrequester} now, in one or two short spoken sentences.")
+        # A result is news nobody is waiting on mid-sentence: wait for a real pause instead of cutting in, and if
+        # someone talks over it, come back once, unless they spoke to Karen, who then answers with it in context.
+        vline = f"[background result for {vrequester}, who asked: {vgoal}] {vanswer}\nTell {vrequester} now, in one or two short spoken sentences."
+        vcut_at = 0.0
+        for vattempt in range(DELIVERY_ATTEMPTS):
+            await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
+            if vattempt and self.vlast_addressed_at > vcut_at:
+                return
+            self.addressing().engage(vrequester)
+            self.vinterrupted = False
+            self.vplayed.clear()
+            await self.respond(vline)
+            await self.vplayed.wait()
+            if not self.vinterrupted:
+                return
+            vcut_at = time.monotonic()
+            logger.info("background result for %s was talked over; will come back to it", vrequester)
+            vline = (
+                f"[you were cut off while telling {vrequester} the background result about {vgoal!r}] {vanswer}\n"
+                f"It is quiet now. Pick it up again briefly and naturally, the way a person says 'as I was saying'."
+            )
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()
-        self.addressing().bot_finished_speaking(time.monotonic())
+        self.vplayed.set()
         self.publish(type="state", state="listening")
 
     async def renew_when_window_is_full(self) -> None:
@@ -356,9 +404,9 @@ class MeetCall:
             await self.open_session()
             logger.info("renewed qwen session with the last %ds of transcript", int(MEET_CONTEXT_WINDOW_S))
 
-    def remember(self, vturn: MeetTurn, *, vaddressed: bool = False) -> None:
+    def remember(self, vturn: MeetTurn) -> None:
         self.vmemory.add(vturn)
-        self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat, addressed=vaddressed)
+        self.publish(type="turn", speaker=vturn.vspeaker, role=vturn.vrole.value, text=vturn.vtext, ts=vturn.vat)
         self.vmemory.forget_before(time.time())
         logger.info("meet turn speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         MEET_TRANSCRIPT_DIR.mkdir(exist_ok=True)

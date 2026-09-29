@@ -48,6 +48,7 @@ const vorb = new VoiceOrb(vui.orb)
 vorb.setAgent(KAREN_PALETTE)
 const vdecoder = new TextDecoder()
 const vtaskItems = new Map()
+const vlinesByTs = new Map()
 
 let vroom = null
 let vmicrophone = null
@@ -114,18 +115,24 @@ function addTurn(vturn) {
   vtime.dateTime = new Date(vturn.ts * 1000).toISOString()
   vtime.textContent = clockTime(vturn.ts)
   vhead.append(vwho, vtime)
-  if (vturn.addressed) {
-    const vto = document.createElement("span")
-    vto.className = "to"
-    vto.textContent = "→ Karen"
-    vhead.append(vto)
-  }
   const vtext = document.createElement("div")
   vtext.textContent = vturn.text
   vline.append(vhead, vtext)
   vui.transcript.append(vline)
+  vlinesByTs.set(vturn.ts, vline)
   if (vatBottom) {
     vui.transcript.scrollTop = vui.transcript.scrollHeight
+  }
+}
+
+// The agent logs a line the moment it is heard and decides a moment later whether it was said to Karen.
+function markAddressed(vts) {
+  const vhead = vlinesByTs.get(vts)?.querySelector("header")
+  if (vhead && !vhead.querySelector(".to")) {
+    const vto = document.createElement("span")
+    vto.className = "to"
+    vto.textContent = "→ Karen"
+    vhead.append(vto)
   }
 }
 
@@ -159,6 +166,8 @@ function onData(vpayload, _vparticipant, _vkind, vtopic) {
   const vevent = JSON.parse(vdecoder.decode(vpayload))
   if (vevent.type === "turn") {
     addTurn(vevent)
+  } else if (vevent.type === "addressed") {
+    markAddressed(vevent.ts)
   } else if (vevent.type === "task") {
     upsertTask(vevent)
   } else if (vevent.type === "state") {
@@ -254,6 +263,7 @@ async function connect() {
   vui.transcript.replaceChildren()
   vui.tasks.replaceChildren()
   vtaskItems.clear()
+  vlinesByTs.clear()
   vui.connect.disabled = true
   setStatus("connecting", "connecting")
 

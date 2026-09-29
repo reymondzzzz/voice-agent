@@ -318,6 +318,8 @@ Two additions for a bot that must stay silent until addressed (the Meet agent, `
 
 - `vauto_response=False` turns `create_response` off while keeping server VAD, so the model answers
   only a `request_response`.
+- `vsilence_ms` sets how long server VAD waits before ending a turn; the Meet agent uses 1200ms so a
+  pause mid-sentence is not the end of a question.
 - `update_instructions` replaces the session prompt with `session.update`. Use it, not
   `ResponseRequest.vinstructions`, for per-reply context: DashScope stops calling tools when a
   `response.create` carries its own instructions.
