@@ -365,13 +365,19 @@ the silence is filled in `examples/meet_fillers.py`: ten short clips recorded on
 (`python -m examples.meet_fillers` re-records them into `examples/meet/fillers/`, each checked back
 through the transcriber). "Хмм", "так", "ага", "ну", "о" play 0.5s after an answer was asked for if no
 audio has come yet, 60% of the time (Vapi withdrew always-on fillers as too much); "секунду", "сейчас
-гляну" play the moment she calls a quick tool, and every clip is followed by a 0.35s pause before her
-answer, as a person pauses after "хмм". Not before a background task: she announces that herself ("я уже
+гляну" play 0.6s after she calls a quick tool, so the clip ends about when the follow-up answer, 1.1-1.8s
+behind the call, starts: played at the call, with a pause after it, it left a second of silence between
+"сейчас гляну" and the answer. Not before a background task: she announces that herself ("я уже
 запустила поиск"), and live the clip in front of it made "секунду… Секунду, я ищу". Telling her the clip
 was said, as an assistant message, made it worse: in 3 of 5 follow-ups she then invented the fact
 instead of waiting for the tool. At most one of each per answer, never one of the last three,
 and never into her answer, someone's speech or a finished turn. The model does not see them, so the
 persona tells her not to open with a bare interjection.
+
+The promise check quotes the reply it asks about. Asked about "your last reply", she also weighed the
+earlier ones: live, "мне нужно уточнить город" after "сейчас подберу факт, секунду" came back YES, and
+the correction made her call the weather tool for a city nobody named (5 of 5 in a replay). Quoted, 20
+of 20 checks were right, promises and questions back alike.
 
 A mid-sentence pause still ends a turn: "найди новый факт… и покажи какая погода" became two turns and
 she answered the first half. Qwen's `semantic_vad` (supported on the 3.5 Omni realtime models) ended
