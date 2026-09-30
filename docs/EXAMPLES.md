@@ -402,6 +402,22 @@ on from her last sentence as part of the same answer, with no name and no fresh 
 then ran on with "Кстати, у осьминогов…", where the plain line opened "Кирилл, у осьминогов…" 6 of 6
 times. The page folds her replies since a person last spoke into one bubble.
 
+A review of the turn handling (GPT, offline reproductions) found four real faults, each now with a test:
+- a cancelled response kept playing its late audio deltas, and reported itself completed (fixed in the
+  adapter, see `docs/REALTIME_ARCHITECTURE.md`);
+- quick-tool results were cleared before the follow-up said them, so a follow-up interrupted before
+  its first word lost the answer; they are now kept until a completed follow-up has spoken, and queued
+  otherwise. A background delivery that timed out without playing is retried instead of dropped;
+- any response's completion ended the current turn. The agent now owns the response its last request
+  created (`AssistantSpeechStarted`), ignores completions and text of any other, cancels the previous
+  owner when it takes the floor over after `FLOOR_TIMEOUT_S`, and ends the turn itself when DashScope
+  refuses a request because another response is active;
+- a transcript took whoever Meet highlighted when the text arrived, 0.5-1s after the words; it now
+  takes the speaker recorded when that utterance's speech stopped.
+Not changed: the browser's playback queue in the bridge has no clear command, but it is fed one 20ms
+frame at a time as LiveKit plays it out, so what remains there after a clear is the transport buffer,
+not the answer. Relevance-aware batching of results (P2) is left for later.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

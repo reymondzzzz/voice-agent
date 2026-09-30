@@ -34,6 +34,7 @@ RESPONSE_AUDIO_TRANSCRIPT_DELTA = "response.audio_transcript.delta"
 RESPONSE_AUDIO_TRANSCRIPT_DONE = "response.audio_transcript.done"
 RESPONSE_TEXT_DELTA = "response.text.delta"
 FUNCTION_CALL_ARGUMENTS_DONE = "response.function_call_arguments.done"
+RESPONSE_CREATED = "response.created"
 RESPONSE_DONE = "response.done"
 ERROR = "error"
 

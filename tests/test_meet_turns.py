@@ -70,6 +70,7 @@ def bare_call() -> MeetCall:
     vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = None, 0.0, None, False
     vcall.current_speaker = lambda: "Kirill"
     vcall.vturn_reply = ""
+    vcall.vowned, vcall.vawaiting, vcall.vresults_followup, vcall.vheard_speakers = "", False, False, collections.deque()
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
     vcall.vregistry = Registry([])
@@ -256,7 +257,7 @@ async def test_the_rest_is_answered_together_with_the_first_half():
 
     vcall.consider = consider
     vcall.spawn = asyncio.ensure_future
-    await vcall.on_heard("и покажи какая погода")
+    await vcall.on_heard("и покажи какая погода", "Kirill")
     await asyncio.sleep(0)
     assert vasked == [("Мэгги, найди новый факт и покажи какая погода", True)] and vcall.vcontinued is None
     vmerged = vcall.vpublished[-1]
@@ -325,3 +326,48 @@ def test_a_result_told_while_her_answer_plays_goes_on_as_the_same_answer():
     assert "same answer" not in delivery_line([vfact], vgoing_on=False)
     vfact.vattempts = 1
     assert "cut off" in delivery_line([vfact], vgoing_on=True), "a talked-over result picks the thread back up instead"
+
+
+@pytest.mark.asyncio
+async def test_a_quick_tool_result_survives_a_follow_up_cancelled_before_a_word():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert vcall.vsession.vresponses == 1 and vcall.vturn_results, "kept until the follow-up has said them"
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vcompleted=False))
+    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='London')"]
+
+
+@pytest.mark.asyncio
+async def test_a_stale_completion_does_not_end_the_newer_turn():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    vcall.vowned = "resp_new"
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_old"))
+    assert vcall.vfloor.locked() and not vcall.vturn_done.is_set()
+
+
+@pytest.mark.asyncio
+async def test_a_request_owns_the_next_response_and_only_that_one():
+    vcall = bare_call()
+    await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_1"))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_2"))
+    assert vcall.vowned == "resp_1"
+
+
+@pytest.mark.asyncio
+async def test_words_belong_to_whoever_said_them_not_to_whoever_talks_when_the_text_arrives():
+    vcall = bare_call()
+    vheard: list[tuple[str, str]] = []
+
+    async def on_heard(vtext: str, vspeaker: str) -> None:
+        vheard.append((vtext, vspeaker))
+
+    vcall.on_heard = on_heard
+    vcall.current_speaker = lambda: "Kirill"
+    await vcall.on_event(events.UserSpeechStopped(vcorrelation=CORRELATION))
+    vcall.current_speaker = lambda: "Anna"
+    await vcall.on_event(events.UserTranscriptFinal(vcorrelation=CORRELATION, vtext="Мэгги, какая погода?"))
+    assert vheard == [("Мэгги, какая погода?", "Kirill")]

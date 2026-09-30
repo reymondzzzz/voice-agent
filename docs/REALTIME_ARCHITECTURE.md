@@ -314,6 +314,13 @@ turn detection is `server_vad` with `create_response` and `interrupt_response` r
 `semantic_vad` the docs describe. The endpoint interrupts the model itself, so `interrupt()` only
 has to drop queued playback.
 
+Every response carries its own id, and the adapter reports it both ways: `response.created` becomes
+`AssistantSpeechStarted(vresponse_id)` and `response.done` becomes `AssistantSpeechStopped` with that
+id and `vcompleted` from the response's status, false for a cancelled one. A cancelled response is not
+over when `response.cancel` goes out: live, two more audio deltas arrived and `response.done` came
+0.29s later. The adapter drops the audio and text of any response it cancelled, since `interrupt()`
+has already cleared playback and those late deltas would otherwise start it again.
+
 Two additions for a bot that must stay silent until addressed (the Meet agent, `examples/meet_agent.py`):
 
 - `vauto_response=False` turns `create_response` off while keeping server VAD, so the model answers

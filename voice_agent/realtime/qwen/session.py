@@ -90,6 +90,9 @@ class QwenOmniSession:
         self._vresampler = PcmResampler(voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ, protocol.INPUT_SAMPLE_RATE_HZ)
         self.vcurrent_turn_id: str | None = None
         self._vresponse_id = ""
+        # DashScope keeps streaming a cancelled response for a moment (two audio deltas after response.cancel,
+        # measured); they are dropped here, or they play after the clear that interrupt() already did.
+        self._vcancelled: set[str] = set()
 
     @property
     def vcapabilities(self) -> RealtimeModelCapabilities:
@@ -185,6 +188,8 @@ class QwenOmniSession:
         await self._send(vframe)
 
     async def interrupt(self, vrequest: events.InterruptRequest) -> None:
+        if self._vresponse_id:
+            self._vcancelled.add(self._vresponse_id)
         await self._send({"type": protocol.RESPONSE_CANCEL})
         await self._vaudio_sink.clear()
         await self._vevents.put(
@@ -216,7 +221,12 @@ class QwenOmniSession:
         vtype = vframe.get("type")
 
         if vtype == protocol.RESPONSE_AUDIO_DELTA:
-            await self._vaudio_sink.write(base64.b64decode(vframe["delta"]), protocol.OUTPUT_SAMPLE_RATE_HZ)
+            if vframe.get("response_id") not in self._vcancelled:
+                await self._vaudio_sink.write(base64.b64decode(vframe["delta"]), protocol.OUTPUT_SAMPLE_RATE_HZ)
+
+        elif vtype == protocol.RESPONSE_CREATED:
+            self._vresponse_id = str((vframe.get("response") or {}).get("id", ""))
+            await self._vevents.put(events.AssistantSpeechStarted(vcorrelation=self.correlation(), vresponse_id=self._vresponse_id))
 
         elif vtype == protocol.SPEECH_STARTED:
             self.vcurrent_turn_id = new_id(TURN_ID_PREFIX)
@@ -231,6 +241,8 @@ class QwenOmniSession:
             )
 
         elif vtype in (protocol.RESPONSE_AUDIO_TRANSCRIPT_DELTA, protocol.RESPONSE_TEXT_DELTA):
+            if vframe.get("response_id") in self._vcancelled:
+                return
             self._vresponse_id = str(vframe.get("response_id", self._vresponse_id))
             await self._vevents.put(
                 events.AssistantTranscript(
@@ -252,8 +264,12 @@ class QwenOmniSession:
             )
 
         elif vtype == protocol.RESPONSE_DONE:
+            vresponse = vframe.get("response") or {}
+            vresponse_id = str(vresponse.get("id", self._vresponse_id))
+            vcompleted = vresponse.get("status", "completed") == "completed" and vresponse_id not in self._vcancelled
+            self._vcancelled.discard(vresponse_id)
             await self._vevents.put(
-                events.AssistantSpeechStopped(vcorrelation=self.correlation(), vresponse_id=self._vresponse_id, vcompleted=True)
+                events.AssistantSpeechStopped(vcorrelation=self.correlation(), vresponse_id=vresponse_id, vcompleted=vcompleted)
             )
 
         elif vtype == protocol.ERROR:

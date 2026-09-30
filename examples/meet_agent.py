@@ -257,6 +257,12 @@ class MeetCall:
         self.vanswering_heard_at = 0.0
         self.vcontinued: MeetTurn | None = None
         self.vdropping = False
+        # The response this call asked for last; a completion from any other response is stale and must not end
+        # the turn or release the floor that a newer response holds.
+        self.vowned = ""
+        self.vawaiting = False
+        self.vresults_followup = False
+        self.vheard_speakers: collections.deque[str] = collections.deque()
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -286,8 +292,18 @@ class MeetCall:
             await asyncio.wait_for(self.vfloor.acquire(), FLOOR_TIMEOUT_S)
         except TimeoutError:
             logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
+            # The previous owner's response is stopped, so it neither keeps talking nor ends the new owner's turn.
+            if self.vsession is not None and self.vowned:
+                await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="floor_takeover"))
+            self.vowned, self.vawaiting = "", False
+            self.vturn_done.set()
             self.release_floor()
             await self.vfloor.acquire()
+
+    async def request(self, vrequest: events.ResponseRequest) -> None:
+        assert self.vsession is not None
+        self.vowned, self.vawaiting = "", True
+        await self.vsession.request_response(vrequest)
 
     def end_turn(self) -> None:
         self.vturn_done.set()
@@ -295,12 +311,12 @@ class MeetCall:
 
     async def request_followup(self) -> None:
         assert self.vsession is not None
-        await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
+        await self.request(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
 
     async def answer_tool_results(self) -> None:
         # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a row.
         assert self.vsession is not None
-        self.vturn_results = []
+        self.vresults_followup = True
         vresults = self.take_waiting_results()
         if vresults:
             vline = f"{delivery_line(vresults, vgoing_on=False)} Answer the question you just looked up first, then go straight on to this."
@@ -349,7 +365,7 @@ class MeetCall:
         # Qwen 3.8 ignores the text-only request and speaks the verdict too, about a second of "IGNORE".
         self.vsink.vmuted = True
         try:
-            await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=vprompt, vtext_only=True))
+            await self.request(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=vprompt, vtext_only=True))
             return await asyncio.wait_for(self.vrouting, ROUTE_TIMEOUT_S)
         except (TimeoutError, ConnectionResetError):
             # Unsure means silent: a missed question can be repeated, an unasked-for reply cannot be taken back.
@@ -462,9 +478,18 @@ class MeetCall:
         elif isinstance(vevent, events.UserSpeechStopped):
             self.vuser_speaking = False
             self.vlast_human_speech = time.monotonic()
-        elif isinstance(vevent, events.UserTranscriptFinal) and vevent.vtext.strip():
-            await self.on_heard(vevent.vtext.strip())
+            # Whoever Meet highlights as the words end; by the time the transcript arrives someone else may be talking.
+            self.vheard_speakers.append(self.current_speaker())
+        elif isinstance(vevent, events.UserTranscriptFinal):
+            vspeaker = self.vheard_speakers.popleft() if self.vheard_speakers else self.current_speaker()
+            if vevent.vtext.strip():
+                await self.on_heard(vevent.vtext.strip(), vspeaker)
+        elif isinstance(vevent, events.AssistantSpeechStarted):
+            if self.vawaiting:
+                self.vowned, self.vawaiting = vevent.vresponse_id, False
         elif isinstance(vevent, events.AssistantTranscript):
+            if vevent.vresponse_id != self.vowned:
+                return
             if self.vrouting is not None:
                 self.vroute_parts.append(vevent.vtext)
                 return
@@ -474,6 +499,9 @@ class MeetCall:
                 await self.silence_leaked_verdict()
         elif isinstance(vevent, events.AssistantSpeechStopped):
             self.vlast_response_at = time.monotonic()
+            if vevent.vresponse_id != self.vowned:
+                logger.info("completion of an earlier response %s ignored", vevent.vresponse_id)
+                return
             if self.vrouting is not None:
                 if not self.vrouting.done():
                     self.vrouting.set_result("".join(self.vroute_parts))
@@ -500,6 +528,11 @@ class MeetCall:
                     logger.info("routing verdict leaked into speech; asking for the answer again")
                     await self.request_followup()
                     return
+            if self.vresults_followup:
+                # The follow-up that speaks tool results; only a finished one counts as having told them.
+                self.vresults_followup = False
+                if vreply and vevent.vcompleted:
+                    self.vturn_results = []
             if vreply:
                 self.vturn_spoke = True
                 self.vturn_reply = vreply
@@ -515,21 +548,28 @@ class MeetCall:
                     # All of this response's tool results are in: one follow-up speaks them, in the same turn.
                     await self.answer_tool_results()
                     return
-                if self.vturn_results:
-                    logger.info("%d tool result(s) talked over before they were said; will tell them at the next pause", len(self.vturn_results))
-                    self.vpending.extend(self.vturn_results)
-                    self.vpending_added.set()
+            if self.vturn_results:
+                logger.info("%d tool result(s) not said; will tell them at the next pause", len(self.vturn_results))
+                self.vpending.extend(self.vturn_results)
+                self.vpending_added.set()
+                self.vturn_results = []
             self.end_turn()
         elif isinstance(vevent, events.RealtimeToolCallRequested):
             await self.on_tool_call(vevent)
         elif isinstance(vevent, events.RealtimeSessionError):
             logger.warning("qwen error: %s", vevent.vmessage)
+            if self.vawaiting and "already has an active response" in vevent.vmessage:
+                # The request was refused, so no response will ever end this turn; end it here.
+                self.vawaiting = False
+                if self.vrouting is not None and not self.vrouting.done():
+                    self.vrouting.set_result("")
+                else:
+                    self.end_turn()
 
     def current_speaker(self) -> str:
         return self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"
 
-    async def on_heard(self, vtext: str) -> None:
-        vspeaker = self.current_speaker()
+    async def on_heard(self, vtext: str, vspeaker: str) -> None:
         vcontext = "\n".join(vturn.line() for vturn in self.vmemory.vturns[-GATE_CONTEXT_TURNS:])
         vturn = MeetTurn(time.time(), vspeaker, vtext)
         self.remember(vturn)
@@ -666,7 +706,7 @@ class MeetCall:
         await self.vsession.update_instructions(self.instructions())
         vcorrelation = self.vsession.correlation()
         await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=vcorrelation, vrole=events.RealtimeRole.USER))
-        await self.vsession.request_response(events.ResponseRequest(vcorrelation=vcorrelation))
+        await self.request(events.ResponseRequest(vcorrelation=vcorrelation))
 
     def instructions(self) -> str:
         vparts = [
@@ -808,9 +848,11 @@ class MeetCall:
             vresult.vattempts += 1
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
-        vretry = [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS] if self.vinterrupted else []
+        # Never played out is not delivered either: a reply that timed out or produced no audio goes back too.
+        vheard = self.vplayed.is_set() and not self.vinterrupted
+        vretry = [] if vheard else [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS]
         if vretry:
-            logger.info("%d background result(s) talked over; will come back to them", len(vretry))
+            logger.info("%d background result(s) not heard; will come back to them", len(vretry))
             self.vpending.extendleft(reversed(vretry))
             self.vpending_added.set()
 

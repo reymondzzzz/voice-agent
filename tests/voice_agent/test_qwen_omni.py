@@ -47,6 +47,7 @@ class FakeDashScopeServer:
         self.vauthorization = ""
         self.vquery = ""
         self.vscript: list[dict[str, object]] = []
+        self.vafter_cancel: list[dict[str, object]] = []
         self._vrunner: web.AppRunner | None = None
         self.vurl = ""
 
@@ -74,6 +75,9 @@ class FakeDashScopeServer:
             self.vreceived.append(json.loads(vmessage.data))
             if self.vreceived[-1].get("type") == protocol.SESSION_UPDATE:
                 for vframe in self.vscript:
+                    await vws.send_str(json.dumps(vframe))
+            if self.vreceived[-1].get("type") == protocol.RESPONSE_CANCEL:
+                for vframe in self.vafter_cancel:
                     await vws.send_str(json.dumps(vframe))
         return vws
 
@@ -261,6 +265,28 @@ async def test_interrupt_cancels_the_response_and_drops_playback(server: FakeDas
     assert sent_of_type(server, protocol.RESPONSE_CANCEL)
     assert vsink.vclears == 1
     assert isinstance(vevents[0], events.RealtimeInterrupted)
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_response_neither_plays_on_nor_reports_completion(server: FakeDashScopeServer) -> None:
+    vaudio = base64.b64encode(b"\x00\x01" * 480).decode()
+    server.vscript = [{"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_1"}}]
+    server.vafter_cancel = [
+        {"type": protocol.RESPONSE_AUDIO_DELTA, "response_id": "resp_1", "delta": vaudio},
+        {"type": protocol.RESPONSE_DONE, "response": {"id": "resp_1", "status": "cancelled"}},
+    ]
+    vsink = RecordingAudioSink()
+    vsession = build_session(server, vsink)
+    await vsession.start()
+    vstarted = await collect(vsession, 1)
+    await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="barge_in"))
+    vevents = await collect(vsession, 2)
+    await vsession.close()
+
+    assert isinstance(vstarted[0], events.AssistantSpeechStarted) and vstarted[0].vresponse_id == "resp_1"
+    assert vsink.vwrites == [], "DashScope sends audio after response.cancel; it must not play"
+    vstopped = vevents[1]
+    assert isinstance(vstopped, events.AssistantSpeechStopped) and vstopped.vresponse_id == "resp_1" and not vstopped.vcompleted
 
 
 def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:
