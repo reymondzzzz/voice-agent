@@ -345,8 +345,12 @@ phrase over only after `TURN_SILENCE_MS` of quiet, measured at 1.5s after the sp
 1200ms and 0.9s with 600ms; then ~0.2s for the transcript, ~1s for the routing step unless her name
 was in the line, 1.1–1.9s to first audio (a tool call adds a second response), and the trip back
 through the bridge. The page's `total` starts at the VAD event, so it leaves the first part out.
-`TURN_SILENCE_MS` is 900: it ended no read phrase early on the two Meet recordings, where 800 split
-"на четверг. | половине четвертого" and 600 split two phrases. The person she just answered, speaking
+`TURN_SILENCE_MS` is 500. From the end of the words to the transcript that took 1.0s, against 1.1s at
+600ms and about 1.4s at 900. Committing the turn ourselves on local silence (Meet's gate makes the
+pauses exact zeros) was only 0.1s faster, because Qwen then takes 0.5s to transcribe, and it let
+noise through as lines ("Что", "так"): 27% word errors on the Meet recording against 17%. 500 splits
+three Meet phrases mid-sentence ("Расскажи что-нибудь. | научный факт."), which the continuation
+handling below joins again. The person she just answered, speaking
 again within `FOLLOW_UP_WINDOW_S` of her reply ending, skips the routing step unless the line names
 a colleague who has spoken in the meeting. For comparison, OpenAI's full-duplex GPT-Live-1 measured
 ~1.1s median end-of-speech to first audio in ChatGPT (Agora, n=30), and OpenAI documents it as built
@@ -358,23 +362,16 @@ the meeting, and welcomes one before a tool call so the person hears her while i
 got parroted ("Секунду, гляну" twice in eight replies); framed as examples, eight test questions came
 back with "Ой, хороший вопрос", "Так-так", "Хм" and plain answers.
 
-Asked for, the model still answered straight away rather than making a sound first, which is what the
-platforms found too: ElevenLabs' soft timeout plays a fixed "Hhmmmm...yeah." when the LLM is slow,
-LiveKit plays thinking sounds, Pipecat speaks "Let me check on that." when a function call starts. So
-the silence is filled in `examples/meet_fillers.py`: ten short clips recorded once in her own Qwen voice
-(`python -m examples.meet_fillers` re-records them into `examples/meet/fillers/`, each checked back
-through the transcriber). "Хмм", "так", "ага", "ну", "о" play 0.5s after an answer was asked for if no
-audio has come yet, 60% of the time (Vapi withdrew always-on fillers as too much); "секунду", "сейчас
-гляну" play 0.6s after she calls a quick tool, so the clip ends about when the follow-up answer, 1.1-1.8s
-behind the call, starts: played at the call it left a second of silence between "сейчас гляну" and the
-answer. Every clip is followed by a 0.4s pause, as a person pauses after "хмм". Before time and weather
-she says nothing herself: live she added "Сейчас проверю погоду в Лондоне" after the clip, so the
-persona tells her to call those tools silently and answer with the result (no lead-in in 2 of 2 runs). Not before a background task: she announces that herself ("я уже
-запустила поиск"), and live the clip in front of it made "секунду… Секунду, я ищу". Telling her the clip
-was said, as an assistant message, made it worse: in 3 of 5 follow-ups she then invented the fact
-instead of waiting for the tool. At most one of each per answer, never one of the last three,
-and never into her answer, someone's speech or a finished turn. The model does not see them, so the
-persona tells her not to open with a bare interjection.
+Fillers come from the model, the way OpenAI's voice models do it: GPT-Live generates its own "хм" and
+backchannels as part of its speech, and the gpt-realtime prompting guide asks for a short spoken
+preamble before a tool call, with varied sample phrases. Clips recorded in her voice were tried in
+between (the ElevenLabs / LiveKit / Pipecat way): a recording stitched onto live speech sounded like a
+seam, collided with her own words ("секунду… Секунду, я ищу"), and telling her a clip had played made
+her invent the fact instead of waiting for the tool in 3 of 5 follow-ups. So the persona asks for a
+short reaction that belongs to the sentence ("хм, ...", "ой, хороший вопрос, ...") and never the same
+one twice, a few words of her own before a background task, and nothing before time and weather: live
+she added "Сейчас проверю погоду в Лондоне", so those tools are called silently and answered with the
+result.
 
 The promise check quotes the reply it asks about. Asked about "your last reply", she also weighed the
 earlier ones: live, "мне нужно уточнить город" after "сейчас подберу факт, секунду" came back YES, and
@@ -388,7 +385,9 @@ turns by meaning and read the clean recording perfectly, but on the Meet recordi
 stays, and a continuation is handled the way LiveKit handles a false end of turn: if the same person
 starts speaking within `CONTINUATION_WINDOW_S` of the turn being heard and no tool has run yet, the
 answer is cancelled and muted (or its audio dropped if it already finished), and the next line from
-them is answered together with the first half, with no routing step.
+them is answered together with the first half, with no routing step. A line whose speaker is already
+talking again by the time it is judged waits for the rest the same way; if no more comes within
+`CONTINUATION_HOLD_S` (it was noise), the first half is answered alone.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.

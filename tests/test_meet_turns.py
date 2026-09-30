@@ -7,7 +7,6 @@ import pytest
 from examples.meet_addressing import MeetAddressing
 from examples import meet_agent
 from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
-from examples.meet_fillers import FillerDeck, FillerKind
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
@@ -51,14 +50,8 @@ class Sink:
     vmuted = False
     vfirst_audio_at = None
 
-    def __init__(self) -> None:
-        self.vfillers: list[bytes] = []
-
     async def clear(self) -> None:
         pass
-
-    async def play_filler(self, vpcm: bytes) -> None:
-        self.vfillers.append(vpcm)
 
 
 def bare_call() -> MeetCall:
@@ -74,8 +67,7 @@ def bare_call() -> MeetCall:
     vcall.vspawned = []
     vcall.spawn = lambda vcoro: vcall.vspawned.append(vcoro) or vcoro.close()
     vcall.requester = lambda: "Kirill"
-    vcall.vfillers = FillerDeck({FillerKind.THINKING: [b"hmm"], FillerKind.CHECKING: [b"sekundu"]})
-    vcall.vturn_fillers, vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = set(), None, 0.0, None, False
+    vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = None, 0.0, None, False
     vcall.current_speaker = lambda: "Kirill"
     vcall.vturn_reply = ""
     vcall.vregistry = Registry([])
@@ -221,33 +213,7 @@ def test_turning_to_a_colleague_or_waiting_long_goes_through_routing():
     assert not follow_up_call(20.0).is_follow_up("Kirill Starkov", "А в Париже?")
 
 
-@pytest.mark.asyncio
-async def test_a_tool_call_in_silence_says_it_is_checking_once(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(meet_agent, "FILLER_CHECKING_AFTER_S", 0.0)
-    vcall = bare_call()
-    vtimers: list[asyncio.Future] = []
-    vcall.spawn = lambda vcoro: vtimers.append(asyncio.ensure_future(vcoro))
-    await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
-    await vcall.on_tool_call(tool_call("get_current_time", {}, "b"))
-    await asyncio.gather(*vtimers)
-    assert vcall.vsink.vfillers == [b"sekundu"]
 
-
-@pytest.mark.asyncio
-async def test_a_background_task_gets_no_checking_clip_since_she_announces_it_herself():
-    vcall = bare_call()
-    await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("science_fact", {}, "a"))
-    assert vcall.vsink.vfillers == []
-
-
-@pytest.mark.asyncio
-async def test_no_filler_once_her_answer_has_started():
-    vcall = bare_call()
-    vcall.vsink.vfirst_audio_at = 1.0
-    await vcall.play_filler(FillerKind.THINKING)
-    assert vcall.vsink.vfillers == []
 
 
 def answering_call(vheard_ago_s: float) -> MeetCall:
@@ -263,7 +229,7 @@ async def test_the_same_person_going_on_drops_the_answer_to_the_first_half():
     await vcall.vfloor.acquire()
     assert vcall.is_continuation()
     await vcall.drop_answer_for_continuation()
-    assert vcall.vsession.vinterrupts == 1 and vcall.vsink.vmuted and vcall.vcontinued.vtext == "Мэгги, найди новый факт"
+    assert vcall.vsession.vinterrupts == 1 and vcall.vsink.vmuted and "hold_for_rest" in [vcoro.__name__ for vcoro in vcall.vspawned]
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert not vcall.vsink.vmuted and vcall.vturn_done.is_set() and not vcall.vfloor.locked()
 
@@ -327,3 +293,23 @@ async def test_saying_it_will_come_back_while_work_runs_is_not_a_broken_promise(
     vcall.vregistry = Registry([type("Record", (), {"vstatus": TaskStatus.RUNNING})()])
     await vcall.consider(MeetTurn(0.0, "Kirill", "Ну что там с фактом?"), "", {}, vfollow_up=True)
     assert vpromises == []
+
+
+@pytest.mark.asyncio
+async def test_a_line_from_someone_still_talking_waits_for_the_rest():
+    vcall = bare_call()
+    vspoken: list[str] = []
+    answering_once(vcall, vspoken, [])
+    vcall.vuser_speaking = True
+    await vcall.consider(MeetTurn(0.0, "Kirill", "Мэгги, расскажи что-нибудь"), "", {}, vfollow_up=True)
+    assert vspoken == [] and "hold_for_rest" in [vcoro.__name__ for vcoro in vcall.vspawned]
+
+
+@pytest.mark.asyncio
+async def test_when_the_rest_never_comes_the_first_half_is_answered(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(meet_agent, "CONTINUATION_HOLD_S", 0.0)
+    vcall = bare_call()
+    vspoken: list[str] = []
+    answering_once(vcall, vspoken, [])
+    await vcall.hold_for_rest(MeetTurn(0.0, "Kirill", "Мэгги, расскажи что-нибудь"))
+    assert len(vspoken) == 1 and "расскажи что-нибудь" in vspoken[0] and vcall.vcontinued is None
