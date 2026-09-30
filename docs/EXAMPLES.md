@@ -400,7 +400,11 @@ Several replies in a row should sound like one answer. A result that is told whi
 plays, or within `GOING_ON_S` of it ending, queues right behind that answer, so its line asks her to go
 on from her last sentence as part of the same answer, with no name and no fresh start: 6 of 6 replays
 then ran on with "Кстати, у осьминогов…", where the plain line opened "Кирилл, у осьминогов…" 6 of 6
-times. The page folds her replies since a person last spoke into one bubble.
+times. Live, "Новый факт уже ищу" followed three seconds later by "А ещё, Кирилл, бананы…" had no
+connection: the fact was the thing she had promised, not one more thing. So the line now says to pick
+up a promise when its result turns up and to use "а ещё" / "кстати" only otherwise; 12 of 12 replays
+then went on with "О, а вот и факт: …" or "Уже нашла: …". The page folds her replies since a person
+last spoke into one bubble.
 
 A review of the turn handling (GPT, offline reproductions) found four real faults, each now with a test:
 - a cancelled response kept playing its late audio deltas, and reported itself completed (fixed in the

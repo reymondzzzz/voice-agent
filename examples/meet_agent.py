@@ -129,8 +129,9 @@ def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
     if vgoing_on and not vresumed:
         # Her answer is still playing: this reply queues right behind it, so it has to sound like the same answer.
         vhow = (
-            "You are still talking: go straight on from your last sentence as part of the same answer, linking it the "
-            "way a person does ('а ещё…', 'кстати…'), with no greeting, no name and no fresh start."
+            "You are still talking: go straight on from your last sentence as part of the same answer, with no "
+            "greeting, no name and no fresh start. If you just said you were looking for it, pick that up the way a "
+            "person does when it turns up ('о, а вот и факт: …', 'уже нашла: …'); otherwise link it ('а ещё…', 'кстати…')."
         )
     elif vresumed:
         vhow = (
