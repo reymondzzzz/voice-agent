@@ -51,6 +51,7 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     vcall.vplayed = asyncio.Event()
     vcall.vinterrupted = False
     vcall.vsource = type("Source", (), {"queued_duration": 0})()
+    vcall.vheard_before_cut = ""
     vcall.vlast_bot_played = 0.0
     vspoken: list[str] = []
 
@@ -174,9 +175,14 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     class Sink:
         vmuted = False
         vcleared = 0
+        vreply_s = 0.0
 
         async def clear(self) -> None:
             self.vcleared += 1
+
+        async def cut(self) -> float:
+            await self.clear()
+            return 0.0
 
     class Session:
         vinterrupts = 0
@@ -191,6 +197,8 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     vcall.vsource, vcall.vsink, vcall.vsession = Source(), Sink(), Session()
     vcall.vloud_s, vcall.vinterrupted, vcall.vplayed, vcall.vfloor = 0.0, False, asyncio.Event(), asyncio.Lock()
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
+    vcall.vreply_parts, vcall.vturn_reply, vcall.vheard_before_cut = [], "", ""
+    vcall.publish = lambda **_vevent: None
     await vcall.vfloor.acquire()
     vspeech = (numpy.sin(numpy.arange(160) / 3) * 8000).astype(numpy.int16).tobytes()  # 10ms at 16kHz
 

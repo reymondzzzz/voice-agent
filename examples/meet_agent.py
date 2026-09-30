@@ -109,6 +109,8 @@ class PendingResult:
     vgoal: str
     vanswer: str
     vattempts: int = 0
+    # What she got out of the reply that carried this before she was cut off.
+    vheard: str = ""
 
 
 def result_items(vresults: list[PendingResult]) -> str:
@@ -134,9 +136,13 @@ def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
             "person does when it turns up ('о, а вот и факт: …', 'уже нашла: …'); otherwise link it ('а ещё…', 'кстати…')."
         )
     elif vresumed:
+        vheard = next((vresult.vheard for vresult in vresults if vresult.vheard), "")
+        vwhere = f"after saying only «{vheard}…»" if vheard else "before they heard any of it"
         vhow = (
-            "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
-            "answered: pick the thread back up the way a person does ('so, about ...') and tell all of it."
+            f"You were cut off {vwhere}. It is quiet now, and anything you were asked in between is already answered: "
+            f"pick the thread back up the way a person does ('so, about ...') and say what they have not heard yet. "
+            f"Say only what these results hold: anything else you are working on has not come back, so do not mention "
+            f"it as ready or make it up."
         )
     else:
         vhow = "Tell all of it now, in one go."
@@ -145,6 +151,14 @@ def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
         f"asking whether to go on, a sentence or two for each, addressing each person by name, retold in your own words "
         f"and never opened with a stock phrase like 'вот научный факт'."
     )
+
+
+def heard_part(vtext: str, vheard_s: float, vspoken_s: float) -> str:
+    # Speech runs at a roughly even pace, so the share of her audio that played is about the share of her words.
+    if vspoken_s <= 0 or vheard_s <= 0:
+        return ""
+    vcut = vtext[: round(len(vtext) * min(1.0, vheard_s / vspoken_s))]
+    return vcut if vcut == vtext or " " not in vcut else vcut.rsplit(" ", 1)[0]
 
 
 def is_spoken_verdict(vtext: str) -> bool:
@@ -187,6 +201,8 @@ class RoomAudioSink:
         self.vmuted = False
         self.vfirst_audio_at: float | None = None
         self.vqueued_at_first_audio = 0.0
+        # Seconds of the current reply handed to the room; what is still queued at a cut was never heard.
+        self.vreply_s = 0.0
         self._vstray = b""
 
     async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
@@ -200,6 +216,7 @@ class RoomAudioSink:
         vwhole = len(vpcm) - len(vpcm) % 2
         self._vstray = vpcm[vwhole:]
         if vwhole:
+            self.vreply_s += vwhole / 2 / vsample_rate_hz
             await self.vsource.capture_frame(rtc.AudioFrame(vpcm[:vwhole], vsample_rate_hz, 1, vwhole // 2))
 
     async def flush(self) -> None:
@@ -208,6 +225,11 @@ class RoomAudioSink:
     async def clear(self) -> None:
         self._vstray = b""
         self.vsource.clear_queue()
+
+    async def cut(self) -> float:
+        vheard_s = max(0.0, self.vreply_s - self.vsource.queued_duration)
+        await self.clear()
+        return vheard_s
 
 
 class MeetCall:
@@ -265,6 +287,7 @@ class MeetCall:
         self.vawaiting = False
         self.vresults_followup = False
         self.vheard_speakers: dict[str, str] = {}
+        self.vheard_before_cut = ""
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -302,6 +325,15 @@ class MeetCall:
             self.release_floor()
             await self.vfloor.acquire()
 
+    async def cut_her_off(self) -> None:
+        # Whatever was still queued never reached the room; the words that did are what the retelling starts from.
+        vspoken_s = self.vsink.vreply_s
+        vheard_s = await self.vsink.cut()
+        vtext = "".join(self.vreply_parts).strip() or self.vturn_reply
+        self.vheard_before_cut = heard_part(vtext, vheard_s, vspoken_s)
+        logger.info("cut off after %.1fs of %.1fs: «%s…»", vheard_s, vspoken_s, self.vheard_before_cut)
+        self.publish(type="cut", heard=self.vheard_before_cut)
+
     async def request(self, vrequest: events.ResponseRequest) -> None:
         assert self.vsession is not None
         self.vowned, self.vawaiting = "", True
@@ -333,9 +365,13 @@ class MeetCall:
 
     def take_waiting_results(self, vsaying: list[PendingResult]) -> list[PendingResult]:
         # Whoever takes the waiting results says them, with `vsaying` (tool results this reply is about to say);
-        # until the reply has played out, not just been generated, none of them counts as told.
-        vresults = list(self.vpending)
+        # until the reply has played out, not just been generated, none of them counts as told. A result already
+        # cut off once stays queued for its own "so, about ..." retelling: folded into the next answer, which also
+        # started a fact search, the model skipped the talked-over weather and it counted as told.
+        vresults = [vresult for vresult in self.vpending if not vresult.vattempts]
+        vresumed = [vresult for vresult in self.vpending if vresult.vattempts]
         self.vpending.clear()
+        self.vpending.extend(vresumed)
         if vresults or vsaying:
             self.vinterrupted = False
             self.vplayed.clear()
@@ -460,7 +496,7 @@ class MeetCall:
         # response without ever finishing it, which left the floor locked.
         self.vuser_speaking = True
         self.vlast_human_speech = time.monotonic()
-        await self.vsink.clear()
+        await self.cut_her_off()
         self.vinterrupted = True
         self.vplayed.set()
         if self.vsession is not None and self.vfloor.locked():
@@ -479,7 +515,7 @@ class MeetCall:
             self.vuser_speaking = True
             self.vspeech_started_at = time.monotonic()
             if self.vsource.queued_duration > 0:
-                await self.vsink.clear()
+                await self.cut_her_off()
                 self.vinterrupted = True
                 self.vplayed.set()
             if self.is_continuation():
@@ -497,6 +533,7 @@ class MeetCall:
         elif isinstance(vevent, events.AssistantSpeechStarted):
             if self.vawaiting:
                 self.vowned, self.vawaiting = vevent.vresponse_id, False
+                self.vsink.vreply_s = 0.0
         elif isinstance(vevent, events.AssistantTranscript):
             if vevent.vresponse_id != self.vowned:
                 return
@@ -615,7 +652,7 @@ class MeetCall:
         logger.info("%s kept talking; the answer waits for the rest", self.vanswering.vspeaker)
         vturn, self.vanswering = self.vanswering, None
         self.spawn(self.hold_for_rest(vturn))
-        await self.vsink.clear()
+        await self.cut_her_off()
         self.hand_back_results()
         if not self.vturn_done.is_set():
             self.vdropping = True
@@ -868,6 +905,8 @@ class MeetCall:
         # Never played out is not delivered either: a reply that timed out or produced no audio goes back too.
         vheard = self.vplayed.is_set() and not self.vinterrupted
         vretry = [] if vheard else [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS]
+        for vresult in vretry:
+            vresult.vheard = self.vheard_before_cut if self.vinterrupted else ""
         if vretry:
             logger.info("%d background result(s) not heard; will come back to them", len(vretry))
             self.vpending.extendleft(reversed(vretry))

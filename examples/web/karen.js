@@ -107,7 +107,7 @@ function addTurn(vturn) {
   const vatBottom = vui.transcript.scrollHeight - vui.transcript.scrollTop - vui.transcript.clientHeight < STICK_TO_BOTTOM_PX
   const vkind = lineKind(vturn)
   if (vkind === "karen" && vopenReply) {
-    vopenReply.lastElementChild.textContent += ` ${vturn.text}`
+    vopenReply.querySelector(":scope > div:not(.cut)").textContent += ` ${vturn.text}`
     vlinesByTs.set(vturn.ts, vopenReply)
     if (vatBottom) {
       vui.transcript.scrollTop = vui.transcript.scrollHeight
@@ -170,6 +170,18 @@ function mergeTurn(vevent) {
   vlinesByTs.set(vevent.ts, vkept)
 }
 
+// Talked over: the bubble shows how far she got, since the rest of its text was never heard.
+function markCut(vheard) {
+  const vreply = vopenReply ?? [...vui.transcript.querySelectorAll('.line[data-kind="karen"]')].pop()
+  if (!vreply) {
+    return
+  }
+  const vnote = document.createElement("div")
+  vnote.className = "cut"
+  vnote.textContent = vheard ? `✂ heard: «${vheard}…»` : "✂ talked over before a word"
+  vreply.append(vnote)
+}
+
 function upsertTask(vtask) {
   let vitem = vtaskItems.get(vtask.id)
   if (!vitem) {
@@ -200,6 +212,8 @@ function onData(vpayload, _vparticipant, _vkind, vtopic) {
   const vevent = JSON.parse(vdecoder.decode(vpayload))
   if (vevent.type === "turn") {
     addTurn(vevent)
+  } else if (vevent.type === "cut") {
+    markCut(vevent.heard)
   } else if (vevent.type === "merged") {
     mergeTurn(vevent)
   } else if (vevent.type === "addressed") {

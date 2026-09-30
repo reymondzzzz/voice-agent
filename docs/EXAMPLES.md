@@ -433,6 +433,18 @@ window before `response.created` hit the previous response (now held for the one
 speaker attribution was a queue that one lost transcript shifted for good (now keyed by item id and
 cleared when the session is replaced).
 
+A result counts as told only by what the room heard. The sink counts the seconds of each reply it hands
+to the room; at a barge-in, what is still queued was never heard, and that share of her audio maps onto
+the reply's transcript ("В Токио сейчас 23 градуса…" cut after 0.4s of 2.4s is "В"). The result goes
+back to the queue with those words, and the retelling tells her where she was cut off, so she says only
+what was not heard: after "В То" 3 of 3 replays retold the weather, after "В Токио сейчас 23 градуса" 3 of
+3 said just "в Токио сейчас ясно". DashScope has no `conversation.item.truncate`, so this line is also
+what tells the model its reply did not get through. The retelling first also invented the still-running
+fact 4 times in 6 ("some wasps can recognise faces"); told to say only what the results hold, 1 in 9.
+A result already cut off once is not folded into the next answer: live, folded into "давай новый факт",
+the model started the fact search, skipped the talked-over weather, and it counted as told. It gets its
+own retelling right after that answer instead. The page marks a talked-over reply with how far she got.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

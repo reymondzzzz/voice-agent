@@ -6,7 +6,7 @@ import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples import meet_agent
-from examples.meet_agent import MeetCall, PendingResult, delivery_line, is_spoken_verdict, parse_yes
+from examples.meet_agent import MeetCall, PendingResult, RoomAudioSink, delivery_line, heard_part, is_spoken_verdict, parse_yes
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
@@ -50,9 +50,13 @@ class Sink:
     vmuted = False
     vfirst_audio_at = None
     vqueued_at_first_audio = 0.0
+    vreply_s = 0.0
 
     async def clear(self) -> None:
         pass
+
+    async def cut(self) -> float:
+        return 0.0
 
 
 def bare_call() -> MeetCall:
@@ -73,6 +77,7 @@ def bare_call() -> MeetCall:
     vcall.vturn_reply = ""
     vcall.vowned, vcall.vawaiting, vcall.vresults_followup, vcall.vheard_speakers = "", False, False, {}
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
+    vcall.vheard_before_cut = ""
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -429,3 +434,48 @@ def test_the_silence_between_two_of_her_replies_is_measured():
     assert vcall.silence_since_her_last_reply() == 0.0, "queued behind the previous reply, no pause at all"
     vcall.vlast_human_speech = 10.5
     assert vcall.silence_since_her_last_reply() is None, "someone spoke in between: not her pause"
+
+
+@pytest.mark.asyncio
+async def test_a_result_already_cut_off_once_is_retold_on_its_own_not_folded_into_another_answer():
+    vcall = bare_call()
+    vspoken: list[str] = []
+    answering_once(vcall, vspoken, [])
+    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23 degrees, clear", vattempts=1)
+    vfact = PendingResult("Kirill", "science fact", "Octopuses have three hearts.")
+    vcall.vpending.extend([vweather, vfact])
+    await vcall.consider(MeetTurn(0.0, "Kirill", "и давай новый факт"), "", {}, vfollow_up=True)
+    assert "Octopuses have three hearts." in vspoken[0] and "Tokyo" not in vspoken[0]
+    assert list(vcall.vpending) == [vweather]
+
+
+def test_the_heard_part_of_a_reply_follows_the_share_of_its_audio_that_played():
+    vreply = "В Токио сейчас 23 градуса и ясное небо."
+    assert heard_part(vreply, 0.0, 3.0) == ""
+    assert heard_part(vreply, 0.5, 3.0) == "В"
+    assert heard_part(vreply, 1.5, 3.0) == "В Токио сейчас 23"
+    assert heard_part(vreply, 3.0, 3.0) == vreply
+
+
+@pytest.mark.asyncio
+async def test_a_cut_counts_what_was_still_queued_as_never_heard():
+    class Source:
+        queued_duration = 0.0
+
+        async def capture_frame(self, _vframe) -> None:
+            pass
+
+        def clear_queue(self) -> None:
+            pass
+
+    vsink = RoomAudioSink(Source())
+    await vsink.write(bytes(24000 * 2), 24000)
+    vsink.vsource.queued_duration = 0.6
+    assert round(await vsink.cut(), 2) == 0.4
+
+
+def test_a_retelling_starts_from_the_words_that_were_heard():
+    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23 degrees, clear", vattempts=1, vheard="В То")
+    assert "after saying only «В То…»" in delivery_line([vweather], vgoing_on=False)
+    vweather.vheard = ""
+    assert "before they heard any of it" in delivery_line([vweather], vgoing_on=False)
