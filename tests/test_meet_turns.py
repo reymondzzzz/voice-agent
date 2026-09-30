@@ -215,6 +215,14 @@ async def test_a_tool_call_in_silence_says_it_is_checking_once():
 
 
 @pytest.mark.asyncio
+async def test_a_background_task_gets_no_checking_clip_since_she_announces_it_herself():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_tool_call(tool_call("science_fact", {}, "a"))
+    assert vcall.vsink.vfillers == []
+
+
+@pytest.mark.asyncio
 async def test_no_filler_once_her_answer_has_started():
     vcall = bare_call()
     vcall.vsink.vfirst_audio_at = 1.0

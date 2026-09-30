@@ -58,6 +58,8 @@ CONTINUATION_WINDOW_S = 2.5
 # withdrew always-on filler injection after users found it too much.
 FILLER_AFTER_S = 0.5
 FILLER_CHANCE = 0.6
+# A person says "хмм", stops, then answers; glued straight onto the answer it sounded like a stutter.
+FILLER_PAUSE_S = 0.35
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
@@ -177,6 +179,7 @@ class RoomAudioSink:
 
     async def play_filler(self, vpcm: bytes) -> None:
         # Not her answer, so it does not count as its first audio: latency stays the model's.
+        vpcm += bytes(int(protocol.OUTPUT_SAMPLE_RATE_HZ * FILLER_PAUSE_S) * 2)
         await self.vsource.capture_frame(rtc.AudioFrame(vpcm, protocol.OUTPUT_SAMPLE_RATE_HZ, 1, len(vpcm) // 2))
 
     async def flush(self) -> None:
@@ -591,6 +594,7 @@ class MeetCall:
         if vkind in self.vturn_fillers or self.vsink.vfirst_audio_at is not None or self.vsink.vmuted or self.vuser_speaking or self.vturn_done.is_set():
             return
         self.vturn_fillers.add(vkind)
+        logger.info("filler %s", vkind.value)
         await self.vsink.play_filler(self.vfillers.pick(vkind))
 
     async def check_promise(self) -> None:
@@ -653,7 +657,10 @@ class MeetCall:
         self.vlast_bot_activity = time.monotonic()
         logger.info("tool %s(%s)", vcall.vtool_name, vcall.varguments)
         vtool = MEET_TOOLS_BY_NAME.get(vcall.vtool_name)
-        await self.play_filler(FillerKind.CHECKING)
+        # Only before a result that follows at once ("сейчас гляну… в Лондоне 14"). A background task she announces
+        # herself ("я уже запустила поиск"), and a clip in front of that said "секунду" twice.
+        if vtool is not None and vtool.vweight is ToolWeight.LIGHT:
+            await self.play_filler(FillerKind.CHECKING)
         if vtool is None:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
         elif vtool.vweight is ToolWeight.LIGHT:
