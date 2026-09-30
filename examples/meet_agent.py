@@ -61,6 +61,8 @@ FILLER_CHANCE = 0.6
 # A follow-up after a quick tool takes 1.1-1.8s to sound; a clip at the call left a second of silence before the answer,
 # started this late it ends about when the answer begins.
 FILLER_CHECKING_AFTER_S = 0.6
+# A person says "хмм", stops, then answers: glued straight onto the answer it sounded like one word.
+FILLER_PAUSE_S = 0.4
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
@@ -91,7 +93,8 @@ KAREN_RULES = (
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "
     "either before answering, every time: an earlier time or weather value is already out of date. A science fact must come from science_fact, never from your own knowledge. For "
     "anything that needs research, analysis, drafting or careful checking beyond what was said, call research "
-    "with a self-contained question. A tool that runs in the background returns at once: then say in a few words "
+    "with a self-contained question. Time and weather come back at once: call the tool without saying anything "
+    "first, not even that you are checking, and answer with the result. A tool that runs in the background returns at once: then say in a few words "
     "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
     "it in this reply or it is listed below as running; otherwise say you have not started anything. Never guess "
     "a result that has not arrived. Speak like a colleague in the room: brief, warm and "
@@ -183,6 +186,7 @@ class RoomAudioSink:
 
     async def play_filler(self, vpcm: bytes) -> None:
         # Not her answer, so it does not count as its first audio: latency stays the model's.
+        vpcm += bytes(int(protocol.OUTPUT_SAMPLE_RATE_HZ * FILLER_PAUSE_S) * 2)
         await self.vsource.capture_frame(rtc.AudioFrame(vpcm, protocol.OUTPUT_SAMPLE_RATE_HZ, 1, len(vpcm) // 2))
 
     async def flush(self) -> None:

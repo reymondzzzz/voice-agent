@@ -366,8 +366,10 @@ the silence is filled in `examples/meet_fillers.py`: ten short clips recorded on
 through the transcriber). "Хмм", "так", "ага", "ну", "о" play 0.5s after an answer was asked for if no
 audio has come yet, 60% of the time (Vapi withdrew always-on fillers as too much); "секунду", "сейчас
 гляну" play 0.6s after she calls a quick tool, so the clip ends about when the follow-up answer, 1.1-1.8s
-behind the call, starts: played at the call, with a pause after it, it left a second of silence between
-"сейчас гляну" and the answer. Not before a background task: she announces that herself ("я уже
+behind the call, starts: played at the call it left a second of silence between "сейчас гляну" and the
+answer. Every clip is followed by a 0.4s pause, as a person pauses after "хмм". Before time and weather
+she says nothing herself: live she added "Сейчас проверю погоду в Лондоне" after the clip, so the
+persona tells her to call those tools silently and answer with the result (no lead-in in 2 of 2 runs). Not before a background task: she announces that herself ("я уже
 запустила поиск"), and live the clip in front of it made "секунду… Секунду, я ищу". Telling her the clip
 was said, as an assistant message, made it worse: in 3 of 5 follow-ups she then invented the fact
 instead of waiting for the tool. At most one of each per answer, never one of the last three,
