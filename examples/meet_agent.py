@@ -25,6 +25,7 @@ from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, Tas
 from voice_agent.agent.tasks.registry import TaskRegistry
 from voice_agent.agent.tasks.supervisor import TaskSupervisor
 from voice_agent.realtime import events
+from voice_agent.realtime.qwen import protocol
 from voice_agent.realtime.qwen.session import QwenOmniSession
 
 logger = logging.getLogger("meet-agent")
@@ -38,6 +39,8 @@ BARGE_IN_S = 0.15
 MEET_DEFAULT_BOT_NAME = "Karen"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
+# Meet audio is taken straight at the rate Qwen listens at: resampling 48k to 24k and again to 16k cost accuracy.
+HEARING_SAMPLE_RATE_HZ = protocol.INPUT_SAMPLE_RATE_HZ
 PLAYBACK_QUEUE_MS = 20_000
 QUIET_BEFORE_SPEAKING_S = 1.5
 QUIET_BEFORE_DELIVERY_S = 3.0
@@ -282,7 +285,7 @@ class MeetCall:
             self.spawn(self.pump_audio(vtrack))
 
     async def pump_audio(self, vtrack: rtc.Track) -> None:
-        async for vevent in rtc.AudioStream.from_track(track=vtrack, sample_rate=ROOM_SAMPLE_RATE_HZ, num_channels=1):
+        async for vevent in rtc.AudioStream.from_track(track=vtrack, sample_rate=HEARING_SAMPLE_RATE_HZ, num_channels=1):
             await self.forward_frame(bytes(vevent.frame.data))
 
     async def forward_frame(self, vpcm: bytes) -> None:
@@ -290,7 +293,7 @@ class MeetCall:
         if self.vsession is None:
             return
         try:
-            await self.vsession.send_audio(events.InputAudioChunk(vpcm=vpcm, vsample_rate_hz=ROOM_SAMPLE_RATE_HZ))
+            await self.vsession.send_audio(events.InputAudioChunk(vpcm=vpcm, vsample_rate_hz=HEARING_SAMPLE_RATE_HZ))
         except ConnectionResetError:
             # DashScope closes a session every few minutes and pump_events replaces it; until then a frame has
             # nowhere to go. Losing 20ms is fine, losing the pump leaves Karen deaf for the rest of the meeting.
@@ -299,7 +302,7 @@ class MeetCall:
     async def watch_for_barge_in(self, vpcm: bytes) -> None:
         # Qwen's VAD reports speech only after a round trip to the endpoint, and Karen kept talking meanwhile. A
         # person audible for BARGE_IN_S while her audio is queued is enough: the bridge carries only the others.
-        vframe_s = len(vpcm) / 2 / ROOM_SAMPLE_RATE_HZ
+        vframe_s = len(vpcm) / 2 / HEARING_SAMPLE_RATE_HZ
         if self.vsource.queued_duration == 0 or self.vsink.vmuted or loudness_dbfs(vpcm) < BARGE_IN_DBFS:
             self.vloud_s = 0.0
             return

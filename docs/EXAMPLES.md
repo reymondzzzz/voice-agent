@@ -390,6 +390,28 @@ the right tool in about half the cases whatever the prompt held, and once told a
 called it 20/20. The session prompt now lists only the people's lines: with Karen's own "сейчас найду"
 listed as text beside them, 3.8 Flash imitated the promise (1/3). Routing still gets the full labelled log.
 
+**Recognition quality: the audio path, measured.** A real call was recorded at two points while 12 known
+Russian phrases were read: A, the audio as the bridge received it from Meet, and B, exactly what Qwen got.
+Replayed into a listen-only Qwen session and scored against the text, A had 9-10% word errors and B
+19-21%: our path doubled them. Pushing A back through the local LiveKit per variant (two runs each):
+
+| Path | Word errors |
+| --- | --- |
+| as it was: DTX on, default bitrate, received at 24kHz, resampled to 16kHz | 19%, 19% |
+| DTX off, 64kbps | 21%, 17% |
+| received directly at 16kHz | 17%, 12% |
+| both | 9%, 10% |
+
+So the bridge now publishes with DTX off at `MEET_PUBLISH_BITRATE` (64kbps), and the agent takes the
+bridge audio straight at `HEARING_SAMPLE_RATE_HZ` (16kHz, Qwen's input rate). Recognizer hints were tried
+on the same data and left out: DashScope accepts `corpus` and `prompt` in `input_audio_transcription`;
+`prompt` changed nothing; a `corpus` listing the script's own words cut errors to 6%, but that vocabulary is
+not known before a real meeting, names alone did not help (10%, 14%), and a bare names list was copied into
+the transcript verbatim ("Карен, Кирилл Старков" for "Кирилл, ты отправил отчёт…"). A VAD pre-roll of
+500ms and a 0.3 threshold changed nothing. The recordings also showed two ~30ms digital dropouts inside the
+bridge's own capture, before LiveKit, in two of the worst phrases; the page's ScriptProcessor running on
+Meet's busy main thread is the suspect.
+
 **One language.** `MEET_LANGUAGE` pins Qwen's transcription (`input_audio_transcription.language`, which
 DashScope accepts): unpinned it wrote Russian speech as Polish ("karol daj proszę…") and Chinese, and
 Karen then answered the garbled line from her own knowledge instead of calling the tool. The rules tell

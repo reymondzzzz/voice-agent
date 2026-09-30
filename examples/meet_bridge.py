@@ -20,6 +20,7 @@ logger = logging.getLogger("meet-bridge")
 MEET_DIR = pathlib.Path(__file__).resolve().parent / "meet"
 MEET_SAMPLE_RATE_HZ = 48000
 MEET_FRAME_SAMPLES = 960
+MEET_PUBLISH_BITRATE = 64_000
 AGENT_FRAME_MS = 20
 BRIDGE_IDENTITY = "meet-bridge"
 MEET_SPEAKER_ATTRIBUTE = "meet_speaker"
@@ -50,6 +51,14 @@ def mint_bridge_token(vroom_name: str) -> str:
         .with_grants(api.VideoGrants(room_join=True, room=vroom_name, can_update_own_metadata=True))
         .to_jwt()
     )
+
+
+def meet_track_options() -> rtc.TrackPublishOptions:
+    # Meet already encoded this audio once. DTX and LiveKit's default voice bitrate on a second encode, with two
+    # resamples after it, doubled Qwen's word errors on a real recording (9% before the bridge, 19% after).
+    voptions = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE, dtx=False)
+    voptions.audio_encoding.max_bitrate = MEET_PUBLISH_BITRATE
+    return voptions
 
 
 def meet_speaker(vnames: list[str], vbot_name: str) -> str:
@@ -148,7 +157,7 @@ async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadle
         await vroom.connect(os.environ["LIVEKIT_URL"], mint_bridge_token(vroom_name))
         await vroom.local_participant.publish_track(
             rtc.LocalAudioTrack.create_audio_track("meet-audio", vsource),
-            rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
+            meet_track_options(),
         )
         await vroom.local_participant.set_attributes({MEET_BOT_NAME_ATTRIBUTE: vbot_name})
         logger.info("bridge joined room=%s", vroom_name)

@@ -189,7 +189,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     vcall.vloud_s, vcall.vinterrupted, vcall.vplayed, vcall.vfloor = 0.0, False, asyncio.Event(), asyncio.Lock()
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
     await vcall.vfloor.acquire()
-    vspeech = (numpy.sin(numpy.arange(240) / 3) * 8000).astype(numpy.int16).tobytes()
+    vspeech = (numpy.sin(numpy.arange(160) / 3) * 8000).astype(numpy.int16).tobytes()  # 10ms at 16kHz
 
     for _ in range(14):
         await vcall.watch_for_barge_in(vspeech)

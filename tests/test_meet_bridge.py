@@ -28,6 +28,12 @@ def test_meet_opens_in_english_whatever_the_account_language() -> None:
     assert meet_bridge.english_meet_url("https://meet.google.com/abc?authuser=1&hl=ru") == "https://meet.google.com/abc?authuser=1&hl=en"
 
 
+def test_meet_audio_is_republished_without_dtx_at_a_high_bitrate() -> None:
+    voptions = meet_bridge.meet_track_options()
+    assert voptions.dtx is False
+    assert voptions.audio_encoding.max_bitrate == meet_bridge.MEET_PUBLISH_BITRATE == 64_000
+
+
 def peak_hz(vpcm: bytes) -> float:
     vsamples = np.frombuffer(vpcm, np.int16).astype(float)
     vspectrum = np.abs(np.fft.rfft(vsamples * np.hanning(len(vsamples))))
