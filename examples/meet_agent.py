@@ -111,6 +111,11 @@ class PendingResult:
     vattempts: int = 0
     # What she got out of the reply that carried this before she was cut off.
     vheard: str = ""
+    # A quick tool's name and call number: a later call of it by the same person makes this value stale.
+    vtool: str = ""
+    vcall: int = 0
+    # Cut off DELIVERY_ATTEMPTS times: it is offered once instead of told, then let go.
+    voffered: bool = False
 
 
 def result_items(vresults: list[PendingResult]) -> str:
@@ -125,7 +130,19 @@ def meanwhile_line(vresults: list[PendingResult]) -> str:
     )
 
 
+def offer_line(vresults: list[PendingResult]) -> str:
+    # Told twice and talked over twice: telling it a third time is pushing, dropping it silently loses it.
+    return (
+        f"These you were cut off twice while telling:\n{result_items(vresults)}\nDo not tell them again: in a few words, "
+        f"offer to finish ('я там про погоду не договорила — рассказать?') and let them answer."
+    )
+
+
 def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
+    voffers = [vresult for vresult in vresults if vresult.voffered]
+    vresults = [vresult for vresult in vresults if not vresult.voffered]
+    if not vresults:
+        return f"[unfinished results]\n{offer_line(voffers)}"
     vresumed = any(vresult.vattempts for vresult in vresults)
     vitems = result_items(vresults)
     vgo_on = (
@@ -150,11 +167,12 @@ def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
         )
     else:
         vhow = "Tell all of it now, in one go."
-    return (
+    vline = (
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
         f"asking whether to go on, a sentence or two for each, addressing each person by name, retold in your own words "
         f"and never opened with a stock phrase like 'вот научный факт'."
     )
+    return f"{vline}\n{offer_line(voffers)}" if voffers else vline
 
 
 def heard_part(vtext: str, vheard_s: float, vspoken_s: float) -> str:
@@ -300,6 +318,8 @@ class MeetCall:
         # Per reply: where its audio starts and ends on the sink's timeline, what it said, and the words heard if cut.
         self.vreply_audio: dict[int, tuple[float, float | None, str]] = {}
         self.vheard_by_reply: dict[int, str] = {}
+        self.vtool_calls = 0
+        self.vlatest_call: dict[tuple[str, str], int] = {}
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -394,11 +414,22 @@ class MeetCall:
         async with self.vplayout:
             self.vplayout.notify_all()
 
+    def is_stale(self, vresult: PendingResult) -> bool:
+        # A time or weather value the same person has looked up again since: the newer one is what they want.
+        return bool(vresult.vtool) and self.vlatest_call.get((vresult.vrequester, vresult.vtool), 0) > vresult.vcall
+
+    def drop_stale(self) -> None:
+        vstale = [vresult for vresult in self.vpending if self.is_stale(vresult)]
+        for vresult in vstale:
+            logger.info("dropping %s for %s: looked up again since", vresult.vgoal, vresult.vrequester)
+            self.vpending.remove(vresult)
+
     def take_waiting_results(self, vsaying: list[PendingResult]) -> list[PendingResult]:
         # Whoever takes the waiting results says them, with `vsaying` (tool results this reply is about to say);
         # until the reply has played out, not just been generated, none of them counts as told. A result already
         # cut off once stays queued for its own "so, about ..." retelling: folded into the next answer, which also
         # started a fact search, the model skipped the talked-over weather and it counted as told.
+        self.drop_stale()
         vresults = [vresult for vresult in self.vpending if not vresult.vattempts]
         vresumed = [vresult for vresult in self.vpending if vresult.vattempts]
         self.vpending.clear()
@@ -821,7 +852,9 @@ class MeetCall:
             vresult = self.start_background(vtool, vcall.varguments)
         vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
         if vtool is not None and vtool.vweight is ToolWeight.LIGHT:
-            self.vturn_results.append(PendingResult(self.requester(), f"{vcall.vtool_name}({vargs})", vresult))
+            self.vtool_calls += 1
+            self.vlatest_call[(self.requester(), vcall.vtool_name)] = self.vtool_calls
+            self.vturn_results.append(PendingResult(self.requester(), f"{vcall.vtool_name}({vargs})", vresult, vtool=vcall.vtool_name, vcall=self.vtool_calls))
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
         self.vturn_tools += 1
@@ -906,11 +939,12 @@ class MeetCall:
             while self.vpending:
                 await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
                 await self.take_floor()
+                # Read the queue only once Karen has the floor, so a result that finished meanwhile joins this turn.
+                self.drop_stale()
                 if not self.vpending:
-                    # An answer to a tool call took them along while this worker waited for the floor.
+                    # An answer took them along while this worker waited for the floor, or they went stale.
                     self.release_floor()
                     break
-                # Read the queue only once Karen has the floor, so a result that finished meanwhile joins this turn.
                 vresults = list(self.vpending)
                 self.vpending.clear()
                 self.addressing().engage(vresults[-1].vrequester)
@@ -936,7 +970,13 @@ class MeetCall:
         # Never played out is not delivered either: a reply that timed out or produced no audio goes back too.
         vcut = vcarrier in self.vcut_replies
         vheard = vcarrier in self.vplayed_replies and not vcut
-        vretry = [] if vheard else [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS]
+        vretry = []
+        for vresult in [] if vheard else vresults:
+            if vresult.voffered or self.is_stale(vresult):
+                logger.info("letting go of %s for %s", vresult.vgoal, vresult.vrequester)
+                continue
+            vresult.voffered = vresult.vattempts >= DELIVERY_ATTEMPTS
+            vretry.append(vresult)
         for vresult in vretry:
             vresult.vheard = self.vheard_by_reply.get(vcarrier, "")
         if vretry:

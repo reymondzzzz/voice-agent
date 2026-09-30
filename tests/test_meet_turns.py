@@ -6,7 +6,7 @@ import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples import meet_agent
-from examples.meet_agent import MeetCall, PendingResult, RoomAudioSink, delivery_line, heard_part, is_spoken_verdict, parse_yes
+from examples.meet_agent import DELIVERY_ATTEMPTS, MeetCall, PendingResult, RoomAudioSink, delivery_line, heard_part, is_spoken_verdict, parse_yes
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
@@ -78,6 +78,7 @@ def bare_call() -> MeetCall:
     vcall.vowned, vcall.vawaiting, vcall.vresults_followup, vcall.vheard_speakers = "", False, False, {}
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
     vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
+    vcall.vtool_calls, vcall.vlatest_call = 0, {}
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -515,3 +516,32 @@ async def test_a_reply_that_had_played_out_before_the_cut_counts_as_heard_and_on
     await vcall.cut_her_off()
     assert vcall.vplayed_replies == {1} and vcall.vcut_replies == {2}
     assert vcall.vheard_by_reply == {2: "А вот и факт: шахматных"}, "half of the second reply's audio, not the first's"
+
+
+@pytest.mark.asyncio
+async def test_a_value_the_same_person_looked_up_again_is_dropped_as_stale():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Tokyo"}, "a"))
+    vtokyo = vcall.vturn_results[0]
+    vcall.vturn_results.clear()
+    vfact = PendingResult("Kirill", "science fact", "Octopuses have three hearts.")
+    vanna = PendingResult("Anna", "get_current_weather(city='Rome')", "Rome: 25", vtool="get_current_weather", vcall=0)
+    vcall.vpending.extend([vtokyo, vfact, vanna])
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Paris"}, "b"))
+    vcall.drop_stale()
+    assert list(vcall.vpending) == [vfact, vanna], "only Kirill's older weather goes; a fact and Anna's lookup stay"
+
+
+@pytest.mark.asyncio
+async def test_a_result_cut_off_twice_is_offered_once_then_let_go():
+    vcall = bare_call()
+    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23", vattempts=DELIVERY_ATTEMPTS - 1)
+    vcall.vcut_replies = {1}
+    await vcall.requeue_if_talked_over([vweather], 1)
+    assert list(vcall.vpending) == [vweather] and vweather.voffered
+    assert "offer to finish" in delivery_line([vweather], vgoing_on=False) and "[background results ready]" not in delivery_line([vweather], vgoing_on=False)
+    vcall.vpending.clear()
+    vcall.vcut_replies = {1, 2}
+    await vcall.requeue_if_talked_over([vweather], 2)
+    assert not vcall.vpending, "the offer itself talked over: let it go"

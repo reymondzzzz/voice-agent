@@ -42,6 +42,7 @@ def bare_call() -> MeetCall:
     vcall.remember = lambda _vturn: None
     vcall.vturn_results, vcall.requester = [], lambda: "Kirill"
     vcall.spawn = lambda vcoro: vcoro.close()
+    vcall.vtool_calls, vcall.vlatest_call = 0, {}
     vcall.vstarted = []
     vcall.start_background = lambda vtool, varguments: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
     return vcall

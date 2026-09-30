@@ -423,7 +423,7 @@ A review of the turn handling (GPT, offline reproductions) found four real fault
   takes the speaker recorded when that utterance's speech stopped.
 Not changed: the browser's playback queue in the bridge has no clear command, but it is fed one 20ms
 frame at a time as LiveKit plays it out, so what remains there after a clear is the transport buffer,
-not the answer. Relevance-aware batching of results (P2) is left for later.
+not the answer.
 A second review pass found four lifecycle gaps, each fixed with a test: a quick-tool answer counted as
 told once generated rather than once played, so talking over its playout lost it (now tool results
 share the delivery watcher and go back unless the reply played out); a routing step that timed out set
@@ -455,6 +455,14 @@ answer that had just played, because a fact was queued behind it when someone st
 words heard are kept per reply, so each result is retold from its own reply's cut. A retelling that
 queues right behind her answer is told to go on as part of it: "Так вот, про погоду в Токио: …" in 4
 of 4 replays, where it opened afresh with "Кирилл, насчёт погоды…" live.
+
+Results that are no longer wanted are not told. A time or weather value goes stale once the same
+person looks that tool up again, whatever the arguments: Tokyo's weather still waiting after "а в
+Париже?" is dropped, as is an older copy of the same lookup. Background work is exempt ("давай новый
+факт" asks for another fact, it does not replace the first), and so is anyone else's lookup. A result
+talked over `DELIVERY_ATTEMPTS` times is no longer dropped in silence: it is offered once instead of
+told ("Кирилл, я там про погоду не договорила — рассказать?", 4 of 4 replays, none retold it), and let
+go only if the offer is talked over too.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
