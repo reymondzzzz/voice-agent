@@ -29,7 +29,7 @@ from voice_agent.realtime.qwen.session import QwenOmniSession
 
 logger = logging.getLogger("meet-agent")
 
-MEET_VOICE_MODEL = "qwen3.8-omni-flash-realtime"
+MEET_VOICE_MODEL = "qwen3.5-omni-plus-realtime"
 MEET_DELEGATE_MODEL = "z-ai/glm-5.3"
 MEET_LANGUAGE = "ru"
 MEET_LANGUAGE_NAME = "Russian"
@@ -431,10 +431,10 @@ class MeetCall:
         if vrunning:
             vlines = "\n".join(f"- {vrecord.vgoal} (asked by {vrecord.vspec.vcontext['requester']})" for vrecord in vrunning)
             vparts.append(f"Background work still running, result not known yet:\n{vlines}")
-        vparts.append(
-            f"Who said what in the last {int(MEET_CONTEXT_WINDOW_S // 60)} minutes (you heard the audio; this "
-            f"names the speakers, and [tool] lines are the tools you called):\n{self.vmemory.transcript()}"
-        )
+        # People's lines only: Karen's replies and tools are already conversation items, and listing her own
+        # "сейчас найду" as text made her repeat the promise instead of calling the tool.
+        vpeople = "\n".join(vturn.line() for vturn in self.vmemory.vturns if vturn.vrole is MeetRole.PARTICIPANT)
+        vparts.append(f"Who said what in the last {int(MEET_CONTEXT_WINDOW_S // 60)} minutes (you heard the audio; this names the speakers):\n{vpeople}")
         return "\n\n".join(vparts)
 
     async def on_tool_call(self, vcall: events.RealtimeToolCallRequested) -> None:

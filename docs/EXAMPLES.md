@@ -295,7 +295,7 @@ asked twice, "Почему?" once for Karen and once for Sasha):
 | A separate text-only Qwen judge session | 29/30 on 15 labelled lines, ~0.6s, but a second context |
 | GLM 5.2 classifier | 11/11, ~0.7s, but a second model |
 
-Karen runs the second row on `MEET_VOICE_MODEL` (`qwen3.8-omni-flash-realtime`): the routing step hears
+Karen runs the second row on `MEET_VOICE_MODEL` (`qwen3.5-omni-plus-realtime`): the routing step hears
 exactly what she heard and knows what she last said, with no second session to keep in sync. Asked
 to quote its own messages afterwards, the model listed only its spoken answers, not the verdicts.
 Qwen 3.8 ignores the text-only request and speaks the verdict as well, about 1.1s of "IGNORE" per line
@@ -382,6 +382,13 @@ and removed: on a real call they sounded strange rather than responsive.
 call Karen. Buried deeper, she answered "Карен, как дела?" with "Привет, Карен!" and spoke of herself in the
 masculine. Two tiles carrying one name (the bot signed in as a participant's own account) no longer
 produce "Kirill Starkov, Kirill Starkov" as the speaker.
+
+**Why 3.5 Plus, not 3.8 Flash.** On a real call 3.8 Flash called a tool once and then only promised
+("сейчас подберу ещё один", "сейчас посмотрю погоду") without calling any. Replaying that call's exact
+sequence (fact, its delivery, "А ещё какой-нибудь факт?", "Какая погода в Лондоне?"), 3.8 Flash called
+the right tool in about half the cases whatever the prompt held, and once told a fact from memory; 3.5 Plus
+called it 20/20. The session prompt now lists only the people's lines: with Karen's own "сейчас найду"
+listed as text beside them, 3.8 Flash imitated the promise (1/3). Routing still gets the full labelled log.
 
 **One language.** `MEET_LANGUAGE` pins Qwen's transcription (`input_audio_transcription.language`, which
 DashScope accepts): unpinned it wrote Russian speech as Polish ("karol daj proszę…") and Chinese, and
