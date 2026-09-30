@@ -128,6 +128,10 @@ def meanwhile_line(vresults: list[PendingResult]) -> str:
 def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
     vresumed = any(vresult.vattempts for vresult in vresults)
     vitems = result_items(vresults)
+    vgo_on = (
+        "You are still talking: go straight on from your last sentence as part of the same answer, with no greeting, "
+        "no name and no fresh start. "
+    )
     if vgoing_on and not vresumed:
         # Her answer is still playing: this reply queues right behind it, so it has to sound like the same answer.
         vhow = (
@@ -138,7 +142,7 @@ def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
     elif vresumed:
         vheard = next((vresult.vheard for vresult in vresults if vresult.vheard), "")
         vwhere = f"after saying only «{vheard}…»" if vheard else "before they heard any of it"
-        vhow = (
+        vhow = (vgo_on if vgoing_on else "") + (
             f"You were cut off {vwhere}. It is quiet now, and anything you were asked in between is already answered: "
             f"pick the thread back up the way a person does ('so, about ...') and say what they have not heard yet. "
             f"Say only what these results hold: anything else you are working on has not come back, so do not mention "
@@ -201,8 +205,8 @@ class RoomAudioSink:
         self.vmuted = False
         self.vfirst_audio_at: float | None = None
         self.vqueued_at_first_audio = 0.0
-        # Seconds of the current reply handed to the room; what is still queued at a cut was never heard.
-        self.vreply_s = 0.0
+        # Seconds of her audio handed to the room so far; what is still queued at a cut was never heard.
+        self.vtimeline_s = 0.0
         self._vstray = b""
 
     async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
@@ -216,7 +220,7 @@ class RoomAudioSink:
         vwhole = len(vpcm) - len(vpcm) % 2
         self._vstray = vpcm[vwhole:]
         if vwhole:
-            self.vreply_s += vwhole / 2 / vsample_rate_hz
+            self.vtimeline_s += vwhole / 2 / vsample_rate_hz
             await self.vsource.capture_frame(rtc.AudioFrame(vpcm[:vwhole], vsample_rate_hz, 1, vwhole // 2))
 
     async def flush(self) -> None:
@@ -227,9 +231,10 @@ class RoomAudioSink:
         self.vsource.clear_queue()
 
     async def cut(self) -> float:
-        vheard_s = max(0.0, self.vreply_s - self.vsource.queued_duration)
+        # Where on her timeline the room stopped hearing her.
+        vplayed_to = max(0.0, self.vtimeline_s - self.vsource.queued_duration)
         await self.clear()
-        return vheard_s
+        return vplayed_to
 
 
 class MeetCall:
@@ -292,7 +297,9 @@ class MeetCall:
         self.vawaiting = False
         self.vresults_followup = False
         self.vheard_speakers: dict[str, str] = {}
-        self.vheard_before_cut = ""
+        # Per reply: where its audio starts and ends on the sink's timeline, what it said, and the words heard if cut.
+        self.vreply_audio: dict[int, tuple[float, float | None, str]] = {}
+        self.vheard_by_reply: dict[int, str] = {}
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -331,17 +338,26 @@ class MeetCall:
             await self.vfloor.acquire()
 
     async def cut_her_off(self) -> None:
-        # Whatever was still queued never reached the room; the words that did are what the retelling starts from.
-        vspoken_s = self.vsink.vreply_s
-        vheard_s = await self.vsink.cut()
-        vtext = "".join(self.vreply_parts).strip() or self.vturn_reply
-        self.vheard_before_cut = heard_part(vtext, vheard_s, vspoken_s)
-        # Every reply not yet played out was in the cleared queue, or still being made behind it.
-        self.vcut_replies |= self.vopen_replies
+        # Whatever was still queued never reached the room. A reply whose audio had all played before that point was
+        # heard in full even if the next one was queued behind it: counting it as cut repeated a weather answer
+        # that had just been said. The first unfinished reply is the one interrupted, cut at the words heard.
+        vplayed_to = await self.vsink.cut()
+        vinterrupted = None
+        for vreply in sorted(self.vopen_replies):
+            vstart, vend, vtext = self.vreply_audio.get(vreply, (vplayed_to, None, ""))
+            if vend is not None and vend <= vplayed_to:
+                self.vplayed_replies.add(vreply)
+                continue
+            self.vcut_replies.add(vreply)
+            if vinterrupted is None:
+                vinterrupted = vreply
+                vtext = vtext or "".join(self.vreply_parts).strip()
+                vspoken_s = (vend if vend is not None else self.vsink.vtimeline_s) - vstart
+                self.vheard_by_reply[vreply] = heard_part(vtext, vplayed_to - vstart, vspoken_s)
+                logger.info("cut off after %.1fs of %.1fs: «%s…»", max(0.0, vplayed_to - vstart), vspoken_s, self.vheard_by_reply[vreply])
+                self.publish(type="cut", heard=self.vheard_by_reply[vreply])
         self.vopen_replies.clear()
         await self.note_playout()
-        logger.info("cut off after %.1fs of %.1fs: «%s…»", vheard_s, vspoken_s, self.vheard_before_cut)
-        self.publish(type="cut", heard=self.vheard_before_cut)
 
     async def request(self, vrequest: events.ResponseRequest) -> None:
         assert self.vsession is not None
@@ -542,8 +558,8 @@ class MeetCall:
         elif isinstance(vevent, events.AssistantSpeechStarted):
             if self.vawaiting:
                 self.vowned, self.vawaiting = vevent.vresponse_id, False
-                self.vsink.vreply_s = 0.0
                 self.vreply_seq += 1
+                self.vreply_audio[self.vreply_seq] = (self.vsink.vtimeline_s, None, "")
                 if self.vreply_seq not in self.vcut_replies:
                     self.vopen_replies.add(self.vreply_seq)
         elif isinstance(vevent, events.AssistantTranscript):
@@ -582,6 +598,8 @@ class MeetCall:
                     logger.info("routing verdict leaked into speech; asking for the answer again")
                     await self.request_followup()
                     return
+            if self.vreply_seq in self.vreply_audio:
+                self.vreply_audio[self.vreply_seq] = (self.vreply_audio[self.vreply_seq][0], self.vsink.vtimeline_s, vreply)
             if self.vresults_followup:
                 # The follow-up that speaks tool results ended without a word: hand them back now rather than
                 # after the playout timeout.
@@ -920,7 +938,7 @@ class MeetCall:
         vheard = vcarrier in self.vplayed_replies and not vcut
         vretry = [] if vheard else [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS]
         for vresult in vretry:
-            vresult.vheard = self.vheard_before_cut if vcut else ""
+            vresult.vheard = self.vheard_by_reply.get(vcarrier, "")
         if vretry:
             logger.info("%d background result(s) not heard; will come back to them", len(vretry))
             self.vpending.extendleft(reversed(vretry))

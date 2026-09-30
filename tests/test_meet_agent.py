@@ -52,7 +52,7 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     vcall.vawaiting = False
     vcall.spawn = asyncio.ensure_future
     vcall.vsource = type("Source", (), {"queued_duration": 0})()
-    vcall.vheard_before_cut = ""
+    vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
     vcall.vlast_bot_played = 0.0
     vspoken: list[str] = []
 
@@ -177,7 +177,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     class Sink:
         vmuted = False
         vcleared = 0
-        vreply_s = 0.0
+        vtimeline_s = 0.0
 
         async def clear(self) -> None:
             self.vcleared += 1
@@ -201,7 +201,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
     vcall.vopen_replies.add(1)
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
-    vcall.vreply_parts, vcall.vturn_reply, vcall.vheard_before_cut = [], "", ""
+    vcall.vreply_parts, vcall.vturn_reply, vcall.vreply_audio, vcall.vheard_by_reply = [], "", {}, {}
     vcall.publish = lambda **_vevent: None
     await vcall.vfloor.acquire()
     vspeech = (numpy.sin(numpy.arange(160) / 3) * 8000).astype(numpy.int16).tobytes()  # 10ms at 16kHz

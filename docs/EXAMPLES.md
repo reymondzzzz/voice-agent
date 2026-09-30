@@ -448,6 +448,13 @@ Playout is tracked per reply. Each response she owns gets a number and ends up p
 watcher waits for the reply numbered right after its request, and only that one. With one shared
 "played" flag, "сейчас гляну" playing out before the tool answer marked the answer as heard, and talking
 over the answer then lost the result.
+A cut is placed on her audio timeline, not on the queue as a whole: each reply records where its audio
+starts and ends in the seconds handed to the room, and at a cut a reply that ended before the point
+the room had heard up to counts as heard. Marking every reply not yet drained as cut retold a weather
+answer that had just played, because a fact was queued behind it when someone started talking. The
+words heard are kept per reply, so each result is retold from its own reply's cut. A retelling that
+queues right behind her answer is told to go on as part of it: "Так вот, про погоду в Токио: …" in 4
+of 4 replays, where it opened afresh with "Кирилл, насчёт погоды…" live.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.

@@ -50,7 +50,7 @@ class Sink:
     vmuted = False
     vfirst_audio_at = None
     vqueued_at_first_audio = 0.0
-    vreply_s = 0.0
+    vtimeline_s = 0.0
 
     async def clear(self) -> None:
         pass
@@ -77,7 +77,7 @@ def bare_call() -> MeetCall:
     vcall.vturn_reply = ""
     vcall.vowned, vcall.vawaiting, vcall.vresults_followup, vcall.vheard_speakers = "", False, False, {}
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
-    vcall.vheard_before_cut = ""
+    vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -333,7 +333,8 @@ def test_a_result_told_while_her_answer_plays_goes_on_as_the_same_answer():
     assert "same answer" in delivery_line([vfact], vgoing_on=True)
     assert "same answer" not in delivery_line([vfact], vgoing_on=False)
     vfact.vattempts = 1
-    assert "cut off" in delivery_line([vfact], vgoing_on=True), "a talked-over result picks the thread back up instead"
+    assert "cut off" in delivery_line([vfact], vgoing_on=True), "a talked-over result picks the thread back up"
+    assert "same answer" in delivery_line([vfact], vgoing_on=True), "and, right behind her answer, as part of it"
 
 
 def running_call() -> tuple[MeetCall, list[asyncio.Future]]:
@@ -499,3 +500,18 @@ async def test_a_lead_in_that_plays_out_does_not_count_as_the_answer_after_it_be
     assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='Tokyo')"]
     for vtask in vtasks:
         vtask.cancel()
+
+
+@pytest.mark.asyncio
+async def test_a_reply_that_had_played_out_before_the_cut_counts_as_heard_and_only_the_next_is_cut():
+    vcall = bare_call()
+    vcall.vopen_replies = {1, 2}
+    vcall.vreply_audio = {1: (0.0, 2.5, "В Токио сейчас 23 градуса и ясное небо."), 2: (2.5, 6.5, "А вот и факт: шахматных партий больше, чем атомов.")}
+
+    async def cut() -> float:
+        return 4.5
+
+    vcall.vsink.cut = cut
+    await vcall.cut_her_off()
+    assert vcall.vplayed_replies == {1} and vcall.vcut_replies == {2}
+    assert vcall.vheard_by_reply == {2: "А вот и факт: шахматных"}, "half of the second reply's audio, not the first's"
