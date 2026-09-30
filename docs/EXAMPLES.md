@@ -450,8 +450,14 @@ that science fact, octopuses have three hearts…". If Karen answered last she s
 starts the next reply as soon as her answer has finished generating, so its audio queues right behind
 the answer. Measured on the fixture page with a fact landing during a weather question: 11s of
 silence before this change, 1.8s after dropping a redundant sustained-quiet window, 0.8-0.9s now.
-Waiting results are not folded into the answer itself: asked to do both in one response, Qwen told
-the fact and skipped the weather tool ("I need to check that for you right now").
+Results already waiting when someone asks her something are folded into that answer. Told separately,
+she first said "I have not got the fact yet" with the fact waiting, then told it in a second reply. An
+early 3.8 Flash test skipped the weather tool when asked to do both; on 3.5 Plus, with the line saying
+to deal with the question first, calling its tool if it needs one, 10 of 10 answers (weather, time,
+arithmetic, small talk, "what about the fact?") called their tool and ran on into the result in one
+breath ("…14 градусов и небольшой дождь. Кстати, насчёт того научного факта: …"). The promise check is
+skipped while work runs or a result waits: "I'll tell you when it's ready" was judged a broken promise
+and started a second fact search.
 
 **Tools carry their own weight** (`examples/meet_tools.py`). Each `MeetTool` is LIGHT or HEAVY, and the
 agent dispatches on that alone: `get_current_time` and `get_current_weather` are light and answered inside

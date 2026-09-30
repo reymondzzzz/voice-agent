@@ -9,6 +9,7 @@ from examples import meet_agent
 from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
 from examples.meet_fillers import FillerDeck, FillerKind
 from examples.meet_memory import MeetMemory, MeetTurn
+from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
 
@@ -36,6 +37,14 @@ class Session:
 
     async def add_context(self, vupdate) -> None:
         self.vcontext.append(vupdate.vtext)
+
+
+class Registry:
+    def __init__(self, vrecords: list) -> None:
+        self.vrecords = vrecords
+
+    def all(self) -> list:
+        return self.vrecords
 
 
 class Sink:
@@ -69,6 +78,7 @@ def bare_call() -> MeetCall:
     vcall.vturn_fillers, vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = set(), None, 0.0, None, False
     vcall.current_speaker = lambda: "Kirill"
     vcall.vturn_reply = ""
+    vcall.vregistry = Registry([])
     vcall.remember = lambda *_vargs, **_vkwargs: None
     vcall.vstarted = []
     vcall.start_background = lambda vtool, _vargs: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
@@ -281,3 +291,39 @@ async def test_the_rest_is_answered_together_with_the_first_half():
     await vcall.on_heard("и покажи какая погода")
     await asyncio.sleep(0)
     assert vasked == [("Мэгги, найди новый факт и покажи какая погода", True)] and vcall.vcontinued is None
+
+
+def answering_once(vcall: MeetCall, vspoken: list[str], vpromises: list[str]) -> None:
+    vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
+    vcall.publish = lambda **_vevent: None
+
+    async def speak(vline: str) -> None:
+        vspoken.append(vline)
+        vcall.vturn_done.clear()
+        vcall.vturn_spoke, vcall.vturn_tools, vcall.vturn_reply = True, 0, "Как только появится, скажу."
+        vcall.end_turn()
+
+    async def check_promise(vreply: str) -> None:
+        vpromises.append(vreply)
+
+    vcall.speak, vcall.check_promise = speak, check_promise
+
+
+@pytest.mark.asyncio
+async def test_a_result_waiting_when_someone_asks_is_told_in_the_same_answer():
+    vcall = bare_call()
+    vspoken: list[str] = []
+    answering_once(vcall, vspoken, [])
+    vcall.vpending.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
+    await vcall.consider(MeetTurn(0.0, "Kirill", "Ну что там с фактом?"), "", {}, vfollow_up=True)
+    assert len(vspoken) == 1 and "Octopuses have three hearts." in vspoken[0] and not vcall.vpending
+
+
+@pytest.mark.asyncio
+async def test_saying_it_will_come_back_while_work_runs_is_not_a_broken_promise():
+    vcall = bare_call()
+    vpromises: list[str] = []
+    answering_once(vcall, [], vpromises)
+    vcall.vregistry = Registry([type("Record", (), {"vstatus": TaskStatus.RUNNING})()])
+    await vcall.consider(MeetTurn(0.0, "Kirill", "Ну что там с фактом?"), "", {}, vfollow_up=True)
+    assert vpromises == []

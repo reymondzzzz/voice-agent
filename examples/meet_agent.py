@@ -115,9 +115,21 @@ class PendingResult:
     vattempts: int = 0
 
 
+def result_items(vresults: list[PendingResult]) -> str:
+    return "\n".join(f"- for {vresult.vrequester}, who asked: {vresult.vgoal}: {vresult.vanswer}" for vresult in vresults)
+
+
+def meanwhile_line(vresults: list[PendingResult]) -> str:
+    # Asked this way, 10 of 10 answers still called their tool first and ran on into the result in one breath.
+    return (
+        f"[meanwhile, background results came in]\n{result_items(vresults)}\nDeal with the line above first, calling "
+        f"its tool if it needs one, then retell these results in your own words in the same reply, as one flowing answer."
+    )
+
+
 def delivery_line(vresults: list[PendingResult]) -> str:
     vresumed = any(vresult.vattempts for vresult in vresults)
-    vitems = "\n".join(f"- for {vresult.vrequester}, who asked: {vresult.vgoal}: {vresult.vanswer}" for vresult in vresults)
+    vitems = result_items(vresults)
     if vresumed:
         vhow = (
             "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
@@ -127,7 +139,8 @@ def delivery_line(vresults: list[PendingResult]) -> str:
         vhow = "Tell all of it now, in one go."
     return (
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
-        f"asking whether to go on, a sentence or two for each, addressing each person by name."
+        f"asking whether to go on, a sentence or two for each, addressing each person by name, retold in your own words "
+        f"and never opened with a stock phrase like 'вот научный факт'."
     )
 
 
@@ -290,20 +303,29 @@ class MeetCall:
         await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
 
     async def answer_tool_results(self) -> None:
-        # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a
-        # row. Only here, after the tools ran: folded into the question itself, Qwen told the fact and skipped the
-        # weather tool.
+        # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a row.
         assert self.vsession is not None
         self.vturn_results = []
-        vresults = list(self.vpending)
-        self.vpending.clear()
+        vresults = self.take_waiting_results()
         if vresults:
             vline = f"{delivery_line(vresults)} Answer the question you just looked up first, then go straight on to this."
             await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=self.vsession.correlation(), vrole=events.RealtimeRole.USER))
+        await self.request_followup()
+
+    def hand_back_results(self) -> None:
+        # Results folded into an answer that was never heard go back to the queue.
+        self.vinterrupted = True
+        self.vplayed.set()
+
+    def take_waiting_results(self) -> list[PendingResult]:
+        # Whoever takes the waiting results says them; talked over, they go back to the front of the queue.
+        vresults = list(self.vpending)
+        self.vpending.clear()
+        if vresults:
             self.vinterrupted = False
             self.vplayed.clear()
             self.spawn(self.requeue_if_talked_over(vresults))
-        await self.request_followup()
+        return vresults
 
     async def silence_leaked_verdict(self) -> None:
         # The routing steps share this session, so a reply can open with a spoken "RESPOND". Only its audio is
@@ -540,6 +562,7 @@ class MeetCall:
         logger.info("%s kept talking; the answer waits for the rest", self.vanswering.vspeaker)
         self.vcontinued, self.vanswering = self.vanswering, None
         await self.vsink.clear()
+        self.hand_back_results()
         if not self.vturn_done.is_set():
             self.vdropping = True
             self.vsink.vmuted = True
@@ -563,15 +586,16 @@ class MeetCall:
         vtrace["decided"] = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         self.publish(type="addressed", ts=vturn.vat)
-        # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
-        # weather tool. They follow the moment the answer has played, since Karen then still holds the floor.
+        # Results that came in while she was busy go into this answer: told in a separate reply, she first said
+        # "I have not got the fact yet" with the fact already waiting, then told it.
         vline = f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}"
         try:
             for vattempt in range(2):
                 await self.take_floor()
                 self.vtrace = vtrace
                 self.vanswering, self.vanswering_heard_at = vturn, vtrace.get("heard", time.monotonic())
-                await self.speak(vline)
+                vresults = [] if vattempt else self.take_waiting_results()
+                await self.speak(f"{vline}\n{meanwhile_line(vresults)}" if vresults else vline)
                 if not vattempt:
                     self.spawn(self.fill_silence(FillerKind.THINKING, FILLER_AFTER_S, FILLER_CHANCE))
                 with contextlib.suppress(TimeoutError):
@@ -583,6 +607,7 @@ class MeetCall:
                 if vattempt:
                     return
                 # Talked over before a word was said: the request is not forgotten, it is answered at the next pause.
+                self.hand_back_results()
                 logger.info("request from %s was cut off before an answer; will answer it at the next pause", vturn.vspeaker)
                 await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
                 vline = f"[{vturn.vspeaker} asked you this a moment ago and you have not answered yet] {vturn.vtext}"
@@ -590,7 +615,10 @@ class MeetCall:
         finally:
             if self.vanswering is vturn:
                 self.vanswering = None
-        if self.vturn_spoke and not self.vturn_tools:
+        # With work running or a result waiting, "I'll tell you when it's ready" is true; checked anyway, it started a
+        # second fact search.
+        vbusy = self.vpending or any(vrecord.vstatus in (TaskStatus.PENDING, TaskStatus.RUNNING) for vrecord in self.vregistry.all())
+        if self.vturn_spoke and not self.vturn_tools and not vbusy:
             await self.check_promise(self.vturn_reply)
 
     async def fill_silence(self, vkind: FillerKind, vafter_s: float, vchance: float) -> None:
