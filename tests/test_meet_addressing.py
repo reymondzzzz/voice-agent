@@ -75,7 +75,7 @@ def test_prompt_names_the_bot_and_marks_an_empty_meeting():
 
 
 def test_the_meet_name_survives_a_clipped_start_and_no_colleague_answers_to_it():
-    for vheard in ("Аврора, какая погода?", "Аурора, который час?", "Врора, как дела?", "Aurora, hi"):
+    for vheard in ("Юки, какая погода?", "юки.", "Yuki, hi"):
         assert mentions_name(vheard, MEET_DEFAULT_BOT_NAME), vheard
-    for vcolleague in ("Артем", "Лора", "Флора", "Аркадий", "Вера", "Рома", "аврал", "ворота"):
+    for vcolleague in ("Юля", "Юра", "Юкка", "Кики", "Артем", "руки", "брюки", "юбки", "штуки", "звуки"):
         assert not mentions_name(f"{vcolleague}, привет", MEET_DEFAULT_BOT_NAME), vcolleague

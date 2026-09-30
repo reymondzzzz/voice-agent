@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Аврора</title>
+<title>Юки</title>
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -68,7 +68,7 @@
     color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   }
   .tasks { list-style: none; margin: 0; padding: 0 12px 12px; display: grid; gap: 6px; border-bottom: 1px solid var(--line); }
-  .tasks:empty::before { content: "Nothing running. Ask Аврора to check something in the background."; color: var(--muted); font-size: 13px; }
+  .tasks:empty::before { content: "Nothing running. Ask Юки to check something in the background."; color: var(--muted); font-size: 13px; }
   .task {
     display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline;
     padding: 8px 10px; border-radius: 8px; background: var(--surface); font-size: 13px;
@@ -130,7 +130,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">Аврора <span id="brandNote">&mdash; meeting assistant, local test</span></div>
+  <div class="brand">Юки <span id="brandNote">&mdash; meeting assistant, local test</span></div>
   <div id="status" class="pill" role="status" aria-live="polite" data-state="idle">idle</div>
 </header>
 
@@ -140,10 +140,10 @@
   <section class="stage">
     <canvas id="orb" width="520" height="520" aria-hidden="true"></canvas>
     <div>
-      <div class="name">Аврора</div>
+      <div class="name">Юки</div>
       <div class="state" id="state" aria-live="polite">Not connected</div>
     </div>
-    <p class="hint" id="hint">She listens to everything and answers only when addressed. Start with <kbd>Аврора, …</kbd></p>
+    <p class="hint" id="hint">She listens to everything and answers only when addressed. Start with <kbd>Юки, …</kbd></p>
   </section>
 
   <aside class="panel">

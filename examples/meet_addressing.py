@@ -43,11 +43,9 @@ def mentions_name(vtext: str, vname: str) -> bool:
     vname_words = _words(vname)
     vtext_words = _words(vtext)
     vtarget = "".join(vname_words)
-    return any(
-        difflib.SequenceMatcher(None, "".join(vtext_words[vstart : vstart + vspan]), vtarget).ratio() >= NAME_MATCH_RATIO
-        for vspan in range(1, len(vname_words) + 1)
-        for vstart in range(len(vtext_words) - vspan + 1)
-    )
+    vcandidates = ("".join(vtext_words[vstart : vstart + vspan]) for vspan in range(1, len(vname_words) + 1) for vstart in range(len(vtext_words) - vspan + 1))
+    # Meet's noise gate clips sounds off a name, it never adds any: a longer word is a different word ("брюки" is not "Юки").
+    return any(len(vcandidate) <= len(vtarget) and difflib.SequenceMatcher(None, vcandidate, vtarget).ratio() >= NAME_MATCH_RATIO for vcandidate in vcandidates)
 
 
 def addressee_prompt(vbot_name: str, vtranscript: str, vspeaker: str, vtext: str) -> str:
