@@ -143,6 +143,18 @@ function markAddressed(vts) {
   }
 }
 
+// A pause mid-sentence splits a request into lines; the agent answers them as one, and so does the page.
+function mergeTurn(vevent) {
+  const vkept = vlinesByTs.get(vevent.into)
+  const vpart = vlinesByTs.get(vevent.ts)
+  if (!vkept || !vpart) {
+    return
+  }
+  vkept.lastElementChild.textContent = vevent.text
+  vpart.remove()
+  vlinesByTs.set(vevent.ts, vkept)
+}
+
 function upsertTask(vtask) {
   let vitem = vtaskItems.get(vtask.id)
   if (!vitem) {
@@ -173,6 +185,8 @@ function onData(vpayload, _vparticipant, _vkind, vtopic) {
   const vevent = JSON.parse(vdecoder.decode(vpayload))
   if (vevent.type === "turn") {
     addTurn(vevent)
+  } else if (vevent.type === "merged") {
+    mergeTurn(vevent)
   } else if (vevent.type === "addressed") {
     markAddressed(vevent.ts)
   } else if (vevent.type === "task") {

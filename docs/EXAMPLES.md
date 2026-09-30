@@ -388,6 +388,13 @@ answer is cancelled and muted (or its audio dropped if it already finished), and
 them is answered together with the first half, with no routing step. A line whose speaker is already
 talking again by the time it is judged waits for the rest the same way; if no more comes within
 `CONTINUATION_HOLD_S` (it was noise), the first half is answered alone.
+The page shows such a request as one line too: the agent publishes a `merged` event and the page folds
+the later fragments into the first ("а если например. Какая погода на в Лондоне." instead of three lines).
+
+She calls people by their first name as the transcript writes it: live she chose "Кирюш" on her own,
+and when "Мэгги" was heard as "Ангел" she told Kirill he was mixing her up with someone. The persona
+now rules out diminutives and says a misspelt name is speech recognition, never to be remarked on;
+6 of 6 replies to "Ангел, …", "Магер, …" and "Мэгги, …" then said "Кирилл" and answered the question.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.

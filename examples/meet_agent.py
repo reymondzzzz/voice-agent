@@ -81,7 +81,7 @@ KAREN_EVENTS_TOPIC = "karen"
 KAREN_RULES = (
     "You are Мэгги (Maggie), a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
     "(я рада, я нашла). People address you as Мэгги; the name in a line like 'Мэгги, ...' is you, never call "
-    "anyone else Мэгги, and call people by the names in the transcript. You hear everyone, but almost everything is said "
+    "anyone else Мэгги, and call people by their first name as the transcript writes it, never a diminutive or nickname (Кирилл, not Кирюш). If a line misspells your own name, that is speech recognition, not the person: never mention it. You hear everyone, but almost everything is said "
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "
@@ -530,6 +530,7 @@ class MeetCall:
         if vcontinued is not None and vcontinued.vspeaker == vspeaker:
             vasked = MeetTurn(vturn.vat, vspeaker, f"{vcontinued.vtext} {vtext}")
             logger.info("rest of the request from %s: %s", vspeaker, vasked.vtext)
+            self.publish(type="merged", into=vcontinued.vat, ts=vturn.vat, text=vasked.vtext)
             self.spawn(self.consider(vasked, vcontext, vtrace, vfollow_up=True))
             return
         if vcontinued is not None:

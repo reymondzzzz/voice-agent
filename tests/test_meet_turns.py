@@ -70,6 +70,8 @@ def bare_call() -> MeetCall:
     vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = None, 0.0, None, False
     vcall.current_speaker = lambda: "Kirill"
     vcall.vturn_reply = ""
+    vcall.vpublished = []
+    vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
     vcall.vregistry = Registry([])
     vcall.remember = lambda *_vargs, **_vkwargs: None
     vcall.vstarted = []
@@ -257,6 +259,8 @@ async def test_the_rest_is_answered_together_with_the_first_half():
     await vcall.on_heard("и покажи какая погода")
     await asyncio.sleep(0)
     assert vasked == [("Мэгги, найди новый факт и покажи какая погода", True)] and vcall.vcontinued is None
+    vmerged = vcall.vpublished[-1]
+    assert (vmerged["type"], vmerged["into"], vmerged["text"]) == ("merged", 0.0, "Мэгги, найди новый факт и покажи какая погода")
 
 
 def answering_once(vcall: MeetCall, vspoken: list[str], vpromises: list[str]) -> None:
