@@ -195,6 +195,7 @@ class MeetCall:
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
+        self.vpump: asyncio.Task | None = None
         self.vinterrupted = False
         self.vplayed = asyncio.Event()
         self.vpending: collections.deque[PendingResult] = collections.deque()
@@ -219,10 +220,11 @@ class MeetCall:
         if self.vroom.isconnected():
             self.spawn(self.vroom.local_participant.publish_data(json.dumps(vevent, ensure_ascii=False), reliable=True, topic=KAREN_EVENTS_TOPIC))
 
-    def spawn(self, vcoro) -> None:
+    def spawn(self, vcoro) -> asyncio.Task:
         vtask = asyncio.create_task(vcoro)
         self._vtasks.add(vtask)
         vtask.add_done_callback(self._vtasks.discard)
+        return vtask
 
     def meet_attribute(self, vname: str) -> str:
         return next((vp.attributes[vname] for vp in self.vroom.remote_participants.values() if vname in vp.attributes), "")
@@ -340,7 +342,11 @@ class MeetCall:
         if vtrack.kind == rtc.TrackKind.KIND_AUDIO:
             logger.info("listening to %s", vparticipant.identity)
             self.vcaller_name = vparticipant.name or vparticipant.identity
-            self.spawn(self.pump_audio(vtrack))
+            # A restarted bridge leaves its old track behind for a while, and two pumps interleaved into one
+            # session turned every line into noise ("Карен, как дела?" heard as "Армстронг"). Only the newest one.
+            if self.vpump is not None:
+                self.vpump.cancel()
+            self.vpump = self.spawn(self.pump_audio(vtrack))
 
     async def pump_audio(self, vtrack: rtc.Track) -> None:
         async for vevent in rtc.AudioStream.from_track(track=vtrack, sample_rate=HEARING_SAMPLE_RATE_HZ, num_channels=1):

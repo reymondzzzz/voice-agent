@@ -5,6 +5,7 @@ import time
 import aiohttp
 import numpy
 import pytest
+from livekit import rtc
 
 from examples.meet_addressing import MeetAddressing
 from examples.meet_agent import MeetCall, PendingResult, RoomAudioSink
@@ -202,3 +203,24 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     for _ in range(30):
         await vcall.watch_for_barge_in(vspeech)
     assert vcall.vsink.vcleared == 1, "nothing of Karen's is playing"
+
+
+@pytest.mark.asyncio
+async def test_a_second_bridge_track_replaces_the_first_pump():
+    vcall = MeetCall.__new__(MeetCall)
+    vcall._vtasks, vcall.vpump, vcall.vcaller_name = set(), None, ""
+    vpumped: list[str] = []
+
+    async def pump_audio(vtrack) -> None:
+        vpumped.append(vtrack)
+        await asyncio.sleep(3600)
+
+    vcall.pump_audio = pump_audio
+    vtrack = type("Track", (), {"kind": rtc.TrackKind.KIND_AUDIO})
+    vbridge = type("Participant", (), {"name": "", "identity": "meet-bridge"})
+    vcall.on_track_subscribed(vtrack(), None, vbridge())
+    vfirst = vcall.vpump
+    vcall.on_track_subscribed(vtrack(), None, vbridge())
+    await asyncio.sleep(0)
+    assert vfirst.cancelled() and not vcall.vpump.done() and len(vpumped) == 1
+    vcall.vpump.cancel()
