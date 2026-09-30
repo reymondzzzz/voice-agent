@@ -1,10 +1,12 @@
 import asyncio
 import collections
+import time
 
 import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
+from examples.meet_fillers import FillerDeck, FillerKind
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
@@ -39,8 +41,14 @@ class Sink:
     vmuted = False
     vfirst_audio_at = None
 
+    def __init__(self) -> None:
+        self.vfillers: list[bytes] = []
+
     async def clear(self) -> None:
         pass
+
+    async def play_filler(self, vpcm: bytes) -> None:
+        self.vfillers.append(vpcm)
 
 
 def bare_call() -> MeetCall:
@@ -56,6 +64,9 @@ def bare_call() -> MeetCall:
     vcall.vspawned = []
     vcall.spawn = lambda vcoro: vcall.vspawned.append(vcoro) or vcoro.close()
     vcall.requester = lambda: "Kirill"
+    vcall.vfillers = FillerDeck({FillerKind.THINKING: [b"hmm"], FillerKind.CHECKING: [b"sekundu"]})
+    vcall.vturn_fillers, vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = set(), None, 0.0, None, False
+    vcall.current_speaker = lambda: "Kirill"
     vcall.remember = lambda *_vargs, **_vkwargs: None
     vcall.vstarted = []
     vcall.start_background = lambda vtool, _vargs: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
@@ -192,3 +203,63 @@ def test_turning_to_a_colleague_or_waiting_long_goes_through_routing():
     assert not follow_up_call(2.0).is_follow_up("Kirill Starkov", "Анна, а ты что думаешь?")
     assert not follow_up_call(2.0).is_follow_up("Anna Petrova", "А в Париже?")
     assert not follow_up_call(20.0).is_follow_up("Kirill Starkov", "А в Париже?")
+
+
+@pytest.mark.asyncio
+async def test_a_tool_call_in_silence_says_it_is_checking_once():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_tool_call(tool_call("get_current_time", {}, "b"))
+    assert vcall.vsink.vfillers == [b"sekundu"]
+
+
+@pytest.mark.asyncio
+async def test_no_filler_once_her_answer_has_started():
+    vcall = bare_call()
+    vcall.vsink.vfirst_audio_at = 1.0
+    await vcall.play_filler(FillerKind.THINKING)
+    assert vcall.vsink.vfillers == []
+
+
+def answering_call(vheard_ago_s: float) -> MeetCall:
+    vcall = bare_call()
+    vcall.vanswering = MeetTurn(0.0, "Kirill", "Мэгги, найди новый факт")
+    vcall.vanswering_heard_at = time.monotonic() - vheard_ago_s
+    return vcall
+
+
+@pytest.mark.asyncio
+async def test_the_same_person_going_on_drops_the_answer_to_the_first_half():
+    vcall = answering_call(1.0)
+    await vcall.vfloor.acquire()
+    assert vcall.is_continuation()
+    await vcall.drop_answer_for_continuation()
+    assert vcall.vsession.vinterrupts == 1 and vcall.vsink.vmuted and vcall.vcontinued.vtext == "Мэгги, найди новый факт"
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert not vcall.vsink.vmuted and vcall.vturn_done.is_set() and not vcall.vfloor.locked()
+
+
+def test_a_tool_already_running_another_speaker_or_a_late_start_is_not_a_continuation():
+    vtool_ran = answering_call(1.0)
+    vtool_ran.vturn_tools = 1
+    vsomeone_else = answering_call(1.0)
+    vsomeone_else.current_speaker = lambda: "Anna"
+    assert not vtool_ran.is_continuation() and not vsomeone_else.is_continuation() and not answering_call(5.0).is_continuation()
+
+
+@pytest.mark.asyncio
+async def test_the_rest_is_answered_together_with_the_first_half():
+    vcall = bare_call()
+    vcall.vcontinued = MeetTurn(0.0, "Kirill", "Мэгги, найди новый факт")
+    vcall.vmemory, vcall.vlast_human_speech = MeetMemory(), 0.0
+    vasked = []
+
+    async def consider(vturn, _vcontext, _vtrace, *, vfollow_up):
+        vasked.append((vturn.vtext, vfollow_up))
+
+    vcall.consider = consider
+    vcall.spawn = asyncio.ensure_future
+    await vcall.on_heard("и покажи какая погода")
+    await asyncio.sleep(0)
+    assert vasked == [("Мэгги, найди новый факт и покажи какая погода", True)] and vcall.vcontinued is None

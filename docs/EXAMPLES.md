@@ -358,6 +358,26 @@ the meeting, and welcomes one before a tool call so the person hears her while i
 got parroted ("Секунду, гляну" twice in eight replies); framed as examples, eight test questions came
 back with "Ой, хороший вопрос", "Так-так", "Хм" and plain answers.
 
+Asked for, the model still answered straight away rather than making a sound first, which is what the
+platforms found too: ElevenLabs' soft timeout plays a fixed "Hhmmmm...yeah." when the LLM is slow,
+LiveKit plays thinking sounds, Pipecat speaks "Let me check on that." when a function call starts. So
+the silence is filled in `examples/meet_fillers.py`: ten short clips recorded once in her own Qwen voice
+(`python -m examples.meet_fillers` re-records them into `examples/meet/fillers/`, each checked back
+through the transcriber). "Хмм", "так", "ага", "ну", "о" play 0.5s after an answer was asked for if no
+audio has come yet, 60% of the time (Vapi withdrew always-on fillers as too much); "секунду", "сейчас
+гляну" play the moment she calls a tool. At most one of each per answer, never one of the last three,
+and never into her answer, someone's speech or a finished turn. The model does not see them, so the
+persona tells her not to open with a bare interjection.
+
+A mid-sentence pause still ends a turn: "найди новый факт… и покажи какая погода" became two turns and
+she answered the first half. Qwen's `semantic_vad` (supported on the 3.5 Omni realtime models) ended
+turns by meaning and read the clean recording perfectly, but on the Meet recording it still split
+"на четверг. | половине четвертого" at 800ms and five phrases at 500ms, for 0.1s saved. So server VAD
+stays, and a continuation is handled the way LiveKit handles a false end of turn: if the same person
+starts speaking within `CONTINUATION_WINDOW_S` of the turn being heard and no tool has run yet, the
+answer is cancelled and muted (or its audio dropped if it already finished), and the next line from
+them is answered together with the first half, with no routing step.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

@@ -18,6 +18,7 @@ from livekit.agents import AgentServer, JobContext
 from examples import voice_app
 from examples.meet_addressing import MeetAddressing, mentions_name
 from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
+from examples.meet_fillers import FillerKind, load_filler_deck
 from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn
 from examples.meet_tools import MEET_TOOLS, MEET_TOOLS_BY_NAME, SCIENCE_FACTS, MeetTool, ToolWeight
 from voice_agent.pipeline import voice_contracts
@@ -51,6 +52,12 @@ QUIET_POLL_S = 0.25
 # while 1200 cost 0.3s more on every answer and still glued neighbouring phrases into one line.
 TURN_SILENCE_MS = 900
 FOLLOW_UP_WINDOW_S = 8.0
+# LiveKit's false-interruption window is 2s; this one starts at the VAD event, itself TURN_SILENCE_MS after the words.
+CONTINUATION_WINDOW_S = 2.5
+# A clip fills the silence before her answer, ElevenLabs' soft timeout at its 0.5s minimum. Not every time: Vapi
+# withdrew always-on filler injection after users found it too much.
+FILLER_AFTER_S = 0.5
+FILLER_CHANCE = 0.6
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
@@ -82,11 +89,10 @@ KAREN_RULES = (
     "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
     "it in this reply or it is listed below as running; otherwise say you have not started anything. Never guess "
     "a result that has not arrived. Speak like a colleague in the room: brief, warm and "
-    "plain, no announcements about yourself or your tools. Sound like a person thinking aloud, not a script: "
-    "react in your own words the way people do, a short 'хм', 'ага', 'о', 'так-так', 'ну смотри', 'ой, хороший "
-    "вопрос', 'щас гляну', and these are only examples. Never reuse a reaction you already used in this meeting, "
-    "and many replies need none. Before a tool call a quick reaction is welcome, since the person hears you "
-    "while it runs. When you bring back a background result, open with a "
+    "plain, no announcements about yourself or your tools. Sound like a person, not a script: vary how you "
+    "open, with a reaction in words when it fits ('о, интересно', 'ну смотри', 'ой, хороший вопрос', only "
+    "examples), never an opener you already used in this meeting, and often none. A short 'хмм' or 'секунду' "
+    "in your voice may already have played before you speak, so never start with a bare interjection. When you bring back a background result, open with a "
     "few words that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you "
     "are asked an internal routing question about who a line was meant for: answer it with the single word asked "
     "for, and never say RESPOND or IGNORE aloud."
@@ -169,6 +175,10 @@ class RoomAudioSink:
         if vwhole:
             await self.vsource.capture_frame(rtc.AudioFrame(vpcm[:vwhole], vsample_rate_hz, 1, vwhole // 2))
 
+    async def play_filler(self, vpcm: bytes) -> None:
+        # Not her answer, so it does not count as its first audio: latency stays the model's.
+        await self.vsource.capture_frame(rtc.AudioFrame(vpcm, protocol.OUTPUT_SAMPLE_RATE_HZ, 1, len(vpcm) // 2))
+
     async def flush(self) -> None:
         pass
 
@@ -222,6 +232,12 @@ class MeetCall:
         self.vverdict_leaked = False
         self.vturn_done = asyncio.Event()
         self.vfacts: list[str] = []
+        self.vfillers = load_filler_deck()
+        self.vturn_fillers: set[FillerKind] = set()
+        self.vanswering: MeetTurn | None = None
+        self.vanswering_heard_at = 0.0
+        self.vcontinued: MeetTurn | None = None
+        self.vdropping = False
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -413,6 +429,8 @@ class MeetCall:
                 await self.vsink.clear()
                 self.vinterrupted = True
                 self.vplayed.set()
+            if self.is_continuation():
+                await self.drop_answer_for_continuation()
         elif isinstance(vevent, events.UserSpeechStopped):
             self.vuser_speaking = False
             self.vlast_human_speech = time.monotonic()
@@ -440,6 +458,12 @@ class MeetCall:
                 self.vsink.vmuted = False
                 return
             self.vlast_bot_activity = time.monotonic()
+            if self.vdropping:
+                self.vdropping = False
+                self.vsink.vmuted = False
+                self.vneeds_followup = False
+                self.end_turn()
+                return
             if self.vverdict_leaked:
                 self.vverdict_leaked = False
                 self.vsink.vmuted = False
@@ -472,15 +496,42 @@ class MeetCall:
         elif isinstance(vevent, events.RealtimeSessionError):
             logger.warning("qwen error: %s", vevent.vmessage)
 
+    def current_speaker(self) -> str:
+        return self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"
+
     async def on_heard(self, vtext: str) -> None:
-        vspeaker = self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"
+        vspeaker = self.current_speaker()
         vcontext = "\n".join(vturn.line() for vturn in self.vmemory.vturns[-GATE_CONTEXT_TURNS:])
         vturn = MeetTurn(time.time(), vspeaker, vtext)
         self.remember(vturn)
         vtrace = {"speech_end": self.vlast_human_speech, "heard": time.monotonic()}
+        vcontinued, self.vcontinued = self.vcontinued, None
+        if vcontinued is not None and vcontinued.vspeaker == vspeaker:
+            vasked = MeetTurn(vturn.vat, vspeaker, f"{vcontinued.vtext} {vtext}")
+            logger.info("rest of the request from %s: %s", vspeaker, vasked.vtext)
+            self.spawn(self.consider(vasked, vcontext, vtrace, vfollow_up=True))
+            return
+        if vcontinued is not None:
+            self.spawn(self.consider(vcontinued, vcontext, {}, vfollow_up=True))
         vfollow_up = self.is_follow_up(vspeaker, vtext)
         # Judged off the event pump: waiting on the gate model must not delay the next speech-started event.
         self.spawn(self.consider(vturn, vcontext, vtrace, vfollow_up=vfollow_up))
+
+    def is_continuation(self) -> bool:
+        vturn = self.vanswering
+        return vturn is not None and not self.vturn_tools and time.monotonic() - self.vanswering_heard_at <= CONTINUATION_WINDOW_S and self.current_speaker() == vturn.vspeaker
+
+    async def drop_answer_for_continuation(self) -> None:
+        # The pause was mid-sentence ("найди факт... и покажи погоду"): the answer to the first half is dropped and the
+        # whole request answered once the rest is heard, the way LiveKit cancels a reply on a false end of turn.
+        assert self.vanswering is not None and self.vsession is not None
+        logger.info("%s kept talking; the answer waits for the rest", self.vanswering.vspeaker)
+        self.vcontinued, self.vanswering = self.vanswering, None
+        await self.vsink.clear()
+        if not self.vturn_done.is_set():
+            self.vdropping = True
+            self.vsink.vmuted = True
+            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="continuation"))
 
     def is_follow_up(self, vspeaker: str, vtext: str) -> bool:
         # The person Karen just answered, speaking again right after her reply, is talking to her: that skips the
@@ -503,23 +554,44 @@ class MeetCall:
         # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
         # weather tool. They follow the moment the answer has played, since Karen then still holds the floor.
         vline = f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}"
-        for vattempt in range(2):
-            await self.take_floor()
-            self.vtrace = vtrace
-            await self.speak(vline)
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)
-            if self.vturn_spoke or self.vturn_tools:
-                break
-            if vattempt:
-                return
-            # Talked over before a word was said: the request is not forgotten, it is answered at the next pause.
-            logger.info("request from %s was cut off before an answer; will answer it at the next pause", vturn.vspeaker)
-            await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
-            vline = f"[{vturn.vspeaker} asked you this a moment ago and you have not answered yet] {vturn.vtext}"
-            vtrace = {}
+        try:
+            for vattempt in range(2):
+                await self.take_floor()
+                self.vtrace = vtrace
+                self.vanswering, self.vanswering_heard_at = vturn, vtrace.get("heard", time.monotonic())
+                await self.speak(vline)
+                if not vattempt:
+                    self.spawn(self.fill_silence())
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)
+                if self.vcontinued is vturn:
+                    return
+                if self.vturn_spoke or self.vturn_tools:
+                    break
+                if vattempt:
+                    return
+                # Talked over before a word was said: the request is not forgotten, it is answered at the next pause.
+                logger.info("request from %s was cut off before an answer; will answer it at the next pause", vturn.vspeaker)
+                await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
+                vline = f"[{vturn.vspeaker} asked you this a moment ago and you have not answered yet] {vturn.vtext}"
+                vtrace = {}
+        finally:
+            if self.vanswering is vturn:
+                self.vanswering = None
         if self.vturn_spoke and not self.vturn_tools:
             await self.check_promise()
+
+    async def fill_silence(self) -> None:
+        await asyncio.sleep(FILLER_AFTER_S)
+        if random.random() < FILLER_CHANCE:
+            await self.play_filler(FillerKind.THINKING)
+
+    async def play_filler(self, vkind: FillerKind) -> None:
+        # Only into silence: once her answer has started, or someone talks, or the turn is over, a filler is noise.
+        if vkind in self.vturn_fillers or self.vsink.vfirst_audio_at is not None or self.vsink.vmuted or self.vuser_speaking or self.vturn_done.is_set():
+            return
+        self.vturn_fillers.add(vkind)
+        await self.vsink.play_filler(self.vfillers.pick(vkind))
 
     async def check_promise(self) -> None:
         # Qwen sometimes says "я начала проверку" and calls nothing. A reply that used no tool is asked, silently,
@@ -552,6 +624,7 @@ class MeetCall:
         self.vturn_tools = 0
         self.vturn_spoke = False
         self.vturn_results = []
+        self.vturn_fillers = set()
         self.vneeds_followup = False
         self.publish(type="state", state="thinking")
         await self.vsession.update_instructions(self.instructions())
@@ -580,6 +653,7 @@ class MeetCall:
         self.vlast_bot_activity = time.monotonic()
         logger.info("tool %s(%s)", vcall.vtool_name, vcall.varguments)
         vtool = MEET_TOOLS_BY_NAME.get(vcall.vtool_name)
+        await self.play_filler(FillerKind.CHECKING)
         if vtool is None:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
         elif vtool.vweight is ToolWeight.LIGHT:
