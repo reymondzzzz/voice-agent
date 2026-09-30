@@ -211,8 +211,28 @@ instead of the Boss / Alice / Bob call.
 
 ```bash
 uv run python -m examples.meet_agent dev                                  # Karen, instead of voice_app
-uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --name Karen
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij   # joins as «Аврора»
 ```
+
+The agent was built as Karen and is called «Аврора» in the meeting (the code and the page still say
+Karen internally). Meet's sender-side noise gate eats the start of each utterance, which is where
+the name sits, and a short name did not survive it: over a real Meet call "Карен" came out as
+"Арен", "Таран", "Аарон" or nothing, and the transcriber kept it in 2 of 5 read lines. Measured
+with Qwen speaking each candidate in 5 phrases in two voices, the onset cut the way the gate does:
+
+| Name | 0ms cut | 60ms | 120ms |
+| --- | --- | --- | --- |
+| Аврора | 10/10 | 10/10 | 10/10 ("Аурора", "Врора") |
+| Карен | 10/10 | 6/10 | 4/10 ("Арен", "Арин", "Лен") |
+| Джарвис | 10/10 | 7/10 | 2/10 |
+| Лилит | 10/10 | 9/10 | 3/10 |
+| Эльза | 10/10 | 9/10 | 0/10 ("Лиза") |
+| Тесса | 9/10 | 0/10 | 0/10 |
+
+The fuzzy match accepts the clipped forms and none of 40 common first names (Артем, Лора, Флора…).
+Cleaning the audio instead did not help: a high-pass, a presence boost, comfort noise in the gated
+gaps, and Qwen's VAD padding or threshold all scored within noise of the untouched Meet audio
+(12–18% word errors on the same 78-word script). The words lost are the ones the gate removed.
 
 To try Karen without Meet, run `examples.meet_agent dev` with `examples.token_server` and open
 http://127.0.0.1:8080/karen: the page's microphone takes the bridge's place and your lines are

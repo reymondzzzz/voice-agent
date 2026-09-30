@@ -36,7 +36,9 @@ MEET_LANGUAGE = "ru"
 MEET_LANGUAGE_NAME = "Russian"
 BARGE_IN_DBFS = -40.0
 BARGE_IN_S = 0.15
-MEET_DEFAULT_BOT_NAME = "Karen"
+# Three syllables survive Meet's noise gate eating the first sound ("Врора", "Аурора" still match); "Карен" came out
+# as "Арен", "Арин" or "Лен" in 6 of 10 phrases with 120ms clipped, and a short name loses itself entirely.
+MEET_DEFAULT_BOT_NAME = "Аврора"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
 # Meet audio is taken straight at the rate Qwen listens at: resampling 48k to 24k and again to 16k cost accuracy.
@@ -65,9 +67,9 @@ PROMISE_CORRECTION = (
 )
 KAREN_EVENTS_TOPIC = "karen"
 KAREN_RULES = (
-    "You are Karen, a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
-    "(я рада, я нашла). People address you as Karen; the name in a line like 'Карен, ...' is you, never call "
-    "anyone else Karen, and call people by the names in the transcript. You hear everyone, but almost everything is said "
+    "You are Аврора (Aurora), a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
+    "(я рада, я нашла). People address you as Аврора; the name in a line like 'Аврора, ...' is you, never call "
+    "anyone else Аврора, and call people by the names in the transcript. You hear everyone, but almost everything is said "
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "

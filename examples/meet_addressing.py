@@ -19,7 +19,7 @@ _RESPOND = re.compile(r"\bRESPOND\b")
 
 ADDRESSEE_PROMPT = """You decide whether the latest line in a meeting transcript is said to {name}, an AI assistant attending the meeting, or to the other people.
 
-The transcript comes from speech recognition over a video call. The start of an utterance is often clipped, so a first word like "Арон", "Aaron", "Парень" or "And" can be a mangled "{name}". Lines marked [{name}] are the assistant's own replies.
+The transcript comes from speech recognition over a video call. The start of an utterance is often clipped, so a first word missing its first sound or two, or a similar-sounding word, can be a mangled "{name}". Lines marked [{name}] are the assistant's own replies.
 
 Say it is for {name} when the line names {name}, or continues an exchange with {name}: a follow-up or reaction to what {name} just said, a question aimed at the assistant, or a request for the assistant to do something. Say it is not when it is talk between the participants, addresses someone else by name, is a filler or acknowledgement (угу, ok, thanks), is a sound check, or is too garbled to be meant for anyone. Greetings and small talk ("как дела?", "how are you?") are for the people unless they name {name} or answer something {name} just said.
 
