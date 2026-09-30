@@ -290,6 +290,11 @@ class QwenOmniSession:
 
         elif vtype == protocol.ERROR:
             verror = vframe.get("error") or {}
+            if REJECTED_CREATE in str(verror.get("message", "")):
+                # This response.create will never produce a response.created: it is no longer pending, and a cancel
+                # held for it has nothing left to cancel.
+                self._vcreates_pending = max(0, self._vcreates_pending - 1)
+                self._vcancel_on_create = self._vcancel_on_create and self._vcreates_pending > 0
             await self._vevents.put(
                 events.RealtimeSessionError(
                     vcorrelation=self.correlation(),
@@ -297,6 +302,10 @@ class QwenOmniSession:
                     vrecoverable=False,
                 )
             )
+
+
+# DashScope refuses a response.create while another response is active with this message and no response.
+REJECTED_CREATE = "already has an active response"
 
 
 def _decode_arguments(varguments: object) -> dict[str, object]:

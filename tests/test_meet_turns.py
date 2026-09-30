@@ -79,6 +79,7 @@ def bare_call() -> MeetCall:
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
     vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
     vcall.vtool_calls, vcall.vlatest_call = 0, {}
+    vcall.vcarrier_moved = {}
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -545,3 +546,45 @@ async def test_a_result_cut_off_twice_is_offered_once_then_let_go():
     vcall.vcut_replies = {1, 2}
     await vcall.requeue_if_talked_over([vweather], 2)
     assert not vcall.vpending, "the offer itself talked over: let it go"
+
+
+@pytest.mark.asyncio
+async def test_a_continuation_before_the_answer_exists_leaves_nothing_muted_or_locked():
+    vcall, vtasks = running_call()
+    await vcall.vfloor.acquire()
+    vcall.vanswering, vcall.vanswering_heard_at = MeetTurn(0.0, "Kirill", "Мэгги, найди"), time.monotonic()
+    await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
+    await vcall.drop_answer_for_continuation()
+    assert vcall.vsession.vinterrupts == 1 and not vcall.vsink.vmuted and not vcall.vdropping
+    assert vcall.vturn_done.is_set() and not vcall.vfloor.locked() and vcall.vcut_replies == {1}
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_merged"))
+    assert vcall.vowned == "", "nothing was asked for since, so nothing is owned"
+    for vtask in vtasks:
+        vtask.cancel()
+
+
+@pytest.mark.asyncio
+async def test_a_result_riding_on_a_reply_that_only_called_a_tool_is_heard_when_the_follow_up_plays():
+    vcall, vtasks = running_call()
+    vcall.vsource = type("Source", (), {"wait_for_playout": staticmethod(lambda: asyncio.sleep(0)), "queued_duration": 0})()
+    await vcall.vfloor.acquire()
+    vcall.vpending.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
+    vcall.take_waiting_results([])
+    await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_tool"))
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_tool"))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_said"))
+    await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="В Лондоне 14. Кстати, у осьминогов три сердца.", vresponse_id="resp_said"))
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_said"))
+    await asyncio.wait_for(asyncio.gather(*[vtask for vtask in vtasks if vtask.get_coro().__name__ == "requeue_if_talked_over"]), 1)
+    assert not vcall.vpending, "said and played out in the follow-up: not told again"
+
+
+@pytest.mark.asyncio
+async def test_a_routing_step_is_not_a_reply_and_takes_no_cut_marker():
+    vcall = bare_call()
+    vcall.vrouting = asyncio.get_running_loop().create_future()
+    await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION, vtext_only=True))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_route"))
+    assert vcall.vreply_seq == 0 and not vcall.vopen_replies

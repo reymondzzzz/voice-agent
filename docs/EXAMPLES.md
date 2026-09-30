@@ -464,6 +464,16 @@ talked over `DELIVERY_ATTEMPTS` times is no longer dropped in silence: it is off
 told ("Кирилл, я там про погоду не договорила — рассказать?", 4 of 4 replays, none retold it), and let
 go only if the offer is talked over too.
 
+A fourth review pass found the edges of that bookkeeping, each now with a test. A request cancelled
+before its response existed never gets a start from the adapter, so nothing would ever complete it;
+the continuation that cancelled it left the sink muted and the floor locked. Now a request that will
+never be owned (cancelled before `response.created`, or refused as "already has an active response")
+is settled where it is cancelled: its reply number is spent as unheard and the turn ends there. A
+follow-up takes over the reply it continues, so a result riding on a reply that only called a tool
+counts as heard when the follow-up saying it plays out, instead of being retold after the 60s playout
+timeout; a silent reply with no follow-up counts as unheard at once. Routing steps get no reply
+number: a silent verdict left open took the cut marker away from the answer actually interrupted.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

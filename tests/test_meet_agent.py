@@ -49,7 +49,7 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     vcall.vpending = collections.deque([PendingResult("Carl", "a science fact", "honey keeps"), PendingResult("Anna", "the deadline", "it holds")])
     vcall.vpending_added = asyncio.Event()
     vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
-    vcall.vawaiting = False
+    vcall.vawaiting, vcall.vcarrier_moved = False, {}
     vcall.spawn = asyncio.ensure_future
     vcall.vsource = type("Source", (), {"queued_duration": 0})()
     vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
@@ -200,6 +200,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     vcall.vloud_s, vcall.vfloor = 0.0, asyncio.Lock()
     vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
     vcall.vopen_replies.add(1)
+    vcall.vawaiting, vcall.vrouting = False, None
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
     vcall.vreply_parts, vcall.vturn_reply, vcall.vreply_audio, vcall.vheard_by_reply = [], "", {}, {}
     vcall.publish = lambda **_vevent: None

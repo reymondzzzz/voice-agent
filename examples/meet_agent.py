@@ -320,6 +320,9 @@ class MeetCall:
         self.vheard_by_reply: dict[int, str] = {}
         self.vtool_calls = 0
         self.vlatest_call: dict[tuple[str, str], int] = {}
+        # A follow-up takes over the reply it continues: results riding on a reply that only called a tool are heard
+        # when the follow-up that says them plays out.
+        self.vcarrier_moved: dict[int, int] = {}
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -350,9 +353,11 @@ class MeetCall:
         except TimeoutError:
             logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
             # The previous owner's response is stopped, so it neither keeps talking nor ends the new owner's turn.
-            if self.vsession is not None and self.vowned:
+            if self.vsession is not None and (self.vowned or self.vawaiting):
                 await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="floor_takeover"))
-            self.vowned, self.vawaiting = "", False
+            if self.vawaiting:
+                self.settle_unborn()
+            self.vowned = ""
             self.vturn_done.set()
             self.release_floor()
             await self.vfloor.acquire()
@@ -390,7 +395,34 @@ class MeetCall:
 
     async def request_followup(self) -> None:
         assert self.vsession is not None
+        self.vcarrier_moved[self.vreply_seq] = self.vreply_seq + 1
         await self.request(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
+
+    def carrier_of(self, vreply: int) -> int:
+        while vreply in self.vcarrier_moved:
+            vreply = self.vcarrier_moved[vreply]
+        return vreply
+
+    def settle_unborn(self) -> None:
+        # The response this call waits on will never be its own: cancelled before it existed (the adapter reports no
+        # start for it) or refused. Nothing will ever complete it, so its reply number is spent here, unheard, and
+        # the caller ends the turn instead of leaving the floor locked and the sink muted.
+        self.vawaiting = False
+        if self.vrouting is None:
+            self.vreply_seq += 1
+            self.vcut_replies.add(self.vreply_seq)
+            self.spawn(self.note_playout())
+
+    async def cancel_response(self, vreason: str) -> None:
+        assert self.vsession is not None
+        vunborn = self.vawaiting
+        await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason=vreason))
+        if vunborn:
+            self.settle_unborn()
+            if self.vrouting is not None and not self.vrouting.done():
+                self.vrouting.set_result("")
+            else:
+                self.end_turn()
 
     async def answer_tool_results(self) -> None:
         # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a row.
@@ -558,7 +590,7 @@ class MeetCall:
         self.vlast_human_speech = time.monotonic()
         await self.cut_her_off()
         if self.vsession is not None and self.vfloor.locked():
-            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="barge_in"))
+            await self.cancel_response("barge_in")
 
     async def pump_events(self, vsession: QwenOmniSession) -> None:
         async for vevent in vsession.events():
@@ -589,10 +621,12 @@ class MeetCall:
         elif isinstance(vevent, events.AssistantSpeechStarted):
             if self.vawaiting:
                 self.vowned, self.vawaiting = vevent.vresponse_id, False
-                self.vreply_seq += 1
-                self.vreply_audio[self.vreply_seq] = (self.vsink.vtimeline_s, None, "")
-                if self.vreply_seq not in self.vcut_replies:
-                    self.vopen_replies.add(self.vreply_seq)
+                # A routing step is silent text, not a reply anyone hears: it gets no number and no playout.
+                if self.vrouting is None:
+                    self.vreply_seq += 1
+                    self.vreply_audio[self.vreply_seq] = (self.vsink.vtimeline_s, None, "")
+                    if self.vreply_seq not in self.vcut_replies:
+                        self.vopen_replies.add(self.vreply_seq)
         elif isinstance(vevent, events.AssistantTranscript):
             if vevent.vresponse_id != self.vowned:
                 return
@@ -631,6 +665,9 @@ class MeetCall:
                     return
             if self.vreply_seq in self.vreply_audio:
                 self.vreply_audio[self.vreply_seq] = (self.vreply_audio[self.vreply_seq][0], self.vsink.vtimeline_s, vreply)
+            if not vreply:
+                # Nothing of it will ever play, so it can be neither heard nor the reply a cut interrupts.
+                self.vopen_replies.discard(self.vreply_seq)
             if self.vresults_followup:
                 # The follow-up that speaks tool results ended without a word: hand them back now rather than
                 # after the playout timeout.
@@ -660,6 +697,10 @@ class MeetCall:
                 self.vpending.extend(self.vturn_results)
                 self.vpending_added.set()
                 self.vturn_results = []
+            if not vreply:
+                # A silent reply with no follow-up: whatever rode on it was not heard, and nobody needs to wait to learn it.
+                self.vcut_replies.add(self.vreply_seq)
+                self.spawn(self.note_playout())
             self.end_turn()
         elif isinstance(vevent, events.RealtimeToolCallRequested):
             await self.on_tool_call(vevent)
@@ -667,7 +708,7 @@ class MeetCall:
             logger.warning("qwen error: %s", vevent.vmessage)
             if self.vawaiting and "already has an active response" in vevent.vmessage:
                 # The request was refused, so no response will ever end this turn; end it here.
-                self.vawaiting = False
+                self.settle_unborn()
                 if self.vrouting is not None and not self.vrouting.done():
                     self.vrouting.set_result("")
                 else:
@@ -714,11 +755,15 @@ class MeetCall:
         vturn, self.vanswering = self.vanswering, None
         self.spawn(self.hold_for_rest(vturn))
         await self.cut_her_off()
+        if self.vturn_done.is_set():
+            return
+        if self.vawaiting:
+            await self.cancel_response("continuation")
+            return
         self.hand_back_results()
-        if not self.vturn_done.is_set():
-            self.vdropping = True
-            self.vsink.vmuted = True
-            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="continuation"))
+        self.vdropping = True
+        self.vsink.vmuted = True
+        await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="continuation"))
 
     async def hold_for_rest(self, vturn: MeetTurn) -> None:
         self.vcontinued = vturn
@@ -966,8 +1011,9 @@ class MeetCall:
             vresult.vattempts += 1
         async with self.vplayout:
             with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(self.vplayout.wait_for(lambda: vcarrier in self.vplayed_replies or vcarrier in self.vcut_replies), DELIVERY_PLAYOUT_TIMEOUT_S)
+                await asyncio.wait_for(self.vplayout.wait_for(lambda: self.carrier_of(vcarrier) in self.vplayed_replies | self.vcut_replies), DELIVERY_PLAYOUT_TIMEOUT_S)
         # Never played out is not delivered either: a reply that timed out or produced no audio goes back too.
+        vcarrier = self.carrier_of(vcarrier)
         vcut = vcarrier in self.vcut_replies
         vheard = vcarrier in self.vplayed_replies and not vcut
         vretry = []

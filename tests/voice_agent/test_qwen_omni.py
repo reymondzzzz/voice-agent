@@ -331,6 +331,28 @@ async def test_a_response_cancelled_before_it_existed_reports_no_start_for_a_new
     assert vstarts == ["resp_answer"]
 
 
+@pytest.mark.asyncio
+async def test_a_refused_creation_no_longer_counts_as_pending(server: FakeDashScopeServer) -> None:
+    vaudio = base64.b64encode(b"\x00\x01" * 480).decode()
+    vsink = RecordingAudioSink()
+    vsession = build_session(server, vsink)
+    await vsession.start()
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    await vsession._on_frame({"type": protocol.ERROR, "error": {"message": "Conversation already has an active response"}})
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_ok"}})
+    await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="barge_in"))
+    await vsession._on_frame({"type": protocol.RESPONSE_AUDIO_DELTA, "response_id": "resp_ok", "delta": vaudio})
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_next"}})
+    vevents = await collect(vsession, 4)
+    await vsession.close()
+
+    assert vsink.vwrites == [], "the interrupted response's late audio is dropped"
+    vstarts = [vevent.vresponse_id for vevent in vevents if isinstance(vevent, events.AssistantSpeechStarted)]
+    assert vstarts == ["resp_ok", "resp_next"], "and the next answer is not cancelled in its place"
+
+
 def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:
     vframe = protocol.session_update_frame("Tina", "You are Karen.", [], vauto_response=False)
     vturn_detection = vframe["session"]["turn_detection"]  # type: ignore[index]

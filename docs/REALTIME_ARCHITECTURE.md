@@ -325,7 +325,9 @@ made, whose id is not known yet: the adapter holds it and cancels that response 
 exists, and reports no `AssistantSpeechStarted` for it: a consumer already waiting on a newer
 request would otherwise take the cancelled response for its own (a routing step cancelled on timeout,
 then the next answer requested, then the routing step's late `response.created`). Pending creations are
-counted, since two can be outstanding at once. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
+counted, since two can be outstanding at once, and a create refused with "already has an active
+response" stops counting: left pending, it made the next interrupt hold its cancel for the following
+answer while the interrupted response's late audio still played. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
 pair a transcript with the moment its speech ended even when another utterance started in between or a
 transcript was lost.
 
