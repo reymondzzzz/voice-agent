@@ -424,6 +424,14 @@ A review of the turn handling (GPT, offline reproductions) found four real fault
 Not changed: the browser's playback queue in the bridge has no clear command, but it is fed one 20ms
 frame at a time as LiveKit plays it out, so what remains there after a clear is the transport buffer,
 not the answer. Relevance-aware batching of results (P2) is left for later.
+A second review pass found four lifecycle gaps, each fixed with a test: a quick-tool answer counted as
+told once generated rather than once played, so talking over its playout lost it (now tool results
+share the delivery watcher and go back unless the reply played out); a routing step that timed out set
+a global discard flag that muted and swallowed the next answer, leaving the floor locked (now the
+routing response is cancelled and disowned, so its late completion is simply stale); a cancel in the
+window before `response.created` hit the previous response (now held for the one being created); and
+speaker attribution was a queue that one lost transcript shifted for good (now keyed by item id and
+cleared when the session is replaced).
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.

@@ -320,6 +320,11 @@ id and `vcompleted` from the response's status, false for a cancelled one. A can
 over when `response.cancel` goes out: live, two more audio deltas arrived and `response.done` came
 0.29s later. The adapter drops the audio and text of any response it cancelled, since `interrupt()`
 has already cleared playback and those late deltas would otherwise start it again.
+A cancel sent after `response.create` but before `response.created` belongs to the response being
+made, whose id is not known yet: the adapter holds it and cancels that response by id the moment it
+exists. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
+pair a transcript with the moment its speech ended even when another utterance started in between or a
+transcript was lost.
 
 Two additions for a bot that must stay silent until addressed (the Meet agent, `examples/meet_agent.py`):
 

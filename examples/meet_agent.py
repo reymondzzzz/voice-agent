@@ -247,7 +247,6 @@ class MeetCall:
         self.vfloor = asyncio.Lock()
         self.vrouting: asyncio.Future[str] | None = None
         self.vroute_parts: list[str] = []
-        self.vdiscard_next = False
         self.vneeds_followup = False
         self.vturn_tools = 0
         self.vturn_spoke = False
@@ -265,7 +264,7 @@ class MeetCall:
         self.vowned = ""
         self.vawaiting = False
         self.vresults_followup = False
-        self.vheard_speakers: collections.deque[str] = collections.deque()
+        self.vheard_speakers: dict[str, str] = {}
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
         self.vlast_response_at = time.monotonic()
@@ -320,7 +319,8 @@ class MeetCall:
         # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a row.
         assert self.vsession is not None
         self.vresults_followup = True
-        vresults = self.take_waiting_results()
+        vsaying, self.vturn_results = self.vturn_results, []
+        vresults = self.take_waiting_results(vsaying)
         if vresults:
             vline = f"{delivery_line(vresults, vgoing_on=False)} Answer the question you just looked up first, then go straight on to this."
             await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=self.vsession.correlation(), vrole=events.RealtimeRole.USER))
@@ -331,14 +331,15 @@ class MeetCall:
         self.vinterrupted = True
         self.vplayed.set()
 
-    def take_waiting_results(self) -> list[PendingResult]:
-        # Whoever takes the waiting results says them; talked over, they go back to the front of the queue.
+    def take_waiting_results(self, vsaying: list[PendingResult]) -> list[PendingResult]:
+        # Whoever takes the waiting results says them, with `vsaying` (tool results this reply is about to say);
+        # until the reply has played out, not just been generated, none of them counts as told.
         vresults = list(self.vpending)
         self.vpending.clear()
-        if vresults:
+        if vresults or vsaying:
             self.vinterrupted = False
             self.vplayed.clear()
-            self.spawn(self.requeue_if_talked_over(vresults))
+            self.spawn(self.requeue_if_talked_over(vsaying + vresults))
         return vresults
 
     async def silence_leaked_verdict(self) -> None:
@@ -373,11 +374,14 @@ class MeetCall:
         except (TimeoutError, ConnectionResetError):
             # Unsure means silent: a missed question can be repeated, an unasked-for reply cannot be taken back.
             logger.warning("routing step got no answer; staying silent")
-            self.vdiscard_next = True
+            # Cancelled and disowned: whenever its verdict or completion turns up, it is stale and ends nothing.
+            with contextlib.suppress(ConnectionResetError):
+                await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="route_timeout"))
+            self.vowned, self.vawaiting = "", False
             return ""
         finally:
             self.vrouting = None
-            self.vsink.vmuted = self.vdiscard_next
+            self.vsink.vmuted = False
             self.release_floor()
 
     async def open_session(self) -> None:
@@ -399,6 +403,8 @@ class MeetCall:
         vprevious, self.vsession = self.vsession, vsession
         if self.vrouting is not None and not self.vrouting.done():
             self.vrouting.set_result("")
+        self.vheard_speakers.clear()
+        self.vowned, self.vawaiting = "", False
         self.vneeds_followup = False
         self.vturn_done.set()
         self.release_floor()
@@ -481,10 +487,11 @@ class MeetCall:
         elif isinstance(vevent, events.UserSpeechStopped):
             self.vuser_speaking = False
             self.vlast_human_speech = time.monotonic()
-            # Whoever Meet highlights as the words end; by the time the transcript arrives someone else may be talking.
-            self.vheard_speakers.append(self.current_speaker())
+            # Whoever Meet highlights as the words end, kept by the utterance's item: by the time its transcript
+            # arrives someone else may be talking, and a transcript lost in a reconnect must not shift the rest.
+            self.vheard_speakers[vevent.vitem_id] = self.current_speaker()
         elif isinstance(vevent, events.UserTranscriptFinal):
-            vspeaker = self.vheard_speakers.popleft() if self.vheard_speakers else self.current_speaker()
+            vspeaker = self.vheard_speakers.pop(vevent.vitem_id, "") or self.current_speaker()
             if vevent.vtext.strip():
                 await self.on_heard(vevent.vtext.strip(), vspeaker)
         elif isinstance(vevent, events.AssistantSpeechStarted):
@@ -511,11 +518,6 @@ class MeetCall:
                 return
             vreply = "".join(self.vreply_parts).strip()
             self.vreply_parts.clear()
-            if self.vdiscard_next:
-                # The tail of a routing step that timed out: a verdict, not something Karen said.
-                self.vdiscard_next = False
-                self.vsink.vmuted = False
-                return
             self.vlast_bot_activity = time.monotonic()
             if self.vdropping:
                 self.vdropping = False
@@ -532,10 +534,11 @@ class MeetCall:
                     await self.request_followup()
                     return
             if self.vresults_followup:
-                # The follow-up that speaks tool results; only a finished one counts as having told them.
+                # The follow-up that speaks tool results ended without a word: hand them back now rather than
+                # after the playout timeout.
                 self.vresults_followup = False
-                if vreply and vevent.vcompleted:
-                    self.vturn_results = []
+                if not vreply:
+                    self.hand_back_results()
             if vreply:
                 self.vturn_spoke = True
                 self.vturn_reply = vreply
@@ -658,7 +661,7 @@ class MeetCall:
                 await self.take_floor()
                 self.vtrace = vtrace
                 self.vanswering, self.vanswering_heard_at = vturn, vtrace.get("heard", time.monotonic())
-                vresults = [] if vattempt else self.take_waiting_results()
+                vresults = [] if vattempt else self.take_waiting_results([])
                 await self.speak(f"{vline}\n{meanwhile_line(vresults)}" if vresults else vline)
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)

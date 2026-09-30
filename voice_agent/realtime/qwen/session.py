@@ -93,6 +93,10 @@ class QwenOmniSession:
         # DashScope keeps streaming a cancelled response for a moment (two audio deltas after response.cancel,
         # measured); they are dropped here, or they play after the clear that interrupt() already did.
         self._vcancelled: set[str] = set()
+        # Between response.create and response.created the id of the response being made is not known yet;
+        # a cancel in that window belongs to it, not to the previous response.
+        self._vcreating = False
+        self._vcancel_on_create = False
 
     @property
     def vcapabilities(self) -> RealtimeModelCapabilities:
@@ -174,6 +178,7 @@ class QwenOmniSession:
     async def send_tool_result(self, vresult: events.ToolResultPayload, *, vrespond: bool = True) -> None:
         await self._send(protocol.function_output_frame(vresult.vtool_call_id, json.dumps(vresult.vresult)))
         if vrespond:
+            self._vcreating = True
             await self._send({"type": protocol.RESPONSE_CREATE})
 
     async def request_response(self, vrequest: events.ResponseRequest) -> None:
@@ -185,10 +190,13 @@ class QwenOmniSession:
         vframe: dict[str, object] = {"type": protocol.RESPONSE_CREATE}
         if vresponse:
             vframe["response"] = vresponse
+        self._vcreating = True
         await self._send(vframe)
 
     async def interrupt(self, vrequest: events.InterruptRequest) -> None:
-        if self._vresponse_id:
+        if self._vcreating:
+            self._vcancel_on_create = True
+        elif self._vresponse_id:
             self._vcancelled.add(self._vresponse_id)
         await self._send({"type": protocol.RESPONSE_CANCEL})
         await self._vaudio_sink.clear()
@@ -226,6 +234,12 @@ class QwenOmniSession:
 
         elif vtype == protocol.RESPONSE_CREATED:
             self._vresponse_id = str((vframe.get("response") or {}).get("id", ""))
+            self._vcreating = False
+            if self._vcancel_on_create:
+                # The cancel went out before this response existed, so the server may not have applied it.
+                self._vcancel_on_create = False
+                self._vcancelled.add(self._vresponse_id)
+                await self._send({"type": protocol.RESPONSE_CANCEL})
             await self._vevents.put(events.AssistantSpeechStarted(vcorrelation=self.correlation(), vresponse_id=self._vresponse_id))
 
         elif vtype == protocol.SPEECH_STARTED:
@@ -233,11 +247,11 @@ class QwenOmniSession:
             await self._vevents.put(events.UserSpeechStarted(vcorrelation=self.correlation()))
 
         elif vtype == protocol.SPEECH_STOPPED:
-            await self._vevents.put(events.UserSpeechStopped(vcorrelation=self.correlation()))
+            await self._vevents.put(events.UserSpeechStopped(vcorrelation=self.correlation(), vitem_id=str(vframe.get("item_id", ""))))
 
         elif vtype == protocol.INPUT_TRANSCRIPTION_COMPLETED:
             await self._vevents.put(
-                events.UserTranscriptFinal(vcorrelation=self.correlation(), vtext=str(vframe.get("transcript", "")))
+                events.UserTranscriptFinal(vcorrelation=self.correlation(), vtext=str(vframe.get("transcript", "")), vitem_id=str(vframe.get("item_id", "")))
             )
 
         elif vtype in (protocol.RESPONSE_AUDIO_TRANSCRIPT_DELTA, protocol.RESPONSE_TEXT_DELTA):

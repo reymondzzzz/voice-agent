@@ -289,6 +289,31 @@ async def test_a_cancelled_response_neither_plays_on_nor_reports_completion(serv
     assert isinstance(vstopped, events.AssistantSpeechStopped) and vstopped.vresponse_id == "resp_1" and not vstopped.vcompleted
 
 
+@pytest.mark.asyncio
+async def test_a_cancel_before_the_response_exists_still_cancels_that_response(server: FakeDashScopeServer) -> None:
+    vaudio = base64.b64encode(b"\x00\x01" * 480).decode()
+    server.vscript = [
+        {"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_old"}},
+        {"type": protocol.RESPONSE_DONE, "response": {"id": "resp_old", "status": "completed"}},
+    ]
+    vsink = RecordingAudioSink()
+    vsession = build_session(server, vsink)
+    await vsession.start()
+    await collect(vsession, 2)
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="barge_in"))
+    await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_new"}})
+    await vsession._on_frame({"type": protocol.RESPONSE_AUDIO_DELTA, "response_id": "resp_new", "delta": vaudio})
+    for _ in range(50):
+        if len(sent_of_type(server, protocol.RESPONSE_CANCEL)) == 2:
+            break
+        await asyncio.sleep(0.02)
+    await vsession.close()
+
+    assert vsink.vwrites == [], "the audio belongs to the response the cancel was meant for"
+    assert len(sent_of_type(server, protocol.RESPONSE_CANCEL)) == 2, "cancelled again once it exists"
+
+
 def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:
     vframe = protocol.session_update_frame("Tina", "You are Karen.", [], vauto_response=False)
     vturn_detection = vframe["session"]["turn_detection"]  # type: ignore[index]

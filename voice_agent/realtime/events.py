@@ -24,6 +24,7 @@ class UserSpeechStarted(RealtimeEventBase):
 @dataclasses.dataclass(frozen=True, slots=True)
 class UserSpeechStopped(RealtimeEventBase):
     vspeech_duration_s: float = 0.0
+    vitem_id: str = ""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -36,6 +37,7 @@ class UserTranscriptPartial(RealtimeEventBase):
 class UserTranscriptFinal(RealtimeEventBase):
     vtext: str = ""
     vrevision: int = 0
+    vitem_id: str = ""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
