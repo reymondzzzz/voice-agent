@@ -49,6 +49,7 @@ class Registry:
 class Sink:
     vmuted = False
     vfirst_audio_at = None
+    vqueued_at_first_audio = 0.0
 
     async def clear(self) -> None:
         pass
@@ -371,3 +372,14 @@ async def test_words_belong_to_whoever_said_them_not_to_whoever_talks_when_the_t
     vcall.current_speaker = lambda: "Anna"
     await vcall.on_event(events.UserTranscriptFinal(vcorrelation=CORRELATION, vtext="Мэгги, какая погода?"))
     assert vheard == [("Мэгги, какая погода?", "Kirill")]
+
+
+def test_the_silence_between_two_of_her_replies_is_measured():
+    vcall = bare_call()
+    vcall.vlast_bot_played, vcall.vlast_human_speech = 10.0, 5.0
+    vcall.vsink.vfirst_audio_at = 11.5
+    assert vcall.silence_since_her_last_reply() == 1.5
+    vcall.vsink.vqueued_at_first_audio = 0.4
+    assert vcall.silence_since_her_last_reply() == 0.0, "queued behind the previous reply, no pause at all"
+    vcall.vlast_human_speech = 10.5
+    assert vcall.silence_since_her_last_reply() is None, "someone spoke in between: not her pause"

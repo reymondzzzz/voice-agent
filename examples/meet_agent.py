@@ -186,6 +186,7 @@ class RoomAudioSink:
         self.vsource = vsource
         self.vmuted = False
         self.vfirst_audio_at: float | None = None
+        self.vqueued_at_first_audio = 0.0
         self._vstray = b""
 
     async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
@@ -193,6 +194,7 @@ class RoomAudioSink:
             return
         if self.vfirst_audio_at is None:
             self.vfirst_audio_at = time.monotonic()
+            self.vqueued_at_first_audio = self.vsource.queued_duration
         # Deltas can end mid-sample; the odd byte belongs to the next delta.
         vpcm = self._vstray + vpcm
         vwhole = len(vpcm) - len(vpcm) % 2
@@ -539,6 +541,9 @@ class MeetCall:
                 self.vturn_reply = vreply
                 self.vlast_bot_reply_done = time.monotonic()
                 vlatency = reply_latency(self.vtrace, self.vsink.vfirst_audio_at)
+                vgap = self.silence_since_her_last_reply()
+                if vgap is not None:
+                    vlatency["gap"] = vgap
                 self.vtrace = {}
                 logger.info("latency %s", " ".join(f"{vname}={vvalue:.2f}s" for vname, vvalue in vlatency.items()))
                 self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT), vlatency=vlatency)
@@ -566,6 +571,14 @@ class MeetCall:
                     self.vrouting.set_result("")
                 else:
                     self.end_turn()
+
+    def silence_since_her_last_reply(self) -> float | None:
+        # How long the room heard nothing between her previous reply and this one; None if someone spoke between.
+        if self.vsink.vfirst_audio_at is None or not self.vlast_bot_played or self.vlast_human_speech > self.vlast_bot_played:
+            return None
+        if self.vsink.vqueued_at_first_audio > 0:
+            return 0.0
+        return max(0.0, self.vsink.vfirst_audio_at - self.vlast_bot_played)
 
     def current_speaker(self) -> str:
         return self.meet_attribute(MEET_SPEAKER_ATTRIBUTE) or self.vcaller_name or "someone"

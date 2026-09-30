@@ -405,6 +405,9 @@ connection: the fact was the thing she had promised, not one more thing. So the 
 up a promise when its result turns up and to use "а ещё" / "кстати" only otherwise; 12 of 12 replays
 then went on with "О, а вот и факт: …" or "Уже нашла: …". The page folds her replies since a person
 last spoke into one bubble.
+The latency line of a reply that follows her own previous reply without anyone speaking between
+carries `gap`: the silence the room heard between the two, 0 when the new audio queued straight behind
+the old.
 
 A review of the turn handling (GPT, offline reproductions) found four real faults, each now with a test:
 - a cancelled response kept playing its late audio deltas, and reported itself completed (fixed in the
