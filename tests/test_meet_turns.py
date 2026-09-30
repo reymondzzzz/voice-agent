@@ -68,7 +68,7 @@ def bare_call() -> MeetCall:
     vcall.vuser_speaking, vcall.vlast_bot_activity, vcall.vlast_response_at = False, 0.0, 0.0
     vcall.vtrace = {}
     vcall.vturn_results, vcall.vpending, vcall.vpending_added = [], collections.deque(), asyncio.Event()
-    vcall.vinterrupted, vcall.vplayed = False, asyncio.Event()
+    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
     vcall.vspawned = []
     vcall.spawn = lambda vcoro: vcall.vspawned.append(vcoro) or vcoro.close()
     vcall.requester = lambda: "Kirill"
@@ -362,7 +362,7 @@ async def test_a_quick_tool_answer_talked_over_while_it_plays_is_told_again():
     await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="В Лондоне 14 градусов."))
-    vcall.rearm_after_playout = lambda: asyncio.sleep(3600)
+    vcall.rearm_after_playout = lambda _vreply: asyncio.sleep(3600)
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert not vcall.vpending, "generated is not heard: still playing"
     vcall.hand_back_results()
@@ -420,7 +420,7 @@ async def test_a_routing_step_that_times_out_neither_mutes_the_next_answer_nor_k
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_route"))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_answer"))
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="Привет!", vresponse_id="resp_answer"))
-    vcall.rearm_after_playout = lambda: asyncio.sleep(0)
+    vcall.rearm_after_playout = lambda _vreply: asyncio.sleep(0)
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_answer"))
     assert vcall.vturn_spoke and vcall.vturn_done.is_set() and not vcall.vfloor.locked()
 
@@ -479,3 +479,23 @@ def test_a_retelling_starts_from_the_words_that_were_heard():
     assert "after saying only «В То…»" in delivery_line([vweather], vgoing_on=False)
     vweather.vheard = ""
     assert "before they heard any of it" in delivery_line([vweather], vgoing_on=False)
+
+
+@pytest.mark.asyncio
+async def test_a_lead_in_that_plays_out_does_not_count_as_the_answer_after_it_being_heard():
+    vcall, vtasks = running_call()
+    vcall.vsource = type("Source", (), {"wait_for_playout": staticmethod(lambda: asyncio.sleep(0)), "queued_duration": 0})()
+    await vcall.vfloor.acquire()
+    await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_lead_in"))
+    await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="Сейчас гляну.", vresponse_id="resp_lead_in"))
+    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Tokyo"}, "a"))
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_lead_in"))
+    await asyncio.sleep(0.01)
+    assert 1 in vcall.vplayed_replies and not vcall.vpending, "the lead-in played out; the answer is still to come"
+    await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_answer"))
+    await vcall.cut_her_off()
+    await asyncio.sleep(0.01)
+    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='Tokyo')"]
+    for vtask in vtasks:
+        vtask.cancel()

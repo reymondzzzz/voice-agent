@@ -322,7 +322,10 @@ over when `response.cancel` goes out: live, two more audio deltas arrived and `r
 has already cleared playback and those late deltas would otherwise start it again.
 A cancel sent after `response.create` but before `response.created` belongs to the response being
 made, whose id is not known yet: the adapter holds it and cancels that response by id the moment it
-exists. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
+exists, and reports no `AssistantSpeechStarted` for it: a consumer already waiting on a newer
+request would otherwise take the cancelled response for its own (a routing step cancelled on timeout,
+then the next answer requested, then the routing step's late `response.created`). Pending creations are
+counted, since two can be outstanding at once. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
 pair a transcript with the moment its speech ended even when another utterance started in between or a
 transcript was lost.
 

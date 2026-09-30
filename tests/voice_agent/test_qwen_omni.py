@@ -314,6 +314,23 @@ async def test_a_cancel_before_the_response_exists_still_cancels_that_response(s
     assert len(sent_of_type(server, protocol.RESPONSE_CANCEL)) == 2, "cancelled again once it exists"
 
 
+@pytest.mark.asyncio
+async def test_a_response_cancelled_before_it_existed_reports_no_start_for_a_newer_request_to_claim(server: FakeDashScopeServer) -> None:
+    vsink = RecordingAudioSink()
+    vsession = build_session(server, vsink)
+    await vsession.start()
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vtext_only=True))
+    await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="route_timeout"))
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_route"}})
+    await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_answer"}})
+    vevents = await collect(vsession, 2)
+    await vsession.close()
+
+    vstarts = [vevent.vresponse_id for vevent in vevents if isinstance(vevent, events.AssistantSpeechStarted)]
+    assert vstarts == ["resp_answer"]
+
+
 def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:
     vframe = protocol.session_update_frame("Tina", "You are Karen.", [], vauto_response=False)
     vturn_detection = vframe["session"]["turn_detection"]  # type: ignore[index]

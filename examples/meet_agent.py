@@ -262,8 +262,13 @@ class MeetCall:
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
         self.vpump: asyncio.Task | None = None
-        self.vinterrupted = False
-        self.vplayed = asyncio.Event()
+        # Each reply she owns gets a number; a result counts as told only when the reply that carried it played out.
+        # Shared flags let an earlier "сейчас гляну" finishing its playout mark the answer after it as heard.
+        self.vreply_seq = 0
+        self.vopen_replies: set[int] = set()
+        self.vplayed_replies: set[int] = set()
+        self.vcut_replies: set[int] = set()
+        self.vplayout = asyncio.Condition()
         self.vpending: collections.deque[PendingResult] = collections.deque()
         self.vpending_added = asyncio.Event()
         self.vfloor = asyncio.Lock()
@@ -331,6 +336,10 @@ class MeetCall:
         vheard_s = await self.vsink.cut()
         vtext = "".join(self.vreply_parts).strip() or self.vturn_reply
         self.vheard_before_cut = heard_part(vtext, vheard_s, vspoken_s)
+        # Every reply not yet played out was in the cleared queue, or still being made behind it.
+        self.vcut_replies |= self.vopen_replies
+        self.vopen_replies.clear()
+        await self.note_playout()
         logger.info("cut off after %.1fs of %.1fs: «%s…»", vheard_s, vspoken_s, self.vheard_before_cut)
         self.publish(type="cut", heard=self.vheard_before_cut)
 
@@ -359,9 +368,15 @@ class MeetCall:
         await self.request_followup()
 
     def hand_back_results(self) -> None:
-        # Results folded into an answer that was never heard go back to the queue.
-        self.vinterrupted = True
-        self.vplayed.set()
+        # The reply that was to carry them will not be heard: the one playing now, or the one still being made.
+        vreply = self.vreply_seq + 1 if self.vawaiting else self.vreply_seq
+        self.vopen_replies.discard(vreply)
+        self.vcut_replies.add(vreply)
+        self.spawn(self.note_playout())
+
+    async def note_playout(self) -> None:
+        async with self.vplayout:
+            self.vplayout.notify_all()
 
     def take_waiting_results(self, vsaying: list[PendingResult]) -> list[PendingResult]:
         # Whoever takes the waiting results says them, with `vsaying` (tool results this reply is about to say);
@@ -373,9 +388,7 @@ class MeetCall:
         self.vpending.clear()
         self.vpending.extend(vresumed)
         if vresults or vsaying:
-            self.vinterrupted = False
-            self.vplayed.clear()
-            self.spawn(self.requeue_if_talked_over(vsaying + vresults))
+            self.spawn(self.requeue_if_talked_over(vsaying + vresults, self.vreply_seq + 1))
         return vresults
 
     async def silence_leaked_verdict(self) -> None:
@@ -497,8 +510,6 @@ class MeetCall:
         self.vuser_speaking = True
         self.vlast_human_speech = time.monotonic()
         await self.cut_her_off()
-        self.vinterrupted = True
-        self.vplayed.set()
         if self.vsession is not None and self.vfloor.locked():
             await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="barge_in"))
 
@@ -516,8 +527,6 @@ class MeetCall:
             self.vspeech_started_at = time.monotonic()
             if self.vsource.queued_duration > 0:
                 await self.cut_her_off()
-                self.vinterrupted = True
-                self.vplayed.set()
             if self.is_continuation():
                 await self.drop_answer_for_continuation()
         elif isinstance(vevent, events.UserSpeechStopped):
@@ -534,6 +543,9 @@ class MeetCall:
             if self.vawaiting:
                 self.vowned, self.vawaiting = vevent.vresponse_id, False
                 self.vsink.vreply_s = 0.0
+                self.vreply_seq += 1
+                if self.vreply_seq not in self.vcut_replies:
+                    self.vopen_replies.add(self.vreply_seq)
         elif isinstance(vevent, events.AssistantTranscript):
             if vevent.vresponse_id != self.vowned:
                 return
@@ -587,7 +599,7 @@ class MeetCall:
                 self.vtrace = {}
                 logger.info("latency %s", " ".join(f"{vname}={vvalue:.2f}s" for vname, vvalue in vlatency.items()))
                 self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT), vlatency=vlatency)
-                self.spawn(self.rearm_after_playout())
+                self.spawn(self.rearm_after_playout(self.vreply_seq))
             if self.vneeds_followup:
                 self.vneeds_followup = False
                 if not self.vuser_speaking:
@@ -890,32 +902,37 @@ class MeetCall:
 
     async def tell(self, vline: str, vresults: list[PendingResult]) -> None:
         # The caller holds the floor. Results told in this turn go back to the front if someone talks over it.
-        self.vinterrupted = False
-        self.vplayed.clear()
+        vcarrier = self.vreply_seq + 1
         await self.speak(vline)
-        await self.requeue_if_talked_over(vresults)
+        await self.requeue_if_talked_over(vresults, vcarrier)
 
-    async def requeue_if_talked_over(self, vresults: list[PendingResult]) -> None:
+    async def requeue_if_talked_over(self, vresults: list[PendingResult], vcarrier: int) -> None:
+        # `vcarrier` is the number the reply saying these results will get: the next one after the request.
         if not vresults:
             return
         for vresult in vresults:
             vresult.vattempts += 1
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(self.vplayed.wait(), DELIVERY_PLAYOUT_TIMEOUT_S)
+        async with self.vplayout:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self.vplayout.wait_for(lambda: vcarrier in self.vplayed_replies or vcarrier in self.vcut_replies), DELIVERY_PLAYOUT_TIMEOUT_S)
         # Never played out is not delivered either: a reply that timed out or produced no audio goes back too.
-        vheard = self.vplayed.is_set() and not self.vinterrupted
+        vcut = vcarrier in self.vcut_replies
+        vheard = vcarrier in self.vplayed_replies and not vcut
         vretry = [] if vheard else [vresult for vresult in vresults if vresult.vattempts < DELIVERY_ATTEMPTS]
         for vresult in vretry:
-            vresult.vheard = self.vheard_before_cut if self.vinterrupted else ""
+            vresult.vheard = self.vheard_before_cut if vcut else ""
         if vretry:
             logger.info("%d background result(s) not heard; will come back to them", len(vretry))
             self.vpending.extendleft(reversed(vretry))
             self.vpending_added.set()
 
-    async def rearm_after_playout(self) -> None:
+    async def rearm_after_playout(self, vreply: int) -> None:
         await self.vsource.wait_for_playout()
         self.vlast_bot_played = time.monotonic()
-        self.vplayed.set()
+        if vreply in self.vopen_replies:
+            self.vopen_replies.discard(vreply)
+            self.vplayed_replies.add(vreply)
+        await self.note_playout()
         self.publish(type="state", state="listening")
 
     def remember(self, vturn: MeetTurn, *, vlatency: dict[str, float] | None = None) -> None:

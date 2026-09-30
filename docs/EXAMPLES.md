@@ -444,6 +444,10 @@ fact 4 times in 6 ("some wasps can recognise faces"); told to say only what the 
 A result already cut off once is not folded into the next answer: live, folded into "давай новый факт",
 the model started the fact search, skipped the talked-over weather, and it counted as told. It gets its
 own retelling right after that answer instead. The page marks a talked-over reply with how far she got.
+Playout is tracked per reply. Each response she owns gets a number and ends up played or cut; a result's
+watcher waits for the reply numbered right after its request, and only that one. With one shared
+"played" flag, "сейчас гляну" playing out before the tool answer marked the answer as heard, and talking
+over the answer then lost the result.
 
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.

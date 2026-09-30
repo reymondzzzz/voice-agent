@@ -48,8 +48,9 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     vcall.vaddressing = MeetAddressing("Karen", lambda _vprompt: asyncio.sleep(0, ""))
     vcall.vpending = collections.deque([PendingResult("Carl", "a science fact", "honey keeps"), PendingResult("Anna", "the deadline", "it holds")])
     vcall.vpending_added = asyncio.Event()
-    vcall.vplayed = asyncio.Event()
-    vcall.vinterrupted = False
+    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
+    vcall.vawaiting = False
+    vcall.spawn = asyncio.ensure_future
     vcall.vsource = type("Source", (), {"queued_duration": 0})()
     vcall.vheard_before_cut = ""
     vcall.vlast_bot_played = 0.0
@@ -60,8 +61,9 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
 
     async def speak(vline: str) -> None:
         vspoken.append(vline)
-        vcall.vinterrupted = len(vspoken) == 1
-        vcall.vplayed.set()
+        vcall.vreply_seq += 1
+        (vcall.vcut_replies if len(vspoken) == 1 else vcall.vplayed_replies).add(vcall.vreply_seq)
+        await vcall.note_playout()
         vcall.release_floor()
 
     vcall.wait_until_quiet = quiet
@@ -195,7 +197,9 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
 
     vcall = MeetCall.__new__(MeetCall)
     vcall.vsource, vcall.vsink, vcall.vsession = Source(), Sink(), Session()
-    vcall.vloud_s, vcall.vinterrupted, vcall.vplayed, vcall.vfloor = 0.0, False, asyncio.Event(), asyncio.Lock()
+    vcall.vloud_s, vcall.vfloor = 0.0, asyncio.Lock()
+    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
+    vcall.vopen_replies.add(1)
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
     vcall.vreply_parts, vcall.vturn_reply, vcall.vheard_before_cut = [], "", ""
     vcall.publish = lambda **_vevent: None
@@ -206,7 +210,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
         await vcall.watch_for_barge_in(vspeech)
     assert vcall.vsink.vcleared == 0, "140ms is not yet a barge-in"
     await vcall.watch_for_barge_in(vspeech)
-    assert vcall.vsink.vcleared == 1 and vcall.vsession.vinterrupts == 1 and vcall.vinterrupted
+    assert vcall.vsink.vcleared == 1 and vcall.vsession.vinterrupts == 1 and vcall.vcut_replies == {1}
     assert vcall.vuser_speaking, "until Qwen reports the end of this speech, the room is not quiet"
 
     Source.queued_duration = 0
