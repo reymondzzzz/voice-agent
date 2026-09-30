@@ -76,13 +76,26 @@ async def test_two_tools_in_one_response_get_one_follow_up_not_two():
 
 
 @pytest.mark.asyncio
-async def test_a_spoken_verdict_is_cut_and_the_answer_asked_for_again():
+async def test_a_spoken_verdict_is_muted_and_the_answer_asked_for_again():
     vcall = bare_call()
     await vcall.vfloor.acquire()
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="RESPOND"))
-    assert vcall.vsink.vmuted and vcall.vsession.vinterrupts == 1
+    assert vcall.vsink.vmuted and vcall.vsession.vinterrupts == 0
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert not vcall.vsink.vmuted and vcall.vsession.vresponses == 1 and vcall.vfloor.locked()
+
+
+@pytest.mark.asyncio
+async def test_a_spoken_verdict_does_not_cancel_the_tool_call_after_it():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="RESPOND"))
+    await vcall.on_tool_call(tool_call("science_fact", {}, "a"))
+    assert vcall.vsession.vinterrupts == 0 and vcall.vstarted == ["science_fact"]
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert vcall.vsession.vresponses == 1 and vcall.vfloor.locked()
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert vcall.vsession.vresponses == 1 and vcall.vturn_done.is_set()
 
 
 @pytest.mark.asyncio

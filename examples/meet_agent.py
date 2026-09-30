@@ -249,13 +249,12 @@ class MeetCall:
         await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
 
     async def silence_leaked_verdict(self) -> None:
-        # The routing steps share this session, and once a spoken reply came out as "RESPOND". Cut it before it is
-        # heard and ask again.
+        # The routing steps share this session, so a reply can open with a spoken "RESPOND". Only its audio is
+        # dropped: Qwen says the verdict and then calls the tool in the same response, and interrupting it cancelled
+        # the call, so each retry leaked again and a tool turn took ten seconds.
         self.vverdict_leaked = True
         self.vsink.vmuted = True
         await self.vsink.clear()
-        if self.vsession is not None:
-            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="verdict_leak"))
 
     def release_floor(self) -> None:
         if self.vfloor.locked():
@@ -409,9 +408,11 @@ class MeetCall:
             if self.vverdict_leaked:
                 self.vverdict_leaked = False
                 self.vsink.vmuted = False
-                logger.info("routing verdict leaked into speech; asking for the answer again")
-                await self.request_followup()
-                return
+                vreply = ""
+                if not self.vneeds_followup:
+                    logger.info("routing verdict leaked into speech; asking for the answer again")
+                    await self.request_followup()
+                    return
             if vreply:
                 self.vturn_spoke = True
                 self.vlast_bot_reply_done = time.monotonic()
@@ -540,7 +541,7 @@ class MeetCall:
         # Qwen can call several tools in one response, and a response.create per result collided ("Conversation
         # already has an active response"), swallowing speech that arrived meanwhile. Results go back now; one
         # follow-up is asked for when this response ends. A heavy tool needs none if Karen already said she is on it.
-        self.vneeds_followup = self.vneeds_followup or vtool is None or vlight or not "".join(self.vreply_parts).strip()
+        self.vneeds_followup = self.vneeds_followup or vtool is None or vlight or self.vverdict_leaked or not "".join(self.vreply_parts).strip()
         vfor_model = vresult + LIVE_VALUE_NOTE if vlight else vresult
         await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vfor_model}, vcorrelation=self.vsession.correlation()), vrespond=False)
 

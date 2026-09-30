@@ -38,7 +38,7 @@ def call_with(vname: str, varguments: dict) -> events.RealtimeToolCallRequested:
 
 def bare_call() -> MeetCall:
     vcall = MeetCall.__new__(MeetCall)
-    vcall.vsession, vcall.vreply_parts, vcall.vneeds_followup, vcall.vturn_tools = Session(), [], False, 0
+    vcall.vsession, vcall.vreply_parts, vcall.vneeds_followup, vcall.vturn_tools, vcall.vverdict_leaked = Session(), [], False, 0, False
     vcall.remember = lambda _vturn: None
     vcall.vstarted = []
     vcall.start_background = lambda vtool, varguments: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."

@@ -420,7 +420,9 @@ arrived meanwhile was never transcribed. One follow-up is asked for when the too
 someone started talking, is asked again once at the next pause instead of being forgotten; a reply
 that called no tool gets a silent YES/NO check for an unstarted promise ("я начала проверку" without
 `research`), and a YES tells her to call the tool; a spoken reply that begins with a routing verdict
-("RESPOND" was once heard) is muted, cancelled and asked again. Time and weather results are marked as
+("RESPOND" was once heard) is muted but not cancelled: Qwen says the verdict and then calls the tool in
+the same response, and cancelling it dropped the call, so the retry leaked again (a live tool turn took
+12s through 12 retries). Only a response that called no tool is asked again. Time and weather results are marked as
 valid only at that moment, after a live answer repeated a Tokyo time from eleven minutes earlier without
 calling the tool (not reproducible in a short replay, 5/5 called there either way). Rehearsed: "Карен,
 какая погода в Лондоне, и расскажи научный факт" got both tools, one spoken answer and the fact later;
