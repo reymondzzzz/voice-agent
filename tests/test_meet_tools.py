@@ -38,7 +38,7 @@ def call_with(vname: str, varguments: dict) -> events.RealtimeToolCallRequested:
 
 def bare_call() -> MeetCall:
     vcall = MeetCall.__new__(MeetCall)
-    vcall.vsession, vcall.vreply_parts, vcall.vtool_followup = Session(), [], False
+    vcall.vsession, vcall.vreply_parts, vcall.vneeds_followup, vcall.vturn_tools = Session(), [], False, 0
     vcall.remember = lambda _vturn: None
     vcall.vstarted = []
     vcall.start_background = lambda vtool, varguments: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
@@ -50,7 +50,8 @@ async def test_a_light_tool_runs_inline_and_is_answered_at_once():
     vcall = bare_call()
     await vcall.on_tool_call(call_with("get_current_time", {"timezone": "Europe/London"}))
     vresult, vrespond = vcall.vsession.vresults[0]
-    assert "Europe/London" in vresult and vrespond and vcall.vstarted == []
+    assert "Europe/London" in vresult and "call the tool again" in vresult and vcall.vstarted == []
+    assert not vrespond and vcall.vneeds_followup, "answered by one follow-up when the response ends"
 
 
 @pytest.mark.asyncio

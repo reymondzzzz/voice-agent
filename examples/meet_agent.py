@@ -53,6 +53,16 @@ BOT_SETTLE_S = 0.5
 ROUTE_TIMEOUT_S = 5.0
 FLOOR_TIMEOUT_S = 10.0
 KEEPALIVE_S = 240.0
+TURN_TIMEOUT_S = 30.0
+LIVE_VALUE_NOTE = " (live value at the moment of this call; for any later question, call the tool again instead of repeating it)"
+PROMISE_CHECK = (
+    "Internal check. In your last spoken reply, did you say you would look something up, check something, or come "
+    "back with an answer later? Reply with exactly one word: YES or NO."
+)
+PROMISE_CORRECTION = (
+    "[internal] Your last reply promised to look something up or check it, but you started no tool. Call the right "
+    "tool now; do not repeat the promise."
+)
 KAREN_EVENTS_TOPIC = "karen"
 KAREN_RULES = (
     "You are Karen, a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
@@ -61,7 +71,7 @@ KAREN_RULES = (
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "
-    "either before answering. A science fact must come from science_fact, never from your own knowledge. For "
+    "either before answering, every time: an earlier time or weather value is already out of date. A science fact must come from science_fact, never from your own knowledge. For "
     "anything that needs research, analysis, drafting or careful checking beyond what was said, call research "
     "with a self-contained question. A tool that runs in the background returns at once: then say in a few words "
     "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
@@ -95,6 +105,16 @@ def delivery_line(vresults: list[PendingResult]) -> str:
         f"[background results ready]\n{vitems}\n{vhow} Keep talking from one item to the next without stopping or "
         f"asking whether to go on, a sentence or two for each, addressing each person by name."
     )
+
+
+def is_spoken_verdict(vtext: str) -> bool:
+    vword = "".join(vchar for vchar in vtext.upper() if vchar.isalpha())
+    return bool(vword) and any(vverdict.startswith(vword) or vword.startswith(vverdict) for vverdict in ("RESPOND", "IGNORE")) and len(vword) >= 3
+
+
+def parse_yes(vreply: str) -> bool:
+    vupper = vreply.upper()
+    return "YES" in vupper and "NO" not in vupper.replace("YES", "")
 
 
 def loudness_dbfs(vpcm: bytes) -> float:
@@ -183,7 +203,11 @@ class MeetCall:
         self.vrouting: asyncio.Future[str] | None = None
         self.vroute_parts: list[str] = []
         self.vdiscard_next = False
-        self.vtool_followup = False
+        self.vneeds_followup = False
+        self.vturn_tools = 0
+        self.vturn_spoke = False
+        self.vverdict_leaked = False
+        self.vturn_done = asyncio.Event()
         self.vfacts: list[str] = []
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
@@ -215,6 +239,23 @@ class MeetCall:
             logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
             self.release_floor()
             await self.vfloor.acquire()
+
+    def end_turn(self) -> None:
+        self.vturn_done.set()
+        self.release_floor()
+
+    async def request_followup(self) -> None:
+        assert self.vsession is not None
+        await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
+
+    async def silence_leaked_verdict(self) -> None:
+        # The routing steps share this session, and once a spoken reply came out as "RESPOND". Cut it before it is
+        # heard and ask again.
+        self.vverdict_leaked = True
+        self.vsink.vmuted = True
+        await self.vsink.clear()
+        if self.vsession is not None:
+            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="verdict_leak"))
 
     def release_floor(self) -> None:
         if self.vfloor.locked():
@@ -266,7 +307,8 @@ class MeetCall:
         vprevious, self.vsession = self.vsession, vsession
         if self.vrouting is not None and not self.vrouting.done():
             self.vrouting.set_result("")
-        self.vtool_followup = False
+        self.vneeds_followup = False
+        self.vturn_done.set()
         self.release_floor()
         self.spawn(self.pump_events(vsession))
         if vprevious is not None:
@@ -348,6 +390,8 @@ class MeetCall:
                 return
             self.vlast_bot_activity = time.monotonic()
             self.vreply_parts.append(vevent.vtext)
+            if not self.vverdict_leaked and is_spoken_verdict("".join(self.vreply_parts)):
+                await self.silence_leaked_verdict()
         elif isinstance(vevent, events.AssistantSpeechStopped):
             self.vlast_response_at = time.monotonic()
             if self.vrouting is not None:
@@ -362,17 +406,27 @@ class MeetCall:
                 self.vsink.vmuted = False
                 return
             self.vlast_bot_activity = time.monotonic()
+            if self.vverdict_leaked:
+                self.vverdict_leaked = False
+                self.vsink.vmuted = False
+                logger.info("routing verdict leaked into speech; asking for the answer again")
+                await self.request_followup()
+                return
             if vreply:
+                self.vturn_spoke = True
                 self.vlast_bot_reply_done = time.monotonic()
                 vlatency = reply_latency(self.vtrace, self.vsink.vfirst_audio_at)
                 self.vtrace = {}
                 logger.info("latency %s", " ".join(f"{vname}={vvalue:.2f}s" for vname, vvalue in vlatency.items()))
                 self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT), vlatency=vlatency)
                 self.spawn(self.rearm_after_playout())
-            if self.vtool_followup:
-                self.vtool_followup = False
-            else:
-                self.release_floor()
+            if self.vneeds_followup and not self.vuser_speaking:
+                # All of this response's tool results are in: one follow-up speaks them, in the same turn.
+                self.vneeds_followup = False
+                await self.request_followup()
+                return
+            self.vneeds_followup = False
+            self.end_turn()
         elif isinstance(vevent, events.RealtimeToolCallRequested):
             await self.on_tool_call(vevent)
         elif isinstance(vevent, events.RealtimeSessionError):
@@ -395,9 +449,33 @@ class MeetCall:
         self.publish(type="addressed", ts=vturn.vat)
         # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
         # weather tool. They follow the moment the answer has played, since Karen then still holds the floor.
+        vline = f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}"
+        for vattempt in range(2):
+            await self.take_floor()
+            self.vtrace = vtrace
+            await self.speak(vline)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)
+            if self.vturn_spoke or self.vturn_tools:
+                break
+            if vattempt:
+                return
+            # Talked over before a word was said: the request is not forgotten, it is answered at the next pause.
+            logger.info("request from %s was cut off before an answer; will answer it at the next pause", vturn.vspeaker)
+            await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
+            vline = f"[{vturn.vspeaker} asked you this a moment ago and you have not answered yet] {vturn.vtext}"
+            vtrace = {}
+        if self.vturn_spoke and not self.vturn_tools:
+            await self.check_promise()
+
+    async def check_promise(self) -> None:
+        # Qwen sometimes says "я начала проверку" and calls nothing. A reply that used no tool is asked, silently,
+        # whether it promised work; if so, Karen is told to start it.
+        if not parse_yes(await self.route(PROMISE_CHECK)):
+            return
+        logger.info("reply promised work without a tool call; asking for the tool")
         await self.take_floor()
-        self.vtrace = vtrace
-        await self.speak(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
+        await self.speak(PROMISE_CORRECTION)
 
     async def keep_session_alive(self) -> None:
         # DashScope closes a session after 300s without a response, and Karen's meeting context goes with it. A
@@ -417,6 +495,10 @@ class MeetCall:
         self.vlast_bot_activity = time.monotonic()
         self.vtrace["requested"] = self.vlast_bot_activity
         self.vsink.vfirst_audio_at = None
+        self.vturn_done.clear()
+        self.vturn_tools = 0
+        self.vturn_spoke = False
+        self.vneeds_followup = False
         self.publish(type="state", state="thinking")
         await self.vsession.update_instructions(self.instructions())
         vcorrelation = self.vsession.correlation()
@@ -453,12 +535,14 @@ class MeetCall:
         vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
-        # Qwen 3.8 often says "I'm on it" in the same response that starts background work; asking it to respond
-        # again to the tool result made it say so twice. A light tool's result still needs its spoken answer.
-        vrespond = vtool is None or vtool.vweight is ToolWeight.LIGHT or not "".join(self.vreply_parts).strip()
-        # The answer to a tool call is a second response that still belongs to this turn: keep the floor for it.
-        self.vtool_followup = vrespond
-        await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vresult}, vcorrelation=self.vsession.correlation()), vrespond=vrespond)
+        self.vturn_tools += 1
+        vlight = vtool is not None and vtool.vweight is ToolWeight.LIGHT
+        # Qwen can call several tools in one response, and a response.create per result collided ("Conversation
+        # already has an active response"), swallowing speech that arrived meanwhile. Results go back now; one
+        # follow-up is asked for when this response ends. A heavy tool needs none if Karen already said she is on it.
+        self.vneeds_followup = self.vneeds_followup or vtool is None or vlight or not "".join(self.vreply_parts).strip()
+        vfor_model = vresult + LIVE_VALUE_NOTE if vlight else vresult
+        await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vfor_model}, vcorrelation=self.vsession.correlation()), vrespond=False)
 
     def requester(self) -> str:
         return self.addressing().vengaged_speaker or "the room"

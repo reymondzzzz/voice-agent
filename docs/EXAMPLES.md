@@ -412,6 +412,28 @@ the transcript verbatim ("Карен, Кирилл Старков" for "Кири
 bridge's own capture, before LiveKit, in two of the worst phrases; the page's ScriptProcessor running on
 Meet's busy main thread is the suspect.
 
+**A turn, not a response.** Karen's reply to a line can take several Qwen responses, so the agent tracks
+the turn. Tool results go back without asking for a response each: when Qwen called two tools in one
+response, the second request collided ("Conversation already has an active response") and speech that
+arrived meanwhile was never transcribed. One follow-up is asked for when the tool-call response ends
+(none for heavy work she already announced). A request cut off before any reply or tool call, because
+someone started talking, is asked again once at the next pause instead of being forgotten; a reply
+that called no tool gets a silent YES/NO check for an unstarted promise ("я начала проверку" without
+`research`), and a YES tells her to call the tool; a spoken reply that begins with a routing verdict
+("RESPOND" was once heard) is muted, cancelled and asked again. Time and weather results are marked as
+valid only at that moment, after a live answer repeated a Tokyo time from eleven minutes earlier without
+calling the tool (not reproducible in a short replay, 5/5 called there either way). Rehearsed: "Карен,
+какая погода в Лондоне, и расскажи научный факт" got both tools, one spoken answer and the fact later;
+"Карен, который час в Токио?" talked over by Anna was answered once she finished. Known gap: the speaker
+label is read when the transcript arrives, so a line followed quickly by someone else can be credited
+to them.
+
+**Bridge capture is not the dropout source.** The ~10-30ms runs of digital silence in the recordings were
+checked against the page's ScriptProcessor: with a continuous tone and the page's main thread blocked
+150ms in every 300, and then 500ms in every 700, the bridge delivered 0 gaps of 3ms or more. Chrome
+queues the capture input rather than dropping it, so the silences arrive from Meet and an AudioWorklet
+rewrite would not change them.
+
 **One language.** `MEET_LANGUAGE` pins Qwen's transcription (`input_audio_transcription.language`, which
 DashScope accepts): unpinned it wrote Russian speech as Polish ("karol daj proszę…") and Chinese, and
 Karen then answered the garbled line from her own knowledge instead of calling the tool. The rules tell
