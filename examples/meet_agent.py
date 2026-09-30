@@ -16,7 +16,7 @@ from livekit import agents, rtc
 from livekit.agents import AgentServer, JobContext
 
 from examples import voice_app
-from examples.meet_addressing import MeetAddressing
+from examples.meet_addressing import MeetAddressing, mentions_name
 from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
 from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn
 from examples.meet_tools import MEET_TOOLS, MEET_TOOLS_BY_NAME, SCIENCE_FACTS, MeetTool, ToolWeight
@@ -47,7 +47,10 @@ PLAYBACK_QUEUE_MS = 20_000
 QUIET_BEFORE_SPEAKING_S = 1.5
 QUIET_BEFORE_DELIVERY_S = 3.0
 QUIET_POLL_S = 0.25
-TURN_SILENCE_MS = 1200
+# 900ms ended no read phrase early on the Meet recordings; 800 split "на четверг. | половине четвертого" and 600 split two,
+# while 1200 cost 0.3s more on every answer and still glued neighbouring phrases into one line.
+TURN_SILENCE_MS = 900
+FOLLOW_UP_WINDOW_S = 8.0
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
@@ -79,7 +82,11 @@ KAREN_RULES = (
     "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
     "it in this reply or it is listed below as running; otherwise say you have not started anything. Never guess "
     "a result that has not arrived. Speak like a colleague in the room: brief, warm and "
-    "plain, no announcements about yourself or your tools. When you bring back a background result, open with a "
+    "plain, no announcements about yourself or your tools. Sound like a person thinking aloud, not a script: "
+    "react in your own words the way people do, a short 'хм', 'ага', 'о', 'так-так', 'ну смотри', 'ой, хороший "
+    "вопрос', 'щас гляну', and these are only examples. Never reuse a reaction you already used in this meeting, "
+    "and many replies need none. Before a tool call a quick reaction is welcome, since the person hears you "
+    "while it runs. When you bring back a background result, open with a "
     "few words that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you "
     "are asked an internal routing question about who a line was meant for: answer it with the single word asked "
     "for, and never say RESPOND or IGNORE aloud."
@@ -194,6 +201,8 @@ class MeetCall:
         self.vuser_speaking = False
         self.vlast_human_speech = 0.0
         self.vlast_bot_reply_done = 0.0
+        self.vlast_bot_played = 0.0
+        self.vspeech_started_at = 0.0
         self.vlast_bot_activity = 0.0
         self.vreply_parts: list[str] = []
         self.vcaller_name = ""
@@ -399,6 +408,7 @@ class MeetCall:
     async def on_event(self, vevent: events.RealtimeEvent) -> None:
         if isinstance(vevent, events.UserSpeechStarted):
             self.vuser_speaking = True
+            self.vspeech_started_at = time.monotonic()
             if self.vsource.queued_duration > 0:
                 await self.vsink.clear()
                 self.vinterrupted = True
@@ -468,11 +478,24 @@ class MeetCall:
         vturn = MeetTurn(time.time(), vspeaker, vtext)
         self.remember(vturn)
         vtrace = {"speech_end": self.vlast_human_speech, "heard": time.monotonic()}
+        vfollow_up = self.is_follow_up(vspeaker, vtext)
         # Judged off the event pump: waiting on the gate model must not delay the next speech-started event.
-        self.spawn(self.consider(vturn, vcontext, vtrace))
+        self.spawn(self.consider(vturn, vcontext, vtrace, vfollow_up=vfollow_up))
 
-    async def consider(self, vturn: MeetTurn, vcontext: str, vtrace: dict[str, float]) -> None:
-        if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
+    def is_follow_up(self, vspeaker: str, vtext: str) -> bool:
+        # The person Karen just answered, speaking again right after her reply, is talking to her: that skips the
+        # second-long routing step. Naming a colleague still goes through it, so turning to someone else works.
+        if vspeaker != self.addressing().vengaged_speaker or not self.vlast_bot_played:
+            return False
+        if self.vspeech_started_at - self.vlast_bot_played > FOLLOW_UP_WINDOW_S:
+            return False
+        vcolleagues = {vturn.vspeaker.split()[0] for vturn in self.vmemory.vturns if vturn.vrole is MeetRole.PARTICIPANT and vturn.vspeaker != vspeaker}
+        return not any(mentions_name(vtext, vcolleague) for vcolleague in vcolleagues)
+
+    async def consider(self, vturn: MeetTurn, vcontext: str, vtrace: dict[str, float], *, vfollow_up: bool) -> None:
+        if vfollow_up:
+            logger.info("follow-up from %s, no routing step", vturn.vspeaker)
+        elif not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
             return
         vtrace["decided"] = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
@@ -683,6 +706,7 @@ class MeetCall:
 
     async def rearm_after_playout(self) -> None:
         await self.vsource.wait_for_playout()
+        self.vlast_bot_played = time.monotonic()
         self.vplayed.set()
         self.publish(type="state", state="listening")
 

@@ -340,6 +340,24 @@ The session is still in manual response mode (`create_response` off, server VAD 
 each turn and nothing speaks until asked. One response runs at a time, so routing steps, answers and
 deliveries take turns on a floor lock; a tool call's follow-up response keeps the floor.
 
+How long a person waits, from the end of their phrase to her voice in Meet: Qwen's VAD reports the
+phrase over only after `TURN_SILENCE_MS` of quiet, measured at 1.5s after the speech really ended with
+1200ms and 0.9s with 600ms; then ~0.2s for the transcript, ~1s for the routing step unless her name
+was in the line, 1.1–1.9s to first audio (a tool call adds a second response), and the trip back
+through the bridge. The page's `total` starts at the VAD event, so it leaves the first part out.
+`TURN_SILENCE_MS` is 900: it ended no read phrase early on the two Meet recordings, where 800 split
+"на четверг. | половине четвертого" and 600 split two phrases. The person she just answered, speaking
+again within `FOLLOW_UP_WINDOW_S` of her reply ending, skips the routing step unless the line names
+a colleague who has spoken in the meeting. For comparison, OpenAI's full-duplex GPT-Live-1 measured
+~1.1s median end-of-speech to first audio in ChatGPT (Agora, n=30), and OpenAI documents it as built
+for one speaker.
+
+Her replies used to open the same formal way ("Хорошо", "Кирилл", "Сейчас"). The persona now asks for
+a person's reactions in her own words, "хм", "ага", "так-так", "ой, хороший вопрос", never reused within
+the meeting, and welcomes one before a tool call so the person hears her while it runs. A literal list
+got parroted ("Секунду, гляну" twice in eight replies); framed as examples, eight test questions came
+back with "Ой, хороший вопрос", "Так-так", "Хм" and plain answers.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

@@ -5,7 +5,7 @@ import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
-from examples.meet_memory import MeetTurn
+from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
 
@@ -54,7 +54,7 @@ def bare_call() -> MeetCall:
     vcall.vturn_results, vcall.vpending, vcall.vpending_added = [], collections.deque(), asyncio.Event()
     vcall.vinterrupted, vcall.vplayed = False, asyncio.Event()
     vcall.vspawned = []
-    vcall.spawn = vcall.vspawned.append
+    vcall.spawn = lambda vcoro: vcall.vspawned.append(vcoro) or vcoro.close()
     vcall.requester = lambda: "Kirill"
     vcall.remember = lambda *_vargs, **_vkwargs: None
     vcall.vstarted = []
@@ -129,7 +129,7 @@ async def test_a_request_cut_off_before_any_answer_is_asked_again_once():
         pass
 
     vcall.speak, vcall.wait_until_quiet, vcall.check_promise = speak, quiet, no_promise
-    await vcall.consider(MeetTurn(0.0, "Kirill", "Карен, какая погода в Лондоне?"), "", {})
+    await vcall.consider(MeetTurn(0.0, "Kirill", "Карен, какая погода в Лондоне?"), "", {}, vfollow_up=False)
     assert len(vspoken) == 2
     assert vspoken[1].startswith("[Kirill asked you this a moment ago and you have not answered yet]")
 
@@ -170,3 +170,25 @@ async def test_a_waiting_result_rides_along_with_the_tool_answer():
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 1 and not vcall.vpending
     assert "Octopuses have three hearts." in vcall.vsession.vcontext[0] and len(vcall.vspawned) == 1
+
+
+def follow_up_call(vspeech_after_reply_s: float) -> MeetCall:
+    vcall = bare_call()
+    vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
+    vcall.vaddressing.engage("Kirill Starkov")
+    vcall.vlast_bot_played = 100.0
+    vcall.vspeech_started_at = 100.0 + vspeech_after_reply_s
+    vcall.vmemory = MeetMemory()
+    vcall.vmemory.add(MeetTurn(1.0, "Kirill Starkov", "Мэгги, какая погода в Лондоне?"))
+    vcall.vmemory.add(MeetTurn(2.0, "Anna Petrova", "А мне интересно про Токио."))
+    return vcall
+
+
+def test_the_person_she_just_answered_needs_no_routing_step():
+    assert follow_up_call(2.0).is_follow_up("Kirill Starkov", "А в Париже?")
+
+
+def test_turning_to_a_colleague_or_waiting_long_goes_through_routing():
+    assert not follow_up_call(2.0).is_follow_up("Kirill Starkov", "Анна, а ты что думаешь?")
+    assert not follow_up_call(2.0).is_follow_up("Anna Petrova", "А в Париже?")
+    assert not follow_up_call(20.0).is_follow_up("Kirill Starkov", "А в Париже?")
