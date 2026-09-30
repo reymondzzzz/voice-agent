@@ -36,9 +36,9 @@ MEET_LANGUAGE = "ru"
 MEET_LANGUAGE_NAME = "Russian"
 BARGE_IN_DBFS = -40.0
 BARGE_IN_S = 0.15
-# Meet's noise gate clips the start of every utterance, where the name sits. "Юки" came through 8 of 10 times with
-# 120ms clipped; "Карен" 4 ("Арен", "Лен"), "Сири" 2 ("Тери"). See docs/EXAMPLES.md before renaming.
-MEET_DEFAULT_BOT_NAME = "Юки"
+# Meet's noise gate clips the start of every utterance, where the name sits. "Мэгги" came through 7 of 10 times with
+# 120ms clipped; "Карен" 4 ("Арен", "Лен"), "Грета" 1 ("Рита"). See docs/EXAMPLES.md before renaming.
+MEET_DEFAULT_BOT_NAME = "Мэгги"
 MEET_TRANSCRIPT_DIR = pathlib.Path("meet-transcripts")
 ROOM_SAMPLE_RATE_HZ = voice_contracts.VOICE_ROOM_SAMPLE_RATE_HZ
 # Meet audio is taken straight at the rate Qwen listens at: resampling 48k to 24k and again to 16k cost accuracy.
@@ -67,9 +67,9 @@ PROMISE_CORRECTION = (
 )
 KAREN_EVENTS_TOPIC = "karen"
 KAREN_RULES = (
-    "You are Юки (Yuki), a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
-    "(я рада, я нашла). People address you as Юки; the name in a line like 'Юки, ...' is you, never call "
-    "anyone else Юки, and call people by the names in the transcript. You hear everyone, but almost everything is said "
+    "You are Мэгги (Maggie), a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
+    "(я рада, я нашла). People address you as Мэгги; the name in a line like 'Мэгги, ...' is you, never call "
+    "anyone else Мэгги, and call people by the names in the transcript. You hear everyone, but almost everything is said "
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "

@@ -178,7 +178,7 @@ def main() -> None:
     vparser = argparse.ArgumentParser(description="Bridge a Google Meet call into a LiveKit room the example agent serves.")
     vparser.add_argument("meet_url")
     vparser.add_argument("--room", default=f"voice-meet-{secrets.token_hex(3)}")
-    vparser.add_argument("--name", default="Юки")
+    vparser.add_argument("--name", default="Мэгги")
     vparser.add_argument("--headless", action="store_true")
     vparser.add_argument("--profile", type=pathlib.Path, help="Chrome profile directory signed in to a Google account; Meet turns away anonymous automated guests")
     vargs = vparser.parse_args()

@@ -211,10 +211,10 @@ instead of the Boss / Alice / Bob call.
 
 ```bash
 uv run python -m examples.meet_agent dev                                  # Karen, instead of voice_app
-uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij   # joins as «Юки»
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij   # joins as «Мэгги»
 ```
 
-The agent was built as Karen and is called «Юки» in the meeting (the code and the page still say
+The agent was built as Karen and is called «Мэгги» in the meeting (the code and the page still say
 Karen internally). Meet's sender-side noise gate eats the start of each utterance, which is where
 the name sits: over a real Meet call "Карен" came out as "Арен", "Таран", "Аарон" or nothing, and
 the transcriber kept it in 2 of 5 read lines. Measured with Qwen speaking each candidate in 5
@@ -223,7 +223,14 @@ phrases in two voices, the onset cut the way the gate does (name recognised, of 
 | Name | 0ms cut | 60ms | 120ms |
 | --- | --- | --- | --- |
 | Аврора | 10 | 10 | 10 ("Аурора", "Врора") |
-| **Юки** | 10 | 10 | 8 |
+| Юки | 10 | 10 | 8 |
+| **Мэгги** | 10 | 10 | 7 ("Эгги", "Меги") |
+| Хлоя | 9 | 8 | 7 |
+| Лотта | 10 | 10 | 6 ("Отто") |
+| Ханна | 10 | 10 | 10, but as "Анна" |
+| Эмма | 10 | 10 | 2 |
+| Грета | 10 | 10 | 1 ("Рита") |
+| Фрида | 10 | 5 | 1 ("Ида", "да") |
 | Руби | 9 | 10 | 4 |
 | Люми | 10 | 10 | 3 |
 | Сири | 9 | 9 | 2 ("Тери", "Ирри") |
@@ -234,9 +241,9 @@ phrases in two voices, the onset cut the way the gate does (name recognised, of 
 | Эльза | 10 | 9 | 0 ("Лиза") |
 | Тесса | 9 | 0 | 0 |
 
-Three syllables survive best; Юки is the best two-syllable name, chosen for being short. The fuzzy
+Three syllables survive best. Мэгги is the short European name that held up: what the gate leaves of it ("Эгги", "Меги") is no one else's name, where "Ханна" became "Анна" and "Грета" became "Рита". The fuzzy
 match only accepts a word no longer than the name, since the gate removes sounds and never adds
-them: that keeps "брюки" and "юбки" from waking Юки while "руки" already fell under the ratio.
+them: that kept "брюки" and "юбки" from waking a bot called Юки while "руки" already fell under the ratio.
 Cleaning the audio instead did not help: a high-pass, a presence boost, comfort noise in the gated
 gaps, and Qwen's VAD padding or threshold all scored within noise of the untouched Meet audio
 (12–18% word errors on the same 78-word script). The words lost are the ones the gate removed.

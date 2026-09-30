@@ -138,7 +138,7 @@ function markAddressed(vts) {
   if (vhead && !vhead.querySelector(".to")) {
     const vto = document.createElement("span")
     vto.className = "to"
-    vto.textContent = "→ Юки"
+    vto.textContent = "→ Мэгги"
     vhead.append(vto)
   }
 }
@@ -354,7 +354,7 @@ if (VOBSERVE) {
   vui.connect.textContent = "Watch"
   vui.mute.hidden = true
   vui.brandNote.textContent = `— watching the Meet call${VROOM ? ` · ${VROOM}` : ""}`
-  vui.hint.textContent = "You talk to Юки in Meet. This page only watches: what she hears, the tools she calls and her background work."
+  vui.hint.textContent = "You talk to Мэгги in Meet. This page only watches: what she hears, the tools she calls and her background work."
 }
 const vunsupported = captureUnsupportedReason()
 if (vunsupported) {
