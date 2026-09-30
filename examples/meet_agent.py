@@ -58,8 +58,9 @@ CONTINUATION_WINDOW_S = 2.5
 # withdrew always-on filler injection after users found it too much.
 FILLER_AFTER_S = 0.5
 FILLER_CHANCE = 0.6
-# A person says "хмм", stops, then answers; glued straight onto the answer it sounded like a stutter.
-FILLER_PAUSE_S = 0.35
+# A follow-up after a quick tool takes 1.1-1.8s to sound; a clip at the call left a second of silence before the answer,
+# started this late it ends about when the answer begins.
+FILLER_CHECKING_AFTER_S = 0.6
 GATE_CONTEXT_TURNS = 12
 DELIVERY_ATTEMPTS = 2
 DELIVERY_PLAYOUT_TIMEOUT_S = 60.0
@@ -69,9 +70,12 @@ FLOOR_TIMEOUT_S = 10.0
 KEEPALIVE_S = 240.0
 TURN_TIMEOUT_S = 30.0
 LIVE_VALUE_NOTE = " (live value at the moment of this call; for any later question, call the tool again instead of repeating it)"
+# Quoted, because asked about "your last reply" she also weighed earlier ones: after "сейчас подберу факт, секунду"
+# (backed by a tool), "мне нужно уточнить город" came back YES 5 of 5 times; quoted, 20 of 20 checks were right.
 PROMISE_CHECK = (
-    "Internal check. In your last spoken reply, did you say you would look something up, check something, or come "
-    "back with an answer later? Reply with exactly one word: YES or NO."
+    "Internal check about this one reply of yours, and nothing earlier: «{reply}». Does it tell the person you are "
+    "looking something up, checking it or will come back with an answer? Asking them something, such as which city "
+    "they mean, is NO. Reply with exactly one word: YES or NO."
 )
 PROMISE_CORRECTION = (
     "[internal] Your last reply promised to look something up or check it, but you started no tool. Call the right "
@@ -179,7 +183,6 @@ class RoomAudioSink:
 
     async def play_filler(self, vpcm: bytes) -> None:
         # Not her answer, so it does not count as its first audio: latency stays the model's.
-        vpcm += bytes(int(protocol.OUTPUT_SAMPLE_RATE_HZ * FILLER_PAUSE_S) * 2)
         await self.vsource.capture_frame(rtc.AudioFrame(vpcm, protocol.OUTPUT_SAMPLE_RATE_HZ, 1, len(vpcm) // 2))
 
     async def flush(self) -> None:
@@ -231,6 +234,7 @@ class MeetCall:
         self.vneeds_followup = False
         self.vturn_tools = 0
         self.vturn_spoke = False
+        self.vturn_reply = ""
         self.vturn_results: list[PendingResult] = []
         self.vverdict_leaked = False
         self.vturn_done = asyncio.Event()
@@ -477,6 +481,7 @@ class MeetCall:
                     return
             if vreply:
                 self.vturn_spoke = True
+                self.vturn_reply = vreply
                 self.vlast_bot_reply_done = time.monotonic()
                 vlatency = reply_latency(self.vtrace, self.vsink.vfirst_audio_at)
                 self.vtrace = {}
@@ -564,7 +569,7 @@ class MeetCall:
                 self.vanswering, self.vanswering_heard_at = vturn, vtrace.get("heard", time.monotonic())
                 await self.speak(vline)
                 if not vattempt:
-                    self.spawn(self.fill_silence())
+                    self.spawn(self.fill_silence(FillerKind.THINKING, FILLER_AFTER_S, FILLER_CHANCE))
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)
                 if self.vcontinued is vturn:
@@ -582,12 +587,12 @@ class MeetCall:
             if self.vanswering is vturn:
                 self.vanswering = None
         if self.vturn_spoke and not self.vturn_tools:
-            await self.check_promise()
+            await self.check_promise(self.vturn_reply)
 
-    async def fill_silence(self) -> None:
-        await asyncio.sleep(FILLER_AFTER_S)
-        if random.random() < FILLER_CHANCE:
-            await self.play_filler(FillerKind.THINKING)
+    async def fill_silence(self, vkind: FillerKind, vafter_s: float, vchance: float) -> None:
+        await asyncio.sleep(vafter_s)
+        if random.random() < vchance:
+            await self.play_filler(vkind)
 
     async def play_filler(self, vkind: FillerKind) -> None:
         # Only into silence: once her answer has started, or someone talks, or the turn is over, a filler is noise.
@@ -597,10 +602,10 @@ class MeetCall:
         logger.info("filler %s", vkind.value)
         await self.vsink.play_filler(self.vfillers.pick(vkind))
 
-    async def check_promise(self) -> None:
+    async def check_promise(self, vreply: str) -> None:
         # Qwen sometimes says "я начала проверку" and calls nothing. A reply that used no tool is asked, silently,
         # whether it promised work; if so, Karen is told to start it.
-        if not parse_yes(await self.route(PROMISE_CHECK)):
+        if not parse_yes(await self.route(PROMISE_CHECK.format(reply=vreply))):
             return
         logger.info("reply promised work without a tool call; asking for the tool")
         await self.take_floor()
@@ -627,6 +632,7 @@ class MeetCall:
         self.vturn_done.clear()
         self.vturn_tools = 0
         self.vturn_spoke = False
+        self.vturn_reply = ""
         self.vturn_results = []
         self.vturn_fillers = set()
         self.vneeds_followup = False
@@ -660,7 +666,7 @@ class MeetCall:
         # Only before a result that follows at once ("сейчас гляну… в Лондоне 14"). A background task she announces
         # herself ("я уже запустила поиск"), and a clip in front of that said "секунду" twice.
         if vtool is not None and vtool.vweight is ToolWeight.LIGHT:
-            await self.play_filler(FillerKind.CHECKING)
+            self.spawn(self.fill_silence(FillerKind.CHECKING, FILLER_CHECKING_AFTER_S, 1.0))
         if vtool is None:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
         elif vtool.vweight is ToolWeight.LIGHT:

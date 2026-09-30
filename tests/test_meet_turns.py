@@ -5,6 +5,7 @@ import time
 import pytest
 
 from examples.meet_addressing import MeetAddressing
+from examples import meet_agent
 from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
 from examples.meet_fillers import FillerDeck, FillerKind
 from examples.meet_memory import MeetMemory, MeetTurn
@@ -67,6 +68,7 @@ def bare_call() -> MeetCall:
     vcall.vfillers = FillerDeck({FillerKind.THINKING: [b"hmm"], FillerKind.CHECKING: [b"sekundu"]})
     vcall.vturn_fillers, vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = set(), None, 0.0, None, False
     vcall.current_speaker = lambda: "Kirill"
+    vcall.vturn_reply = ""
     vcall.remember = lambda *_vargs, **_vkwargs: None
     vcall.vstarted = []
     vcall.start_background = lambda vtool, _vargs: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
@@ -136,7 +138,7 @@ async def test_a_request_cut_off_before_any_answer_is_asked_again_once():
     async def quiet(_vpause_s: float) -> None:
         pass
 
-    async def no_promise() -> None:
+    async def no_promise(_vreply: str) -> None:
         pass
 
     vcall.speak, vcall.wait_until_quiet, vcall.check_promise = speak, quiet, no_promise
@@ -149,15 +151,18 @@ async def test_a_request_cut_off_before_any_answer_is_asked_again_once():
 async def test_a_reply_that_promised_work_without_a_tool_is_corrected():
     vcall = bare_call()
     vspoken: list[str] = []
+    vasked: list[str] = []
 
-    async def route(_vprompt: str) -> str:
+    async def route(vprompt: str) -> str:
+        vasked.append(vprompt)
         return "YES"
 
     async def speak(vline: str) -> None:
         vspoken.append(vline)
 
     vcall.route, vcall.speak = route, speak
-    await vcall.check_promise()
+    await vcall.check_promise("Я уже начала проверку, скоро скажу.")
+    assert "«Я уже начала проверку, скоро скажу.»" in vasked[0], "the reply is quoted, or earlier promises count too"
     assert vspoken and vspoken[0].startswith("[internal] Your last reply promised")
 
 
@@ -180,7 +185,8 @@ async def test_a_waiting_result_rides_along_with_the_tool_answer():
     await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 1 and not vcall.vpending
-    assert "Octopuses have three hearts." in vcall.vsession.vcontext[0] and len(vcall.vspawned) == 1
+    assert "Octopuses have three hearts." in vcall.vsession.vcontext[0]
+    assert "requeue_if_talked_over" in [vcoro.__name__ for vcoro in vcall.vspawned]
 
 
 def follow_up_call(vspeech_after_reply_s: float) -> MeetCall:
@@ -206,11 +212,15 @@ def test_turning_to_a_colleague_or_waiting_long_goes_through_routing():
 
 
 @pytest.mark.asyncio
-async def test_a_tool_call_in_silence_says_it_is_checking_once():
+async def test_a_tool_call_in_silence_says_it_is_checking_once(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(meet_agent, "FILLER_CHECKING_AFTER_S", 0.0)
     vcall = bare_call()
+    vtimers: list[asyncio.Future] = []
+    vcall.spawn = lambda vcoro: vtimers.append(asyncio.ensure_future(vcoro))
     await vcall.vfloor.acquire()
     await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
     await vcall.on_tool_call(tool_call("get_current_time", {}, "b"))
+    await asyncio.gather(*vtimers)
     assert vcall.vsink.vfillers == [b"sekundu"]
 
 

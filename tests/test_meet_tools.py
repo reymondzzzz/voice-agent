@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from examples.meet_agent import MeetCall
@@ -43,7 +41,7 @@ def bare_call() -> MeetCall:
     vcall.vsession, vcall.vreply_parts, vcall.vneeds_followup, vcall.vturn_tools, vcall.vverdict_leaked = Session(), [], False, 0, False
     vcall.remember = lambda _vturn: None
     vcall.vturn_results, vcall.requester = [], lambda: "Kirill"
-    vcall.play_filler = lambda _vkind: asyncio.sleep(0)
+    vcall.spawn = lambda vcoro: vcoro.close()
     vcall.vstarted = []
     vcall.start_background = lambda vtool, varguments: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
     return vcall
