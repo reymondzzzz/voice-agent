@@ -6,7 +6,7 @@ import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples import meet_agent
-from examples.meet_agent import MeetCall, PendingResult, is_spoken_verdict, parse_yes
+from examples.meet_agent import MeetCall, PendingResult, delivery_line, is_spoken_verdict, parse_yes
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
@@ -317,3 +317,11 @@ async def test_when_the_rest_never_comes_the_first_half_is_answered(monkeypatch:
     answering_once(vcall, vspoken, [])
     await vcall.hold_for_rest(MeetTurn(0.0, "Kirill", "Мэгги, расскажи что-нибудь"))
     assert len(vspoken) == 1 and "расскажи что-нибудь" in vspoken[0] and vcall.vcontinued is None
+
+
+def test_a_result_told_while_her_answer_plays_goes_on_as_the_same_answer():
+    vfact = PendingResult("Kirill", "science fact", "Octopuses have three hearts.")
+    assert "same answer" in delivery_line([vfact], vgoing_on=True)
+    assert "same answer" not in delivery_line([vfact], vgoing_on=False)
+    vfact.vattempts = 1
+    assert "cut off" in delivery_line([vfact], vgoing_on=True), "a talked-over result picks the thread back up instead"

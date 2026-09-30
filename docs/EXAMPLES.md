@@ -396,6 +396,12 @@ and when "Мэгги" was heard as "Ангел" she told Kirill he was mixing he
 now rules out diminutives and says a misspelt name is speech recognition, never to be remarked on;
 6 of 6 replies to "Ангел, …", "Магер, …" and "Мэгги, …" then said "Кирилл" and answered the question.
 
+Several replies in a row should sound like one answer. A result that is told while her answer still
+plays, or within `GOING_ON_S` of it ending, queues right behind that answer, so its line asks her to go
+on from her last sentence as part of the same answer, with no name and no fresh start: 6 of 6 replays
+then ran on with "Кстати, у осьминогов…", where the plain line opened "Кирилл, у осьминогов…" 6 of 6
+times. The page folds her replies since a person last spoke into one bubble.
+
 The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
 never delays barge-in; the page gets a separate `addressed` event and tags the line then.
 

@@ -50,6 +50,8 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     vcall.vpending_added = asyncio.Event()
     vcall.vplayed = asyncio.Event()
     vcall.vinterrupted = False
+    vcall.vsource = type("Source", (), {"queued_duration": 0})()
+    vcall.vlast_bot_played = 0.0
     vspoken: list[str] = []
 
     async def quiet(_vpause_s: float) -> None:

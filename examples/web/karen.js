@@ -59,6 +59,8 @@ let vthinkingSince = 0
 let vshownState = ""
 let vlastFrameMs = performance.now()
 let vframeHandle = 0
+// Her replies since a person last spoke are one answer to that person, so they share one bubble.
+let vopenReply = null
 
 function setStatus(vstate, vtext) {
   vui.status.dataset.state = vstate
@@ -104,6 +106,14 @@ function isYou(vspeaker) {
 function addTurn(vturn) {
   const vatBottom = vui.transcript.scrollHeight - vui.transcript.scrollTop - vui.transcript.clientHeight < STICK_TO_BOTTOM_PX
   const vkind = lineKind(vturn)
+  if (vkind === "karen" && vopenReply) {
+    vopenReply.lastElementChild.textContent += ` ${vturn.text}`
+    vlinesByTs.set(vturn.ts, vopenReply)
+    if (vatBottom) {
+      vui.transcript.scrollTop = vui.transcript.scrollHeight
+    }
+    return
+  }
   const vline = document.createElement("article")
   vline.className = "line"
   vline.dataset.kind = vkind
@@ -127,6 +137,11 @@ function addTurn(vturn) {
   vline.append(vhead, vtext)
   vui.transcript.append(vline)
   vlinesByTs.set(vturn.ts, vline)
+  if (vkind === "karen") {
+    vopenReply = vline
+  } else if (vkind === "you" || vkind === "other") {
+    vopenReply = null
+  }
   if (vatBottom) {
     vui.transcript.scrollTop = vui.transcript.scrollHeight
   }

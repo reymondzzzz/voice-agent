@@ -54,6 +54,8 @@ QUIET_POLL_S = 0.25
 TURN_SILENCE_MS = 500
 # A line from someone who is still talking waits for the rest; if nothing comes (it was noise), it is answered alone.
 CONTINUATION_HOLD_S = 8.0
+# A result told this soon after her answer, or while it still plays, is heard as more of the same answer.
+GOING_ON_S = 1.5
 FOLLOW_UP_WINDOW_S = 8.0
 # LiveKit's false-interruption window is 2s; this one starts at the VAD event, itself TURN_SILENCE_MS after the words.
 CONTINUATION_WINDOW_S = 2.5
@@ -121,10 +123,16 @@ def meanwhile_line(vresults: list[PendingResult]) -> str:
     )
 
 
-def delivery_line(vresults: list[PendingResult]) -> str:
+def delivery_line(vresults: list[PendingResult], *, vgoing_on: bool) -> str:
     vresumed = any(vresult.vattempts for vresult in vresults)
     vitems = result_items(vresults)
-    if vresumed:
+    if vgoing_on and not vresumed:
+        # Her answer is still playing: this reply queues right behind it, so it has to sound like the same answer.
+        vhow = (
+            "You are still talking: go straight on from your last sentence as part of the same answer, linking it the "
+            "way a person does ('а ещё…', 'кстати…'), with no greeting, no name and no fresh start."
+        )
+    elif vresumed:
         vhow = (
             "You were cut off while telling this. It is quiet now, and anything you were asked in between is already "
             "answered: pick the thread back up the way a person does ('so, about ...') and tell all of it."
@@ -295,7 +303,7 @@ class MeetCall:
         self.vturn_results = []
         vresults = self.take_waiting_results()
         if vresults:
-            vline = f"{delivery_line(vresults)} Answer the question you just looked up first, then go straight on to this."
+            vline = f"{delivery_line(vresults, vgoing_on=False)} Answer the question you just looked up first, then go straight on to this."
             await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=self.vsession.correlation(), vrole=events.RealtimeRole.USER))
         await self.request_followup()
 
@@ -783,7 +791,8 @@ class MeetCall:
                 self.vpending.clear()
                 self.addressing().engage(vresults[-1].vrequester)
                 self.vtrace = {}
-                await self.tell(delivery_line(vresults), vresults)
+                vgoing_on = self.vsource.queued_duration > 0 or time.monotonic() - self.vlast_bot_played < GOING_ON_S
+                await self.tell(delivery_line(vresults, vgoing_on=vgoing_on), vresults)
 
     async def tell(self, vline: str, vresults: list[PendingResult]) -> None:
         # The caller holds the floor. Results told in this turn go back to the front if someone talks over it.
