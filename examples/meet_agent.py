@@ -206,6 +206,7 @@ class MeetCall:
         self.vneeds_followup = False
         self.vturn_tools = 0
         self.vturn_spoke = False
+        self.vturn_results: list[PendingResult] = []
         self.vverdict_leaked = False
         self.vturn_done = asyncio.Event()
         self.vfacts: list[str] = []
@@ -247,6 +248,22 @@ class MeetCall:
     async def request_followup(self) -> None:
         assert self.vsession is not None
         await self.vsession.request_response(events.ResponseRequest(vcorrelation=self.vsession.correlation()))
+
+    async def answer_tool_results(self) -> None:
+        # Results already waiting ride along in the same response, so Karen gives one answer instead of two in a
+        # row. Only here, after the tools ran: folded into the question itself, Qwen told the fact and skipped the
+        # weather tool.
+        assert self.vsession is not None
+        self.vturn_results = []
+        vresults = list(self.vpending)
+        self.vpending.clear()
+        if vresults:
+            vline = f"{delivery_line(vresults)} Answer the question you just looked up first, then go straight on to this."
+            await self.vsession.add_context(events.SessionContextUpdate(vscope=events.ContextScope.SPOKEN_HISTORY, vtext=vline, vcorrelation=self.vsession.correlation(), vrole=events.RealtimeRole.USER))
+            self.vinterrupted = False
+            self.vplayed.clear()
+            self.spawn(self.requeue_if_talked_over(vresults))
+        await self.request_followup()
 
     async def silence_leaked_verdict(self) -> None:
         # The routing steps share this session, so a reply can open with a spoken "RESPOND". Only its audio is
@@ -421,12 +438,16 @@ class MeetCall:
                 logger.info("latency %s", " ".join(f"{vname}={vvalue:.2f}s" for vname, vvalue in vlatency.items()))
                 self.remember(MeetTurn(time.time(), self.addressing().vbot_name, vreply, MeetRole.BOT), vlatency=vlatency)
                 self.spawn(self.rearm_after_playout())
-            if self.vneeds_followup and not self.vuser_speaking:
-                # All of this response's tool results are in: one follow-up speaks them, in the same turn.
+            if self.vneeds_followup:
                 self.vneeds_followup = False
-                await self.request_followup()
-                return
-            self.vneeds_followup = False
+                if not self.vuser_speaking:
+                    # All of this response's tool results are in: one follow-up speaks them, in the same turn.
+                    await self.answer_tool_results()
+                    return
+                if self.vturn_results:
+                    logger.info("%d tool result(s) talked over before they were said; will tell them at the next pause", len(self.vturn_results))
+                    self.vpending.extend(self.vturn_results)
+                    self.vpending_added.set()
             self.end_turn()
         elif isinstance(vevent, events.RealtimeToolCallRequested):
             await self.on_tool_call(vevent)
@@ -499,6 +520,7 @@ class MeetCall:
         self.vturn_done.clear()
         self.vturn_tools = 0
         self.vturn_spoke = False
+        self.vturn_results = []
         self.vneeds_followup = False
         self.publish(type="state", state="thinking")
         await self.vsession.update_instructions(self.instructions())
@@ -534,6 +556,8 @@ class MeetCall:
         else:
             vresult = self.start_background(vtool, vcall.varguments)
         vargs = ", ".join(f"{vname}={vvalue!r}" for vname, vvalue in vcall.varguments.items())
+        if vtool is not None and vtool.vweight is ToolWeight.LIGHT:
+            self.vturn_results.append(PendingResult(self.requester(), f"{vcall.vtool_name}({vargs})", vresult))
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
         self.vturn_tools += 1
@@ -618,6 +642,10 @@ class MeetCall:
             while self.vpending:
                 await self.wait_until_quiet(QUIET_BEFORE_DELIVERY_S)
                 await self.take_floor()
+                if not self.vpending:
+                    # An answer to a tool call took them along while this worker waited for the floor.
+                    self.release_floor()
+                    break
                 # Read the queue only once Karen has the floor, so a result that finished meanwhile joins this turn.
                 vresults = list(self.vpending)
                 self.vpending.clear()
@@ -630,6 +658,9 @@ class MeetCall:
         self.vinterrupted = False
         self.vplayed.clear()
         await self.speak(vline)
+        await self.requeue_if_talked_over(vresults)
+
+    async def requeue_if_talked_over(self, vresults: list[PendingResult]) -> None:
         if not vresults:
             return
         for vresult in vresults:

@@ -422,7 +422,11 @@ that called no tool gets a silent YES/NO check for an unstarted promise ("я н�
 `research`), and a YES tells her to call the tool; a spoken reply that begins with a routing verdict
 ("RESPOND" was once heard) is muted but not cancelled: Qwen says the verdict and then calls the tool in
 the same response, and cancelling it dropped the call, so the retry leaked again (a live tool turn took
-12s through 12 retries). Only a response that called no tool is asked again. Time and weather results are marked as
+12s through 12 retries). Only a response that called no tool is asked again. A light tool result
+whose follow-up never came because someone started talking joins the delivery queue instead of being
+dropped (a live time lookup was lost to a stray "Вин."). And the follow-up that speaks a tool result takes
+along whatever is already waiting in that queue, so "weather in London" plus a finished fact is one answer,
+not two back to back. Time and weather results are marked as
 valid only at that moment, after a live answer repeated a Tokyo time from eleven minutes earlier without
 calling the tool (not reproducible in a short replay, 5/5 called there either way). Rehearsed: "Карен,
 какая погода в Лондоне, и расскажи научный факт" got both tools, one spoken answer and the fact later;
