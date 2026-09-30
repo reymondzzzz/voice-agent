@@ -53,7 +53,8 @@ def mint_bridge_token(vroom_name: str) -> str:
 
 
 def meet_speaker(vnames: list[str], vbot_name: str) -> str:
-    return ", ".join(vname for vname in vnames if vname != vbot_name)
+    # Two tiles can carry one name (the bot signed in as a participant's own account): say it once.
+    return ", ".join(dict.fromkeys(vname for vname in vnames if vname != vbot_name))
 
 
 async def pump_agent_audio(vtrack: rtc.Track, vpage: Page, vjoined: asyncio.Event) -> None:

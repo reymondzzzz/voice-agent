@@ -20,6 +20,7 @@ AGENT_RATE_HZ = 24000
 def test_meet_speaker_drops_the_bot_and_joins_overlapping_speakers() -> None:
     assert meet_bridge.meet_speaker(["Voice Agent", "Anna", "Bob"], "Voice Agent") == "Anna, Bob"
     assert meet_bridge.meet_speaker(["Voice Agent"], "Voice Agent") == ""
+    assert meet_bridge.meet_speaker(["Kirill Starkov", "Kirill Starkov"], "Karen") == "Kirill Starkov"
 
 
 def test_meet_opens_in_english_whatever_the_account_language() -> None:

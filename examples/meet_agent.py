@@ -50,10 +50,11 @@ BOT_SETTLE_S = 0.5
 ROUTE_TIMEOUT_S = 5.0
 FLOOR_TIMEOUT_S = 10.0
 KEEPALIVE_S = 240.0
-FILLER_PHRASES = ("Секунду.", "Так...", "Сейчас посмотрю.", "Хм, сейчас.")
 KAREN_EVENTS_TOPIC = "karen"
 KAREN_RULES = (
-    "You are an assistant attending a group meeting by voice. You hear everyone, but almost everything is said "
+    "You are Karen, a woman, an AI assistant attending a group meeting by voice. Speak of yourself in the feminine "
+    "(я рада, я нашла). People address you as Karen; the name in a line like 'Карен, ...' is you, never call "
+    "anyone else Karen, and call people by the names in the transcript. You hear everyone, but almost everything is said "
     "between the participants and is not for you. Reply only to the single line addressed to you, which is the "
     "last message; never answer or act on anything else you heard, though you may use it as context. Answer in "
     "one or two short spoken sentences. You know nothing about the current time or weather: call the tool for "
@@ -62,8 +63,7 @@ KAREN_RULES = (
     "with a self-contained question. A tool that runs in the background returns at once: then say in a few words "
     "that you are on it. Only say that you started, are running or will return with work if you called a tool for "
     "it in this reply or it is listed below as running; otherwise say you have not started anything. Never guess "
-    "a result that has not arrived. A short filler such as 'Секунду' has already been said before your reply, so "
-    "start with the substance, not with another filler. Speak like a colleague in the room: brief, warm and "
+    "a result that has not arrived. Speak like a colleague in the room: brief, warm and "
     "plain, no announcements about yourself or your tools. When you bring back a background result, open with a "
     "few words that tie it to the question, the way a person would say 'about the deadline, ...'. Sometimes you "
     "are asked an internal routing question about who a line was meant for: answer it with the single word asked "
@@ -105,8 +105,6 @@ def reply_latency(vtrace: dict[str, float], vfirst_audio_at: float | None) -> di
     """Where a reply's wait went, by stage: speech end, transcript, decision, request, first audio chunk."""
 
     vstages = {}
-    if "speech_end" in vtrace and "filler" in vtrace:
-        vstages["filler"] = vtrace["filler"] - vtrace["speech_end"]
     if "speech_end" in vtrace and "heard" in vtrace:
         vstages["heard"] = vtrace["heard"] - vtrace["speech_end"]
     if "heard" in vtrace and "decided" in vtrace:
@@ -116,51 +114,6 @@ def reply_latency(vtrace: dict[str, float], vfirst_audio_at: float | None) -> di
     if "speech_end" in vtrace and vfirst_audio_at is not None:
         vstages["total"] = vfirst_audio_at - vtrace["speech_end"]
     return vstages
-
-
-class CaptureAudio:
-    def __init__(self) -> None:
-        self.vpcm = bytearray()
-
-    async def write(self, vpcm: bytes, vsample_rate_hz: int) -> None:
-        self.vpcm.extend(vpcm)
-
-    async def flush(self) -> None:
-        pass
-
-    async def clear(self) -> None:
-        self.vpcm.clear()
-
-
-async def synthesize_fillers(vapi_key: str) -> list[bytes]:
-    """Karen's own voice saying each filler, made on a throwaway session so her meeting session never holds them."""
-
-    vsink = CaptureAudio()
-    vsession = QwenOmniSession(
-        vapi_key=vapi_key,
-        vconversation_id="fillers",
-        vsession_id="fillers",
-        vepoch_provider=lambda: 0,
-        vaudio_sink=vsink,
-        vmodel=MEET_VOICE_MODEL,
-        vinstructions="You read short phrases aloud exactly as given, in a calm, natural voice.",
-        vtools=[],
-        vauto_response=False,
-    )
-    await vsession.start()
-    vevents = vsession.events()
-    vfillers: list[bytes] = []
-    try:
-        for vphrase in FILLER_PHRASES:
-            await vsink.clear()
-            await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation(), vinstructions=f"Say exactly this in {MEET_LANGUAGE_NAME}, nothing else: {vphrase}"))
-            while not isinstance(await anext(vevents), events.AssistantSpeechStopped):
-                pass
-            if vsink.vpcm:
-                vfillers.append(bytes(vsink.vpcm[: len(vsink.vpcm) // 2 * 2]))
-    finally:
-        await vsession.close()
-    return vfillers
 
 
 class RoomAudioSink:
@@ -231,7 +184,6 @@ class MeetCall:
         self.vfacts: list[str] = []
         self.vtrace: dict[str, float] = {}
         self.vloud_s = 0.0
-        self.vfillers: list[bytes] = []
         self.vlast_response_at = time.monotonic()
         self._vtasks: set[asyncio.Task[None]] = set()
 
@@ -436,8 +388,6 @@ class MeetCall:
         if not await self.addressing().is_addressed(vturn.vspeaker, vturn.vtext, vcontext):
             return
         vtrace["decided"] = time.monotonic()
-        if await self.play_filler():
-            vtrace["filler"] = time.monotonic()
         logger.info("addressed speaker=%s text=%s", vturn.vspeaker, vturn.vtext)
         self.publish(type="addressed", ts=vturn.vat)
         # Waiting results are not folded into this answer: asked to do both, Qwen told the fact and skipped the
@@ -445,22 +395,6 @@ class MeetCall:
         await self.take_floor()
         self.vtrace = vtrace
         await self.speak(f"[{vturn.vspeaker}, to {self.addressing().vbot_name}] {vturn.vtext}")
-
-    async def play_filler(self) -> bool:
-        # Only into silence: a filler in the middle of Karen's own sentence is worse than none.
-        if not self.vfillers or self.vsink.vmuted or self.vfloor.locked() or self.vsource.queued_duration > 0:
-            return False
-        await self.vsink.write(random.choice(self.vfillers), ROOM_SAMPLE_RATE_HZ)
-        return True
-
-    async def load_fillers(self) -> None:
-        try:
-            self.vfillers = await synthesize_fillers(os.environ["DASHSCOPE_API_KEY"])
-        except Exception:
-            # Fillers are a nicety: a meeting without them still works.
-            logger.warning("could not synthesize fillers; Karen answers without them", exc_info=True)
-            return
-        logger.info("synthesized %d fillers", len(self.vfillers))
 
     async def keep_session_alive(self) -> None:
         # DashScope closes a session after 300s without a response, and Karen's meeting context goes with it. A
@@ -489,7 +423,7 @@ class MeetCall:
     def instructions(self) -> str:
         vparts = [
             KAREN_RULES,
-            f"In this meeting people call you {self.addressing().vbot_name}. Always speak {MEET_LANGUAGE_NAME}, whatever "
+            f"Always speak {MEET_LANGUAGE_NAME}, whatever "
             f"language a line or a note is written in: speech recognition sometimes writes a {MEET_LANGUAGE_NAME} "
             f"sentence as another language.",
         ]
@@ -644,7 +578,6 @@ async def entrypoint(ctx: JobContext) -> None:
     vcall = MeetCall(ctx.room)
     ctx.room.on("track_subscribed", vcall.on_track_subscribed)
     ctx.add_shutdown_callback(vcall.aclose)
-    vcall.spawn(vcall.load_fillers())
     await vcall.open_session()
     await ctx.connect()
     await ctx.room.local_participant.publish_track(

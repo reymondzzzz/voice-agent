@@ -375,10 +375,13 @@ the reply; `research` (GLM 5.3 with the 10-minute log) and `science_fact` are he
 `TaskSupervisor`, and are told when they finish. A heavy tool's schema tells the model it returns at once,
 so it says it is on it; which tools are heavy is the tool's decision, not the model's.
 
-**Fillers.** Four short fillers ("Секунду.", "Так...", "Сейчас посмотрю.", "Хм, сейчас.", 0.9-1.8s) are
-synthesized once per call in Karen's voice on a throwaway Qwen session, and one is played the moment she
-is addressed, into silence only; her real answer queues behind it, and the rules tell her not to open with
-another. The page's latency line gains `filler`: end of speech to that first sound.
+**No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
+and removed: on a real call they sounded strange rather than responsive.
+
+**Identity first.** The rules open with who Karen is: a woman (feminine forms, "я рада"), the one people
+call Karen. Buried deeper, she answered "Карен, как дела?" with "Привет, Карен!" and spoke of herself in the
+masculine. Two tiles carrying one name (the bot signed in as a participant's own account) no longer
+produce "Kirill Starkov, Kirill Starkov" as the speaker.
 
 **One language.** `MEET_LANGUAGE` pins Qwen's transcription (`input_audio_transcription.language`, which
 DashScope accepts): unpinned it wrote Russian speech as Polish ("karol daj proszę…") and Chinese, and
@@ -388,7 +391,7 @@ her to always speak `MEET_LANGUAGE_NAME`. Pinned to Russian, English speech is t
 **Barge-in is local.** Qwen's VAD reports speech only after a round trip to the endpoint, and Karen kept
 talking meanwhile. The agent now watches the bridge audio itself: a person above `BARGE_IN_DBFS` for
 `BARGE_IN_S` (150ms) while her audio is queued clears it and cancels her response, and counts as human
-speech until Qwen reports its end. Without that last part the delivery queue re-sent a talked-over result
+speech until Qwen reports its end. Measured on the fixture page: Karen still audible 0.65s after Anna started talking. Without that last part the delivery queue re-sent a talked-over result
 into the speech, Qwen cancelled that response without finishing it, and the floor stayed locked.
 
 **One session, kept alive.** The 10-minute renewal is gone: the session accumulates the whole meeting
