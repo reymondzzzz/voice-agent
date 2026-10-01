@@ -549,6 +549,23 @@ the reply; `research` (GLM 5.3 with the 10-minute log) and `science_fact` are he
 `TaskSupervisor`, and are told when they finish. A heavy tool's schema tells the model it returns at once,
 so it says it is on it; which tools are heavy is the tool's decision, not the model's.
 
+**A fictional team to work with** (`examples/meet_workspace.py`). For a corporate meeting assistant the
+tools read a hardcoded workspace: six people of a payments team with roles in English and Russian, an
+eight-task tracker for their migration to a new payment provider (owners, statuses, due dates,
+blockers; deadline 15 October), calendars counted from today, and four documents (an ADR, a runbook,
+meeting notes, the vacation policy). `list_tasks` (by name, nickname, "me" for whoever asks, or
+status in either language), `get_task` (a key survives speech recognition: "пэй сто четыре" is
+PAY-104), `get_schedule`, `find_free_slot` (all given people free, from now on for today) and `who_is`
+(a person, or the owner of an area) are light; `search_documents` is heavy with a 5s simulated search.
+Everything is read-only: writing (a task, a booking) is a side effect and would go through
+`ActionService` (AGENTS.md rule 13). Eight meeting questions against Qwen with the real tools picked the
+right tool and arguments 8 of 8 times ("с Анной и Димой завтра на полчаса" became
+`find_free_slot([Кирилл, Анна, Дима], 30, tomorrow)`). Two things needed fixing on the way: a status
+read out as "to do", so statuses are described in Russian; and "я нашла" said for a search that had
+only started, 4 times in 6, which came from the persona's own feminine-speech example "(я рада, я
+нашла)". With that example replaced and the start result saying nothing has come back yet, 6 of 6
+said "я уже ищу".
+
 **No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
 and removed: on a real call they sounded strange rather than responsive.
 
