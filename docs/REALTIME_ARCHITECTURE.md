@@ -297,6 +297,7 @@ sequenceDiagram
 | 7d | A cancelled task is not retried | `_execute` retries only a task that is not terminal |
 | 7e | One malformed provider frame does not end the session | the Qwen reader turns it into a recoverable `RealtimeSessionError`; a delta without `response_id` belongs to the current response, so a cancelled reply leaks neither audio nor words |
 | 7f | A `response.create` the server never answers cannot silence later replies | the Qwen adapter keeps pending creates as send times and forgets one after `CREATE_LOST_S`; an interrupt cancels only responses to creates sent before it |
+| 7g | A create cancelled before its response existed ends nothing it does not own | DashScope answers it with a `response.done` whose id is empty and no `response.created`; the adapter settles that pending create and reports no stop, which had freed a floor nobody owned and let two requests run at once |
 | 8 | Duplicate realtime events are ignored | `ConversationRuntime.seen` / `tool_call_seen` |
 | 9 | A background result is never a second answer to a tool call | mailbox delivery is a separate event path |
 | 10 | A task is not killed merely because the turn changed | staleness judged on `conversation_epoch`, never `turn_id` |

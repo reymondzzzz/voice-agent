@@ -12,6 +12,7 @@ import base64
 import collections
 import contextlib
 import json
+import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
@@ -250,6 +251,7 @@ class QwenOmniSession:
         elif vtype == protocol.RESPONSE_CREATED:
             self._vresponse_id = str((vframe.get("response") or {}).get("id", ""))
             vsent_at = self._vcreates_sent_at.popleft() if self.pending_creates() else None
+            logger.info("response %s created; pending creates left %d; cancelled on creation %s", self._vresponse_id, len(self._vcreates_sent_at), vsent_at is not None and vsent_at <= self._vcancel_through)
             if vsent_at is not None and vsent_at <= self._vcancel_through:
                 # The cancel went out before this response existed, so the server may not have applied it. No start
                 # is reported: a consumer already waiting on its next request would take this one for it.
@@ -295,9 +297,17 @@ class QwenOmniSession:
 
         elif vtype == protocol.RESPONSE_DONE:
             vresponse = vframe.get("response") or {}
+            if "id" in vresponse and not vresponse["id"]:
+                # A create cancelled before its response existed ends in a done with an empty id and no created. It
+                # settles that create; reported as a stop it matched a consumer owning nothing and freed its floor.
+                if self.pending_creates():
+                    self._vcreates_sent_at.popleft()
+                logger.info("a response cancelled before it existed is done; pending creates left %d", len(self._vcreates_sent_at))
+                return
             vresponse_id = str(vresponse.get("id", self._vresponse_id))
             vcompleted = vresponse.get("status", "completed") == "completed" and vresponse_id not in self._vcancelled
             self._vcancelled.discard(vresponse_id)
+            logger.info("response %s done, status %s", vresponse_id, vresponse.get("status"))
             await self._vevents.put(
                 events.AssistantSpeechStopped(vcorrelation=self.correlation(), vresponse_id=vresponse_id, vcompleted=vcompleted)
             )
@@ -317,6 +327,8 @@ class QwenOmniSession:
                 )
             )
 
+
+logger = logging.getLogger("voice_agent.qwen")
 
 # DashScope refuses a response.create while another response is active with this message and no response.
 REJECTED_CREATE = "already has an active response"
