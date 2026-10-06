@@ -1,5 +1,4 @@
 import asyncio
-import collections
 import time
 
 import aiohttp
@@ -8,7 +7,9 @@ import pytest
 from livekit import rtc
 
 from examples.meet_addressing import MeetAddressing
-from examples.meet_agent import MeetCall, PendingResult, RoomAudioSink
+from examples.meet_agent import MeetCall, Turn
+from examples.meet_delivery import PendingResult, ResultQueue
+from examples.meet_playout import PlayoutLedger, RoomAudioSink
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
 
@@ -46,13 +47,11 @@ async def test_a_closing_session_costs_a_frame_not_the_audio_pump() -> None:
 async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_finished_whole() -> None:
     vcall = MeetCall.__new__(MeetCall)
     vcall.vaddressing = MeetAddressing("Karen", lambda _vprompt: asyncio.sleep(0, ""))
-    vcall.vpending = collections.deque([PendingResult("Carl", "a science fact", "honey keeps"), PendingResult("Anna", "the deadline", "it holds")])
-    vcall.vpending_added = asyncio.Event()
-    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
-    vcall.vawaiting, vcall.vcarrier_moved = False, {}
+    vcall.vledger, vcall.vqueue = PlayoutLedger(), ResultQueue()
+    vcall.vqueue.vwaiting.extend([PendingResult("Carl", "a science fact", "honey keeps"), PendingResult("Anna", "the deadline", "it holds")])
+    vcall.vawaiting = False
     vcall.spawn = asyncio.ensure_future
     vcall.vsource = type("Source", (), {"queued_duration": 0})()
-    vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
     vcall.vlast_bot_played = 0.0
     vspoken: list[str] = []
 
@@ -61,15 +60,15 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
 
     async def speak(vline: str) -> None:
         vspoken.append(vline)
-        vcall.vreply_seq += 1
-        (vcall.vcut_replies if len(vspoken) == 1 else vcall.vplayed_replies).add(vcall.vreply_seq)
-        await vcall.note_playout()
+        vcall.vledger.vlast += 1
+        (vcall.vledger.vcut if len(vspoken) == 1 else vcall.vledger.vplayed).add(vcall.vledger.vlast)
+        vcall.vledger.changed()
         vcall.release_floor()
 
     vcall.wait_until_quiet = quiet
     vcall.speak = speak
     vcall.vfloor = asyncio.Lock()
-    vcall.vpending_added.set()
+    vcall.vqueue.vadded.set()
     vworker = asyncio.create_task(vcall.deliver_pending())
     for _ in range(50):
         if len(vspoken) == 2:
@@ -81,7 +80,7 @@ async def test_everything_waiting_is_told_in_one_turn_and_a_talked_over_turn_is_
     assert len(vspoken) == 2
     assert "honey keeps" in vspoken[0] and "it holds" in vspoken[0]
     assert "cut off" in vspoken[1] and "honey keeps" in vspoken[1] and "it holds" in vspoken[1]
-    assert not vcall.vpending
+    assert not vcall.vqueue.vwaiting
 
 
 @pytest.mark.asyncio
@@ -90,8 +89,6 @@ async def test_a_routing_verdict_is_never_spoken_never_logged_as_karen_and_frees
     vcall.vfloor = asyncio.Lock()
     vcall.vrouting = None
     vcall.vroute_parts = []
-    vcall.vdiscard_next = False
-    vcall.vtool_followup = False
     vcall.vreply_parts = []
     vremembered = []
     vcall.remember = vremembered.append
@@ -198,11 +195,11 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
     vcall = MeetCall.__new__(MeetCall)
     vcall.vsource, vcall.vsink, vcall.vsession = Source(), Sink(), Session()
     vcall.vloud_s, vcall.vfloor = 0.0, asyncio.Lock()
-    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
-    vcall.vopen_replies.add(1)
+    vcall.vledger, vcall.vturn = PlayoutLedger(), Turn()
+    vcall.vledger.vopen.add(1)
     vcall.vawaiting, vcall.vrouting = False, None
     vcall.vuser_speaking, vcall.vlast_human_speech = False, 0.0
-    vcall.vreply_parts, vcall.vturn_reply, vcall.vreply_audio, vcall.vheard_by_reply = [], "", {}, {}
+    vcall.vreply_parts = []
     vcall.publish = lambda **_vevent: None
     await vcall.vfloor.acquire()
     vspeech = (numpy.sin(numpy.arange(160) / 3) * 8000).astype(numpy.int16).tobytes()  # 10ms at 16kHz
@@ -211,7 +208,7 @@ async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then(
         await vcall.watch_for_barge_in(vspeech)
     assert vcall.vsink.vcleared == 0, "140ms is not yet a barge-in"
     await vcall.watch_for_barge_in(vspeech)
-    assert vcall.vsink.vcleared == 1 and vcall.vsession.vinterrupts == 1 and vcall.vcut_replies == {1}
+    assert vcall.vsink.vcleared == 1 and vcall.vsession.vinterrupts == 1 and vcall.vledger.vcut == {1}
     assert vcall.vuser_speaking, "until Qwen reports the end of this speech, the room is not quiet"
 
     Source.queued_duration = 0

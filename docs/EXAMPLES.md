@@ -300,6 +300,22 @@ rendering Web Audio, which kills the capture.
 
 Only meaning crosses into the agent: the speaker name is an attribute, never audio (rule 14).
 
+### Where the Meet agent's code lives
+
+| Module | What it owns |
+| --- | --- |
+| `examples/meet_agent.py` | `MeetCall`: the Qwen session, its events, the response floor and ownership, routing, answering, tools, delivery; the LiveKit entrypoint |
+| `examples/meet_playout.py` | `RoomAudioSink` (her voice into the room, and where a cut lands on it) and `PlayoutLedger`, which numbers her replies and records which ones the room actually heard |
+| `examples/meet_delivery.py` | `PendingResult` and `ResultQueue`: what is waiting to be told, what went stale, and the retry-then-offer rule |
+| `examples/meet_prompts.py` | Everything she reads: the persona, the per-session instructions, the promise check, and the lines that hand her results |
+| `examples/meet_addressing.py` | Whether a line was for her: the name, the routing prompt, and the parsers of her verdicts |
+| `examples/meet_tools.py`, `examples/meet_workspace.py` | Her tools, and the fictional payments team they read |
+| `examples/meet_memory.py`, `examples/meet_bridge.py` | The ten-minute log, and the Playwright bridge into Meet |
+
+The `science_fact` and `get_current_weather` demo tools are gone: the team's tools cover quick lookups, and
+`search_documents` is the background task. The sections below keep their measurements as they were made,
+some with those tools.
+
 ### Silent until addressed
 
 Karen listens to everything and answers only when spoken to. `examples/meet_addressing.py` decides

@@ -19,7 +19,7 @@ def test_status_filter_takes_english_or_russian_and_is_spoken_in_russian():
         vblocked = meet_workspace.list_tasks("", vstatus, "Kirill Starkov")
         assert "PAY-106" in vblocked and "PAY-101" not in vblocked, vstatus
     vtodo = meet_workspace.list_tasks("", "to do", "Kirill Starkov")
-    assert "PAY-102" in vtodo and "к выполнению" in vtodo and "to do" not in vtodo
+    assert "PAY-102" in vtodo and "не начата" in vtodo and "to do" not in vtodo
 
 
 def test_a_task_key_survives_speech_recognition():

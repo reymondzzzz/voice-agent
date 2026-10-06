@@ -61,7 +61,7 @@ TEAM = (
 )
 
 # She says the status out loud, so it is described in Russian; the filter takes either name.
-STATUS_RU = {"to do": "к выполнению", "in progress": "в работе", "in review": "на ревью", "blocked": "заблокирована", "done": "готово"}
+STATUS_RU = {"to do": "не начата", "in progress": "в работе", "in review": "на ревью", "blocked": "заблокирована", "done": "готово"}
 
 PROJECT = "миграция платежей на нового провайдера"
 PROJECT_DEADLINE = datetime.date(2026, 10, 15)

@@ -1,6 +1,7 @@
 import pytest
 
-from examples.meet_agent import MeetCall
+from examples.meet_agent import MeetCall, Turn
+from examples.meet_delivery import ResultQueue
 from examples.meet_tools import MEET_TOOLS_BY_NAME, ToolWeight
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
@@ -8,16 +9,16 @@ from voice_agent.realtime import events
 
 def test_the_weight_is_the_tools_not_the_models():
     assert MEET_TOOLS_BY_NAME["get_current_time"].vweight is ToolWeight.LIGHT
-    assert MEET_TOOLS_BY_NAME["get_current_weather"].vweight is ToolWeight.LIGHT
+    assert MEET_TOOLS_BY_NAME["list_tasks"].vweight is ToolWeight.LIGHT
     assert MEET_TOOLS_BY_NAME["research"].vweight is ToolWeight.HEAVY
-    assert MEET_TOOLS_BY_NAME["science_fact"].vweight is ToolWeight.HEAVY
+    assert MEET_TOOLS_BY_NAME["search_documents"].vweight is ToolWeight.HEAVY
     assert "Runs in the background" in MEET_TOOLS_BY_NAME["research"].schema()["description"]
     assert "Runs in the background" not in MEET_TOOLS_BY_NAME["get_current_time"].schema()["description"]
 
 
 def test_a_heavy_tool_names_its_goal_by_its_question():
     assert MEET_TOOLS_BY_NAME["research"].goal({"question": "does the deadline hold?"}) == "does the deadline hold?"
-    assert MEET_TOOLS_BY_NAME["science_fact"].goal({}) == "science fact"
+    assert MEET_TOOLS_BY_NAME["search_documents"].goal({"query": "откат"}) == "search documents"
 
 
 class Session:
@@ -38,11 +39,11 @@ def call_with(vname: str, varguments: dict) -> events.RealtimeToolCallRequested:
 
 def bare_call() -> MeetCall:
     vcall = MeetCall.__new__(MeetCall)
-    vcall.vsession, vcall.vreply_parts, vcall.vneeds_followup, vcall.vturn_tools, vcall.vverdict_leaked = Session(), [], False, 0, False
+    vcall.vturn, vcall.vqueue = Turn(), ResultQueue()
+    vcall.vsession, vcall.vreply_parts, vcall.vverdict_leaked = Session(), [], False
     vcall.remember = lambda _vturn: None
-    vcall.vturn_results, vcall.requester = [], lambda: "Kirill"
+    vcall.requester = lambda: "Kirill"
     vcall.spawn = lambda vcoro: vcoro.close()
-    vcall.vtool_calls, vcall.vlatest_call = 0, {}
     vcall.vstarted = []
     vcall.start_background = lambda vtool, varguments: vcall.vstarted.append(vtool.vname) or "Started in the background; the answer arrives later."
     return vcall
@@ -54,7 +55,7 @@ async def test_a_light_tool_runs_inline_and_is_answered_at_once():
     await vcall.on_tool_call(call_with("get_current_time", {"timezone": "Europe/London"}))
     vresult, vrespond = vcall.vsession.vresults[0]
     assert "Europe/London" in vresult and "call the tool again" in vresult and vcall.vstarted == []
-    assert not vrespond and vcall.vneeds_followup, "answered by one follow-up when the response ends"
+    assert not vrespond and vcall.vturn.vneeds_followup, "answered by one follow-up when the response ends"
 
 
 @pytest.mark.asyncio

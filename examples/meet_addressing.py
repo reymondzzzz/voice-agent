@@ -52,6 +52,17 @@ def addressee_prompt(vbot_name: str, vtranscript: str, vspeaker: str, vtext: str
     return ADDRESSEE_PROMPT.format(name=vbot_name, transcript=vtranscript or "(nothing yet)", speaker=vspeaker, text=vtext)
 
 
+def is_spoken_verdict(vtext: str) -> bool:
+    # A spoken reply that is only the routing verdict: the routing steps share her session.
+    vword = "".join(vchar for vchar in vtext.upper() if vchar.isalpha())
+    return bool(vword) and any(vverdict.startswith(vword) or vword.startswith(vverdict) for vverdict in ("RESPOND", "IGNORE")) and len(vword) >= 3
+
+
+def parse_yes(vreply: str) -> bool:
+    vupper = vreply.upper()
+    return "YES" in vupper and "NO" not in vupper.replace("YES", "")
+
+
 def parse_addressee(vreply: str) -> bool:
     """Anything but an explicit yes is a no: speaking when not asked costs more than staying quiet."""
 

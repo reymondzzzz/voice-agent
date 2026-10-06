@@ -10,19 +10,8 @@ from typing import Any, Protocol
 from examples import meet_workspace, small_agents
 from examples.meet_memory import MeetMemory, background_brief
 
-SCIENCE_FACT_DELAY_S = 8.0
 # A search across a company's documents is not instant; this keeps it a background task, as it would be.
 DOCUMENT_SEARCH_DELAY_S = 5.0
-SCIENCE_FACTS = (
-    "A day on Venus is longer than its year: it turns once every 243 Earth days but orbits the Sun in 225.",
-    "Octopuses have three hearts, and two of them stop beating while they swim.",
-    "Honey found in Egyptian tombs was still edible after about 3,000 years.",
-    "A teaspoon of neutron star material would weigh around a billion tonnes on Earth.",
-    "Bananas are slightly radioactive because they contain potassium-40.",
-    "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
-    "Water can boil and freeze at the same time at its triple point, about 0.01 °C and 611 pascals.",
-    "There are more possible chess games than atoms in the observable universe.",
-)
 
 
 class ToolWeight(enum.Enum):
@@ -35,8 +24,6 @@ class ToolContext(Protocol):
     vdelegate_llm: Any
 
     def requester(self) -> str: ...
-
-    def next_fact(self) -> str: ...
 
 
 ToolRun = Callable[[ToolContext, dict[str, object]], Awaitable[str]]
@@ -68,15 +55,6 @@ class MeetTool:
 
 async def current_time(_vcontext: ToolContext, varguments: dict[str, object]) -> str:
     return small_agents.get_current_time.invoke(varguments)
-
-
-async def current_weather(_vcontext: ToolContext, varguments: dict[str, object]) -> str:
-    return small_agents.get_current_weather.invoke(varguments)
-
-
-async def science_fact(vcontext: ToolContext, _varguments: dict[str, object]) -> str:
-    await asyncio.sleep(SCIENCE_FACT_DELAY_S)
-    return vcontext.next_fact()
 
 
 async def list_tasks(vcontext: ToolContext, varguments: dict[str, object]) -> str:
@@ -169,20 +147,6 @@ MEET_TOOLS = (
         {"type": "object", "properties": {"timezone": {"type": "string"}}, "required": []},
         ToolWeight.LIGHT,
         current_time,
-    ),
-    MeetTool(
-        "get_current_weather",
-        "Current weather for a city (placeholder data).",
-        {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-        ToolWeight.LIGHT,
-        current_weather,
-    ),
-    MeetTool(
-        "science_fact",
-        "A random science fact. Call it whenever someone wants a fact; never tell one from your own knowledge.",
-        {"type": "object", "properties": {}, "required": []},
-        ToolWeight.HEAVY,
-        science_fact,
     ),
     MeetTool(
         "research",

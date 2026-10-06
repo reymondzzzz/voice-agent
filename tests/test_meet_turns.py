@@ -1,12 +1,15 @@
 import asyncio
-import collections
 import time
 
 import pytest
 
 from examples.meet_addressing import MeetAddressing
 from examples import meet_agent
-from examples.meet_agent import DELIVERY_ATTEMPTS, MeetCall, PendingResult, RoomAudioSink, delivery_line, heard_part, is_spoken_verdict, parse_yes
+from examples.meet_addressing import is_spoken_verdict, parse_yes
+from examples.meet_agent import MeetCall, Turn
+from examples.meet_delivery import DELIVERY_ATTEMPTS, PendingResult, ResultQueue
+from examples.meet_playout import PlayoutLedger, RoomAudioSink, heard_part
+from examples.meet_prompts import delivery_line
 from examples.meet_memory import MeetMemory, MeetTurn
 from voice_agent.agent.tasks.models import TaskStatus
 from voice_agent.correlation import Correlation
@@ -62,24 +65,19 @@ class Sink:
 def bare_call() -> MeetCall:
     vcall = MeetCall.__new__(MeetCall)
     vcall.vsession, vcall.vsink = Session(), Sink()
+    vcall.vledger, vcall.vqueue, vcall.vturn = PlayoutLedger(), ResultQueue(), Turn()
     vcall.vreply_parts, vcall.vroute_parts, vcall.vrouting = [], [], None
-    vcall.vneeds_followup, vcall.vturn_tools, vcall.vturn_spoke, vcall.vverdict_leaked, vcall.vdiscard_next = False, 0, False, False, False
+    vcall.vverdict_leaked, vcall.vdropping = False, False
     vcall.vturn_done, vcall.vfloor = asyncio.Event(), asyncio.Lock()
     vcall.vuser_speaking, vcall.vlast_bot_activity, vcall.vlast_response_at = False, 0.0, 0.0
     vcall.vtrace = {}
-    vcall.vturn_results, vcall.vpending, vcall.vpending_added = [], collections.deque(), asyncio.Event()
-    vcall.vreply_seq, vcall.vopen_replies, vcall.vplayed_replies, vcall.vcut_replies, vcall.vplayout = 0, set(), set(), set(), asyncio.Condition()
     vcall.vspawned = []
     vcall.spawn = lambda vcoro: vcall.vspawned.append(vcoro) or vcoro.close()
     vcall.requester = lambda: "Kirill"
-    vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued, vcall.vdropping = None, 0.0, None, False
+    vcall.vanswering, vcall.vanswering_heard_at, vcall.vcontinued = None, 0.0, None
     vcall.current_speaker = lambda: "Kirill"
-    vcall.vturn_reply = ""
-    vcall.vowned, vcall.vawaiting, vcall.vresults_followup, vcall.vheard_speakers = "", False, False, {}
+    vcall.vowned, vcall.vawaiting, vcall.vheard_speakers = "", False, {}
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
-    vcall.vreply_audio, vcall.vheard_by_reply = {}, {}
-    vcall.vtool_calls, vcall.vlatest_call = 0, {}
-    vcall.vcarrier_moved = {}
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -104,8 +102,8 @@ def test_parsers():
 async def test_two_tools_in_one_response_get_one_follow_up_not_two():
     vcall = bare_call()
     await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
-    await vcall.on_tool_call(tool_call("science_fact", {}, "b"))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Анна"}, "a"))
+    await vcall.on_tool_call(tool_call("search_documents", {"query": "откат"}, "b"))
     assert vcall.vsession.vresults == [False, False] and vcall.vsession.vresponses == 0
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 1 and vcall.vfloor.locked()
@@ -128,8 +126,8 @@ async def test_a_spoken_verdict_does_not_cancel_the_tool_call_after_it():
     vcall = bare_call()
     await vcall.vfloor.acquire()
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="RESPOND"))
-    await vcall.on_tool_call(tool_call("science_fact", {}, "a"))
-    assert vcall.vsession.vinterrupts == 0 and vcall.vstarted == ["science_fact"]
+    await vcall.on_tool_call(tool_call("search_documents", {"query": "откат"}, "a"))
+    assert vcall.vsession.vinterrupts == 0 and vcall.vstarted == ["search_documents"]
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 1 and vcall.vfloor.locked()
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
@@ -146,8 +144,8 @@ async def test_a_request_cut_off_before_any_answer_is_asked_again_once():
     async def speak(vline: str) -> None:
         vspoken.append(vline)
         vcall.vturn_done.clear()
-        vcall.vturn_spoke = len(vspoken) > 1
-        vcall.vturn_tools = 0
+        vcall.vturn.vspoke = len(vspoken) > 1
+        vcall.vturn.vtools = 0
         vcall.end_turn()
 
     async def quiet(_vpause_s: float) -> None:
@@ -189,17 +187,17 @@ async def test_a_tool_result_talked_over_before_it_was_said_is_queued_not_lost()
     vcall.vuser_speaking = True
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 0 and not vcall.vfloor.locked()
-    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_time()"] and vcall.vpending_added.is_set()
+    assert [vresult.vgoal for vresult in vcall.vqueue.vwaiting] == ["get_current_time()"] and vcall.vqueue.vadded.is_set()
 
 
 @pytest.mark.asyncio
 async def test_a_waiting_result_rides_along_with_the_tool_answer():
     vcall = bare_call()
     await vcall.vfloor.acquire()
-    vcall.vpending.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    vcall.vqueue.vwaiting.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Анна"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
-    assert vcall.vsession.vresponses == 1 and not vcall.vpending
+    assert vcall.vsession.vresponses == 1 and not vcall.vqueue.vwaiting
     assert "Octopuses have three hearts." in vcall.vsession.vcontext[0]
     assert "requeue_if_talked_over" in [vcoro.__name__ for vcoro in vcall.vspawned]
 
@@ -249,7 +247,7 @@ async def test_the_same_person_going_on_drops_the_answer_to_the_first_half():
 
 def test_a_tool_already_running_another_speaker_or_a_late_start_is_not_a_continuation():
     vtool_ran = answering_call(1.0)
-    vtool_ran.vturn_tools = 1
+    vtool_ran.vturn.vtools = 1
     vsomeone_else = answering_call(1.0)
     vsomeone_else.current_speaker = lambda: "Anna"
     assert not vtool_ran.is_continuation() and not vsomeone_else.is_continuation() and not answering_call(5.0).is_continuation()
@@ -281,7 +279,7 @@ def answering_once(vcall: MeetCall, vspoken: list[str], vpromises: list[str]) ->
     async def speak(vline: str) -> None:
         vspoken.append(vline)
         vcall.vturn_done.clear()
-        vcall.vturn_spoke, vcall.vturn_tools, vcall.vturn_reply = True, 0, "Как только появится, скажу."
+        vcall.vturn.vspoke, vcall.vturn.vtools, vcall.vturn.vreply = True, 0, "Как только появится, скажу."
         vcall.end_turn()
 
     async def check_promise(vreply: str) -> None:
@@ -295,9 +293,9 @@ async def test_a_result_waiting_when_someone_asks_is_told_in_the_same_answer():
     vcall = bare_call()
     vspoken: list[str] = []
     answering_once(vcall, vspoken, [])
-    vcall.vpending.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
+    vcall.vqueue.vwaiting.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
     await vcall.consider(MeetTurn(0.0, "Kirill", "Ну что там с фактом?"), "", {}, vfollow_up=True)
-    assert len(vspoken) == 1 and "Octopuses have three hearts." in vspoken[0] and not vcall.vpending
+    assert len(vspoken) == 1 and "Octopuses have three hearts." in vspoken[0] and not vcall.vqueue.vwaiting
 
 
 @pytest.mark.asyncio
@@ -305,7 +303,8 @@ async def test_saying_it_will_come_back_while_work_runs_is_not_a_broken_promise(
     vcall = bare_call()
     vpromises: list[str] = []
     answering_once(vcall, [], vpromises)
-    vcall.vregistry = Registry([type("Record", (), {"vstatus": TaskStatus.RUNNING})()])
+    vspec = type("Spec", (), {"vcontext": {"requester": "Kirill"}})()
+    vcall.vregistry = Registry([type("Record", (), {"vstatus": TaskStatus.RUNNING, "vgoal": "search documents", "vspec": vspec})()])
     await vcall.consider(MeetTurn(0.0, "Kirill", "Ну что там с фактом?"), "", {}, vfollow_up=True)
     assert vpromises == []
 
@@ -350,27 +349,27 @@ def running_call() -> tuple[MeetCall, list[asyncio.Future]]:
 async def test_a_quick_tool_result_survives_a_follow_up_cancelled_before_a_word():
     vcall, vtasks = running_call()
     await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Анна"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     assert vcall.vsession.vresponses == 1
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vcompleted=False))
     await asyncio.gather(*vtasks)
-    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='London')"]
+    assert [vresult.vgoal for vresult in vcall.vqueue.vwaiting] == ["get_schedule(person='Анна')"]
 
 
 @pytest.mark.asyncio
 async def test_a_quick_tool_answer_talked_over_while_it_plays_is_told_again():
     vcall, vtasks = running_call()
     await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Анна"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="В Лондоне 14 градусов."))
     vcall.rearm_after_playout = lambda _vreply: asyncio.sleep(3600)
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
-    assert not vcall.vpending, "generated is not heard: still playing"
+    assert not vcall.vqueue.vwaiting, "generated is not heard: still playing"
     vcall.hand_back_results()
     await asyncio.gather(*[vtask for vtask in vtasks if not vtask.done() and vtask.get_coro().__name__ == "requeue_if_talked_over"])
-    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='London')"]
+    assert [vresult.vgoal for vresult in vcall.vqueue.vwaiting] == ["get_schedule(person='Анна')"]
     for vtask in vtasks:
         vtask.cancel()
 
@@ -425,7 +424,7 @@ async def test_a_routing_step_that_times_out_neither_mutes_the_next_answer_nor_k
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="Привет!", vresponse_id="resp_answer"))
     vcall.rearm_after_playout = lambda _vreply: asyncio.sleep(0)
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_answer"))
-    assert vcall.vturn_spoke and vcall.vturn_done.is_set() and not vcall.vfloor.locked()
+    assert vcall.vturn.vspoke and vcall.vturn_done.is_set() and not vcall.vfloor.locked()
 
 
 def test_the_silence_between_two_of_her_replies_is_measured():
@@ -444,12 +443,12 @@ async def test_a_result_already_cut_off_once_is_retold_on_its_own_not_folded_int
     vcall = bare_call()
     vspoken: list[str] = []
     answering_once(vcall, vspoken, [])
-    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23 degrees, clear", vattempts=1)
+    vweather = PendingResult("Kirill", "get_schedule(person='Дмитрий')", "Tokyo: 23 degrees, clear", vattempts=1)
     vfact = PendingResult("Kirill", "science fact", "Octopuses have three hearts.")
-    vcall.vpending.extend([vweather, vfact])
+    vcall.vqueue.vwaiting.extend([vweather, vfact])
     await vcall.consider(MeetTurn(0.0, "Kirill", "и давай новый факт"), "", {}, vfollow_up=True)
     assert "Octopuses have three hearts." in vspoken[0] and "Tokyo" not in vspoken[0]
-    assert list(vcall.vpending) == [vweather]
+    assert list(vcall.vqueue.vwaiting) == [vweather]
 
 
 def test_the_heard_part_of_a_reply_follows_the_share_of_its_audio_that_played():
@@ -478,7 +477,7 @@ async def test_a_cut_counts_what_was_still_queued_as_never_heard():
 
 
 def test_a_retelling_starts_from_the_words_that_were_heard():
-    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23 degrees, clear", vattempts=1, vheard="В То")
+    vweather = PendingResult("Kirill", "get_schedule(person='Дмитрий')", "Tokyo: 23 degrees, clear", vattempts=1, vheard="В То")
     assert "after saying only «В То…»" in delivery_line([vweather], vgoing_on=False)
     vweather.vheard = ""
     assert "before they heard any of it" in delivery_line([vweather], vgoing_on=False)
@@ -492,14 +491,14 @@ async def test_a_lead_in_that_plays_out_does_not_count_as_the_answer_after_it_be
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_lead_in"))
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="Сейчас гляну.", vresponse_id="resp_lead_in"))
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Tokyo"}, "a"))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Дмитрий"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_lead_in"))
     await asyncio.sleep(0.01)
-    assert 1 in vcall.vplayed_replies and not vcall.vpending, "the lead-in played out; the answer is still to come"
+    assert 1 in vcall.vledger.vplayed and not vcall.vqueue.vwaiting, "the lead-in played out; the answer is still to come"
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_answer"))
     await vcall.cut_her_off()
     await asyncio.sleep(0.01)
-    assert [vresult.vgoal for vresult in vcall.vpending] == ["get_current_weather(city='Tokyo')"]
+    assert [vresult.vgoal for vresult in vcall.vqueue.vwaiting] == ["get_schedule(person='Дмитрий')"]
     for vtask in vtasks:
         vtask.cancel()
 
@@ -507,45 +506,45 @@ async def test_a_lead_in_that_plays_out_does_not_count_as_the_answer_after_it_be
 @pytest.mark.asyncio
 async def test_a_reply_that_had_played_out_before_the_cut_counts_as_heard_and_only_the_next_is_cut():
     vcall = bare_call()
-    vcall.vopen_replies = {1, 2}
-    vcall.vreply_audio = {1: (0.0, 2.5, "В Токио сейчас 23 градуса и ясное небо."), 2: (2.5, 6.5, "А вот и факт: шахматных партий больше, чем атомов.")}
+    vcall.vledger.vopen = {1, 2}
+    vcall.vledger.vaudio = {1: (0.0, 2.5, "В Токио сейчас 23 градуса и ясное небо."), 2: (2.5, 6.5, "А вот и факт: шахматных партий больше, чем атомов.")}
 
     async def cut() -> float:
         return 4.5
 
     vcall.vsink.cut = cut
     await vcall.cut_her_off()
-    assert vcall.vplayed_replies == {1} and vcall.vcut_replies == {2}
-    assert vcall.vheard_by_reply == {2: "А вот и факт: шахматных"}, "half of the second reply's audio, not the first's"
+    assert vcall.vledger.vplayed == {1} and vcall.vledger.vcut == {2}
+    assert vcall.vledger.vheard == {2: "А вот и факт: шахматных"}, "half of the second reply's audio, not the first's"
 
 
 @pytest.mark.asyncio
 async def test_a_value_the_same_person_looked_up_again_is_dropped_as_stale():
     vcall = bare_call()
     await vcall.vfloor.acquire()
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Tokyo"}, "a"))
-    vtokyo = vcall.vturn_results[0]
-    vcall.vturn_results.clear()
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Дмитрий"}, "a"))
+    vtokyo = vcall.vturn.vresults[0]
+    vcall.vturn.vresults.clear()
     vfact = PendingResult("Kirill", "science fact", "Octopuses have three hearts.")
-    vanna = PendingResult("Anna", "get_current_weather(city='Rome')", "Rome: 25", vtool="get_current_weather", vcall=0)
-    vcall.vpending.extend([vtokyo, vfact, vanna])
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "Paris"}, "b"))
-    vcall.drop_stale()
-    assert list(vcall.vpending) == [vfact, vanna], "only Kirill's older weather goes; a fact and Anna's lookup stay"
+    vanna = PendingResult("Anna", "get_schedule(person='Ольга')", "Rome: 25", vtool="get_schedule", vcall=0)
+    vcall.vqueue.vwaiting.extend([vtokyo, vfact, vanna])
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Мария"}, "b"))
+    vcall.vqueue.drop_stale()
+    assert list(vcall.vqueue.vwaiting) == [vfact, vanna], "only Kirill's older weather goes; a fact and Anna's lookup stay"
 
 
 @pytest.mark.asyncio
 async def test_a_result_cut_off_twice_is_offered_once_then_let_go():
     vcall = bare_call()
-    vweather = PendingResult("Kirill", "get_current_weather(city='Tokyo')", "Tokyo: 23", vattempts=DELIVERY_ATTEMPTS - 1)
-    vcall.vcut_replies = {1}
+    vweather = PendingResult("Kirill", "get_schedule(person='Дмитрий')", "Tokyo: 23", vattempts=DELIVERY_ATTEMPTS - 1)
+    vcall.vledger.vcut = {1}
     await vcall.requeue_if_talked_over([vweather], 1)
-    assert list(vcall.vpending) == [vweather] and vweather.voffered
+    assert list(vcall.vqueue.vwaiting) == [vweather] and vweather.voffered
     assert "offer to finish" in delivery_line([vweather], vgoing_on=False) and "[background results ready]" not in delivery_line([vweather], vgoing_on=False)
-    vcall.vpending.clear()
-    vcall.vcut_replies = {1, 2}
+    vcall.vqueue.vwaiting.clear()
+    vcall.vledger.vcut = {1, 2}
     await vcall.requeue_if_talked_over([vweather], 2)
-    assert not vcall.vpending, "the offer itself talked over: let it go"
+    assert not vcall.vqueue.vwaiting, "the offer itself talked over: let it go"
 
 
 @pytest.mark.asyncio
@@ -556,7 +555,7 @@ async def test_a_continuation_before_the_answer_exists_leaves_nothing_muted_or_l
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
     await vcall.drop_answer_for_continuation()
     assert vcall.vsession.vinterrupts == 1 and not vcall.vsink.vmuted and not vcall.vdropping
-    assert vcall.vturn_done.is_set() and not vcall.vfloor.locked() and vcall.vcut_replies == {1}
+    assert vcall.vturn_done.is_set() and not vcall.vfloor.locked() and vcall.vledger.vcut == {1}
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_merged"))
     assert vcall.vowned == "", "nothing was asked for since, so nothing is owned"
     for vtask in vtasks:
@@ -568,17 +567,17 @@ async def test_a_result_riding_on_a_reply_that_only_called_a_tool_is_heard_when_
     vcall, vtasks = running_call()
     vcall.vsource = type("Source", (), {"wait_for_playout": staticmethod(lambda: asyncio.sleep(0)), "queued_duration": 0})()
     await vcall.vfloor.acquire()
-    vcall.vpending.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
+    vcall.vqueue.vwaiting.append(PendingResult("Kirill", "science fact", "Octopuses have three hearts."))
     vcall.take_waiting_results([])
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_tool"))
-    await vcall.on_tool_call(tool_call("get_current_weather", {"city": "London"}, "a"))
+    await vcall.on_tool_call(tool_call("get_schedule", {"person": "Анна"}, "a"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_tool"))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_said"))
     await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="В Лондоне 14. Кстати, у осьминогов три сердца.", vresponse_id="resp_said"))
     await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION, vresponse_id="resp_said"))
     await asyncio.wait_for(asyncio.gather(*[vtask for vtask in vtasks if vtask.get_coro().__name__ == "requeue_if_talked_over"]), 1)
-    assert not vcall.vpending, "said and played out in the follow-up: not told again"
+    assert not vcall.vqueue.vwaiting, "said and played out in the follow-up: not told again"
 
 
 @pytest.mark.asyncio
@@ -587,4 +586,4 @@ async def test_a_routing_step_is_not_a_reply_and_takes_no_cut_marker():
     vcall.vrouting = asyncio.get_running_loop().create_future()
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION, vtext_only=True))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_route"))
-    assert vcall.vreply_seq == 0 and not vcall.vopen_replies
+    assert vcall.vledger.vlast == 0 and not vcall.vledger.vopen
