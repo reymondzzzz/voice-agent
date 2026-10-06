@@ -588,6 +588,10 @@ A spoken routing verdict is asked again once per turn. Live, Qwen said "RESPOND"
 
 `who_is("everyone")` lists the whole team: asked four times live for "кто все", she kept asking which area. The promise check now runs while a result only waits to be told (it is still skipped while work runs, where it once started a second search); the checker is told what is waiting. Live, «я запускаю исследование» went unchecked and no research was started.
 
+The floor timeout takes over only a reply that has stopped producing words; it once cut a summary off ten seconds in. A takeover also clears the cut reply's words, which had otherwise picked up the next check's verdict and were logged as her line ending in "IGNORE".
+
+Why the verdicts stay in her history: DashScope ignores `"conversation": "none"` on `response.create`, ignores client-set item ids (and acknowledges deleting an unknown id), and sometimes gives a verdict the id of the user item before it, so `conversation.item.delete` on a verdict removed the user's line too (a code word recalled 4/4 without the delete, 0/4 with it). Six routing verdicts in a session made her answer "RESPOND" to a question 8 times in 8.
+
 **No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
 and removed: on a real call they sounded strange rather than responsive.
 

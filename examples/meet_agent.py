@@ -283,18 +283,25 @@ class MeetCall:
 
     async def take_floor(self) -> None:
         # A realtime session generates one response at a time: routing steps, answers and deliveries take turns.
-        try:
-            await asyncio.wait_for(self.vfloor.acquire(), FLOOR_TIMEOUT_S)
-        except TimeoutError:
-            logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
-            # The previous owner's response is stopped, so it neither keeps talking nor ends the new owner's turn.
-            if self.vsession is not None and (self.vowned or self.vawaiting):
-                await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="floor_takeover"))
-            if self.vawaiting:
-                self.settle_unborn()
-            self.vowned = ""
-            self.end_turn()
-            await self.vfloor.acquire()
+        while True:
+            try:
+                await asyncio.wait_for(self.vfloor.acquire(), FLOOR_TIMEOUT_S)
+                return
+            except TimeoutError:
+                # A reply still producing words is long, not stuck: taken over, it cut a summary off mid-sentence.
+                if not (self.vowned and time.monotonic() - self.vlast_bot_activity < FLOOR_TIMEOUT_S):
+                    break
+        logger.warning("response floor held for %ss; taking it over", FLOOR_TIMEOUT_S)
+        # The previous owner's response is stopped, so it neither keeps talking nor ends the new owner's turn.
+        if self.vsession is not None and (self.vowned or self.vawaiting):
+            await self.vsession.interrupt(events.InterruptRequest(vcorrelation=self.vsession.correlation(), vreason="floor_takeover"))
+        if self.vawaiting:
+            self.settle_unborn()
+        # Its words stay out of the next reply: left here, a routing verdict was appended and logged as hers.
+        self.vowned = ""
+        self.vreply_parts.clear()
+        self.end_turn()
+        await self.vfloor.acquire()
 
     def release_floor(self) -> None:
         if self.vfloor.locked():

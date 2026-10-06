@@ -421,6 +421,35 @@ async def test_a_stale_completion_does_not_end_the_newer_turn():
 
 
 @pytest.mark.asyncio
+async def test_a_long_reply_still_producing_words_keeps_the_floor(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(meet_agent, "FLOOR_TIMEOUT_S", 0.05)
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    vcall.vowned = "resp_summary"
+
+    async def talk_then_finish() -> None:
+        for _ in range(8):
+            await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="и ещё ", vresponse_id="resp_summary"))
+            await asyncio.sleep(0.02)
+        vcall.release_floor()
+
+    vtalking = asyncio.ensure_future(talk_then_finish())
+    await vcall.take_floor()
+    await vtalking
+    assert vcall.vsession.vinterrupts == 0, "a summary still being told was cut off by the next delivery"
+
+
+@pytest.mark.asyncio
+async def test_a_stuck_owner_is_taken_over_and_its_words_do_not_carry_into_the_next_reply(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(meet_agent, "FLOOR_TIMEOUT_S", 0.05)
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    vcall.vowned, vcall.vreply_parts = "resp_stuck", ["Так, насчёт резюме"]
+    await vcall.take_floor()
+    assert vcall.vsession.vinterrupts == 1 and vcall.vreply_parts == [] and vcall.vowned == ""
+
+
+@pytest.mark.asyncio
 async def test_a_request_owns_the_next_response_and_only_that_one():
     vcall = bare_call()
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION))
