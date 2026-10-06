@@ -179,8 +179,9 @@ async def test_a_task_cancelled_while_its_attempt_fails_is_not_retried():
     vsupervisor.cancel(vrecord.vtask_id)
     for _ in range(6):
         await asyncio.sleep(0)
-    assert vrecord.vstatus is TaskStatus.CANCELLED and vattempts == [1], "a cancelled task is not run again"
+    vrelease.set()
     await vsupervisor.aclose(vtimeout_s=0.1)
+    assert vrecord.vstatus is TaskStatus.CANCELLED and vattempts == [1], "a cancelled task is not run again"
 
 
 async def test_shutdown_names_a_task_that_ignores_cancellation():
