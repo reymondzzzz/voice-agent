@@ -43,7 +43,7 @@ BACKGROUND_STARTED = "Started in the background; nothing has come back yet. Say 
 PROMISE_CHECK = (
     "Internal check about this one reply of yours, and nothing earlier: «{reply}». Does it tell the person you are "
     "looking something up, checking it or will come back with an answer? Asking them something, such as which city "
-    "they mean, is NO. Reply with exactly one word: YES or NO."
+    "they mean, is NO.{found} Reply with exactly one word: YES or NO."
 )
 PROMISE_CORRECTION = (
     "[internal] Your last reply promised to look something up or check it, but you started no tool. Call the right "

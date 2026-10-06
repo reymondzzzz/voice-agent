@@ -603,16 +603,17 @@ class MeetCall:
         finally:
             if self.vanswering is vturn:
                 self.vanswering = None
-        # With work running or a result waiting, "I'll tell you when it's ready" is true; checked anyway, it started a
-        # second search.
-        vbusy = self.vqueue.vwaiting or self.running_work()
-        if self.vturn.vspoke and not self.vturn.vtools and not vbusy:
+        # With work running, "I'll tell you when it's ready" is true; checked anyway, it started a second search. A
+        # result merely waiting does not excuse it: "я запускаю исследование" went unchecked and nothing was started.
+        if self.vturn.vspoke and not self.vturn.vtools and not self.running_work():
             await self.check_promise(self.vturn.vreply)
 
     async def check_promise(self, vreply: str) -> None:
         # Qwen sometimes says "я начала проверку" and calls nothing. A reply that used no tool is asked, silently,
         # whether it promised work; if so, she is told to start it.
-        if not parse_yes(await self.route(PROMISE_CHECK.format(reply=vreply))):
+        vwaiting = "; ".join(vresult.vgoal for vresult in self.vqueue.vwaiting)
+        vfound = f" Already found and waiting to be told: {vwaiting}. Offering to tell that is NO." if vwaiting else ""
+        if not parse_yes(await self.route(PROMISE_CHECK.format(reply=vreply, found=vfound))):
             return
         logger.info("reply promised work without a tool call; asking for the tool")
         await self.take_floor()

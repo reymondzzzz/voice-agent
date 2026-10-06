@@ -183,7 +183,12 @@ def find_free_slot(vpeople_asked: list[str], vminutes: int, vday: str, vrequeste
     return f"No common {vlength.seconds // 60}-minute slot on {vdate:%a %d %b}."
 
 
+WHOLE_TEAM = frozenset({"", "everyone", "team", "all", "все", "всех", "команда", "вся команда"})
+
+
 def who_is(vasked: str, vrequester: str) -> str:
+    if vasked.strip().lower() in WHOLE_TEAM:
+        return "; ".join(f"{vperson.vname}: {vperson.vrole}" for vperson in TEAM) + "."
     vperson = find_person(vasked, vrequester)
     if vperson is not None:
         return f"{vperson.vname}: {vperson.vrole}."

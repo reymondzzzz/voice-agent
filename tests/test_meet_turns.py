@@ -321,6 +321,32 @@ async def test_saying_it_will_come_back_while_work_runs_is_not_a_broken_promise(
 
 
 @pytest.mark.asyncio
+async def test_a_promise_is_still_checked_while_an_unrelated_result_only_waits():
+    vcall = bare_call()
+    vpromises: list[str] = []
+    answering_once(vcall, [], vpromises)
+    vcall.take_waiting_results = lambda _vsaying: []
+    vcall.vqueue.vwaiting.append(PendingResult("Kirill", "search documents", "Протокол встречи 24 сентября"))
+    await vcall.consider(MeetTurn(0.0, "Kirill", "давай саммари"), "", {}, vfollow_up=True)
+    assert vpromises, "«я запускаю исследование» with a result waiting went unchecked, and no research was started"
+
+
+@pytest.mark.asyncio
+async def test_the_promise_check_knows_what_is_already_waiting_to_be_told():
+    vcall = bare_call()
+    vasked: list[str] = []
+
+    async def route(vprompt: str) -> str:
+        vasked.append(vprompt)
+        return "NO"
+
+    vcall.route = route
+    vcall.vqueue.vwaiting.append(PendingResult("Kirill", "search documents", "Протокол"))
+    await vcall.check_promise("Рассказать про дедлайн?")
+    assert "waiting to be told: search documents" in vasked[0]
+
+
+@pytest.mark.asyncio
 async def test_a_line_from_someone_still_talking_waits_for_the_rest():
     vcall = bare_call()
     vspoken: list[str] = []

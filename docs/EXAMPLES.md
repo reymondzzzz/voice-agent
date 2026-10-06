@@ -586,6 +586,8 @@ Edge cases the test review found and fixed: a light tool that raised killed the 
 
 A spoken routing verdict is asked again once per turn. Live, Qwen said "RESPOND" on 11 retries in a row (each retry left one more verdict in its history) until the 10s floor timeout; a second leak now ends the turn quietly.
 
+`who_is("everyone")` lists the whole team: asked four times live for "кто все", she kept asking which area. The promise check now runs while a result only waits to be told (it is still skipped while work runs, where it once started a second search); the checker is told what is waiting. Live, «я запускаю исследование» went unchecked and no research was started.
+
 **No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
 and removed: on a real call they sounded strange rather than responsive.
 

@@ -31,6 +31,8 @@ def test_a_task_key_survives_speech_recognition():
 def test_owners_are_found_by_area_in_either_language():
     assert meet_workspace.who_is("вебхуки", "Kirill Starkov").startswith("Дмитрий Волков")
     assert meet_workspace.who_is("provider contract", "Kirill Starkov").startswith("Анна Петрова")
+    vteam = meet_workspace.who_is("вся команда", "Kirill Starkov")
+    assert all(vperson.vname in vteam for vperson in meet_workspace.TEAM), "asked four times live for everyone, and she kept asking which area"
 
 
 def test_a_free_slot_respects_everyone_and_the_hours_already_gone():

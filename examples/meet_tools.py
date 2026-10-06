@@ -131,7 +131,8 @@ MEET_TOOLS = (
     ),
     MeetTool(
         "who_is",
-        "Who someone on the team is, or who owns an area (webhooks, the provider contract, testing, ...).",
+        "Who someone on the team is, or who owns an area (webhooks, the provider contract, testing, ...). "
+        "Pass 'everyone' for the whole team with each person's area.",
         {"type": "object", "properties": {"person_or_topic": {"type": "string"}}, "required": ["person_or_topic"]},
         ToolWeight.LIGHT,
         who_is,
