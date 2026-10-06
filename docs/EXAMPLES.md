@@ -154,8 +154,7 @@ belong to the flexus worker that was not moved, and `AgentSession` provides its 
 
 `examples/web/orb.js` renders a procedural WebGL orb — no CSS gradients, blurred divs or scale
 pulses. The GLSL is flexus's own `voiceOrbShader.ts` (simplex noise, FBM, domain warping, fresnel
-rim, iridescence, tone mapping) with the lighting reworked; the flexus original stays untouched at
-`flexus_frontend/src/components/ui/voiceOrbShader.ts` if you want to diff.
+rim, iridescence, tone mapping) with the lighting reworked.
 
 Three bugs had to be fixed before it looked like anything:
 
@@ -201,6 +200,562 @@ Measured at 1440×900: **120 FPS mean, 8.30 ms median, 10.20 ms p95**. Device pi
 at 2 (1.5 under 760px wide), rendering stops on `visibilitychange`, WebGL context loss is caught
 and the program rebuilt on restore, and `prefers-reduced-motion` slows the shader clock to ~11% of
 normal rather than freezing it. `pagehide` disposes the program, buffer and audio meter.
+
+## Google Meet
+
+`examples/meet_bridge.py` puts the agent into a Google Meet call. Meet has no API a bot can speak
+through, so a Playwright-driven Chrome joins as a guest and the bridge carries that page into a
+LiveKit room as an ordinary caller. In the room, `examples/meet_agent.py` serves one agent, Karen,
+instead of the Boss / Alice / Bob call.
+
+```bash
+uv run python -m examples.meet_agent dev                                  # Karen, instead of voice_app
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij   # joins as «Мэгги»
+```
+
+The agent was built as Karen and is called «Мэгги» in the meeting (the code and the page still say
+Karen internally). Meet's sender-side noise gate eats the start of each utterance, which is where
+the name sits: over a real Meet call "Карен" came out as "Арен", "Таран", "Аарон" or nothing, and
+the transcriber kept it in 2 of 5 read lines. Measured with Qwen speaking each candidate in 5
+phrases in two voices, the onset cut the way the gate does (name recognised, of 10):
+
+| Name | 0ms cut | 60ms | 120ms |
+| --- | --- | --- | --- |
+| Аврора | 10 | 10 | 10 ("Аурора", "Врора") |
+| Юки | 10 | 10 | 8 |
+| **Мэгги** | 10 | 10 | 7 ("Эгги", "Меги") |
+| Хлоя | 9 | 8 | 7 |
+| Лотта | 10 | 10 | 6 ("Отто") |
+| Ханна | 10 | 10 | 10, but as "Анна" |
+| Эмма | 10 | 10 | 2 |
+| Грета | 10 | 10 | 1 ("Рита") |
+| Фрида | 10 | 5 | 1 ("Ида", "да") |
+| Руби | 9 | 10 | 4 |
+| Люми | 10 | 10 | 3 |
+| Сири | 9 | 9 | 2 ("Тери", "Ирри") |
+| Джарвис | 10 | 7 | 2 |
+| Карен | 10 | 6 | 4 ("Арен", "Арин", "Лен") |
+| Нова | 8 | 8 | 5 |
+| Зури | 7 | 7 | 7 |
+| Эльза | 10 | 9 | 0 ("Лиза") |
+| Тесса | 9 | 0 | 0 |
+
+Three syllables survive best. Мэгги is the short European name that held up: what the gate leaves of it ("Эгги", "Меги") is no one else's name, where "Ханна" became "Анна" and "Грета" became "Рита". The fuzzy
+match only accepts a word no longer than the name, since the gate removes sounds and never adds
+them: that kept "брюки" and "юбки" from waking a bot called Юки while "руки" already fell under the ratio.
+Cleaning the audio instead did not help: a high-pass, a presence boost, comfort noise in the gated
+gaps, and Qwen's VAD padding or threshold all scored within noise of the untouched Meet audio
+(12–18% word errors on the same 78-word script). The words lost are the ones the gate removed.
+
+To try Karen without Meet, run `examples.meet_agent dev` with `examples.token_server` and open
+http://127.0.0.1:8080/karen: the page's microphone takes the bridge's place and your lines are
+labelled with your participant name. Karen publishes meaning-only events on the `karen` data topic —
+every logged turn (speaker, text, whether it was addressed to her), her thinking/listening state,
+and each background task as it starts and finishes — and `examples/web/karen.html` renders them as a
+transcript, a background-work list and the orb. Checked in Chrome with a fake microphone playing
+`say` clips: the state line moved through listening, thinking and speaking, the delegated task went
+from working to done, the result note shows only GLM's answer, and hanging up and reconnecting
+starts a clean room, at 1280x800 and 390x844, with no console errors.
+
+To watch a real Meet call, run the bridge with a known room and open the same page as an observer:
+`/karen?observe=1&room=<room>`. The token server then mints a hidden, publish-nothing token, so Karen
+(who listens to every audio track in the room) never hears the page; the page plays nothing aloud and
+only uses Karen's track to drive the orb. Rehearsed with the bridge on a fixture Meet page: the
+observer saw Anna, Carl, Karen, the tool lines and the background result, and Karen listened only to
+`meet-bridge`.
+
+Both agent servers register without an agent name, so run one of them, not both. Karen needs
+`DASHSCOPE_API_KEY` in `.env.local` next to the OpenRouter key.
+
+Meet now turns away an anonymous guest from an automated browser before the host is even asked:
+the lobby says "System info will be sent to confirm you're not a bot" and, after Ask to join, "You
+can't join this video call — No one can join a meeting unless invited or admitted by the host"
+(seen on a real call, September 2026). Join with a signed-in Google account instead. Sign in once in
+an ordinary, non-automated Chrome, because Google refuses sign-in inside an automation-controlled one,
+then hand the profile to the bridge:
+
+```bash
+open -na "Google Chrome" --args --user-data-dir="$PWD/.meet-profile" https://accounts.google.com   # sign in, then quit that Chrome
+uv run python -m examples.meet_bridge https://meet.google.com/abc-defg-hij --profile .meet-profile --room voice-meet-karen --name Karen
+```
+
+The profile runs on the real macOS keychain: under Playwright's default `--use-mock-keychain` Chrome cannot
+decrypt the signed-in cookies and deletes them, which silently signs the profile out after one run.
+Signed in, Meet asks for no name and shows the account's name, so an account called Karen makes the
+tile match what people say; `--name` is what Karen answers to either way. The bot's own tile is left
+out of `meet_speaker` by Meet's `data-self-name` marker, since its name no longer equals `--name`.
+
+The bot asks to join; someone in the call has to admit it. It leaves when the call ends or on
+Ctrl-C. Chrome runs headed by default because every maintained Meet bot does — Meet treats
+headless guests with suspicion. `--headless` exists for when that stops being true. Meeting audio
+plays out of the local speakers while it runs; `--mute-audio` would silence it but also stops Chrome
+rendering Web Audio, which kills the capture.
+
+| Direction | How |
+| --- | --- |
+| Meet → agent | `examples/meet/bridge.js` wraps `RTCPeerConnection`, mixes every remote audio track in a 48kHz `AudioContext`, and hands 20ms PCM frames to Python through a Playwright binding. The bridge publishes them as its microphone track. |
+| agent → Meet | The bridge subscribes to the agent's track and pushes 20ms frames into the page. `getUserMedia` is replaced so Meet's microphone is a stream fed from those frames. |
+| who is speaking | Every 250ms the page reads the participant tiles (`div[data-participant-id]`, name in `span.notranslate`) and reports those whose speaking border is visible. The bridge drops its own name and publishes the rest as the `meet_speaker` participant attribute. |
+
+Only meaning crosses into the agent: the speaker name is an attribute, never audio (rule 14).
+
+### Where the Meet agent's code lives
+
+| Module | What it owns |
+| --- | --- |
+| `examples/meet_agent.py` | `MeetCall`: the Qwen session, its events, the response floor and ownership, routing, answering, tools, delivery; the LiveKit entrypoint |
+| `examples/meet_playout.py` | `RoomAudioSink` (her voice into the room, and where a cut lands on it) and `PlayoutLedger`, which numbers her replies and records which ones the room actually heard |
+| `examples/meet_delivery.py` | `PendingResult` and `ResultQueue`: what is waiting to be told, what went stale, and the retry-then-offer rule |
+| `examples/meet_prompts.py` | Everything she reads: the persona, the per-session instructions, the promise check, and the lines that hand her results |
+| `examples/meet_addressing.py` | Whether a line was for her: the name, the routing prompt, and the parsers of her verdicts |
+| `examples/meet_judge.py` | `MeetJudge`: the one-word internal checks (routing, broken promise, result told) on a text-only Qwen session of their own |
+| `examples/meet_tools.py`, `examples/meet_workspace.py` | Her tools, and the fictional payments team they read |
+| `examples/meet_memory.py`, `examples/meet_bridge.py` | The ten-minute log, and the Playwright bridge into Meet |
+
+The `science_fact` and `get_current_weather` demo tools are gone: the team's tools cover quick lookups, and
+`search_documents` is the background task. The sections below keep their measurements as they were made,
+some with those tools.
+
+### Silent until addressed
+
+Karen listens to everything and answers only when spoken to. `examples/meet_addressing.py` decides
+per turn; the bridge publishes its `--name` as the `meet_bot_name` attribute so the agent knows
+what it is called.
+
+- **The name is the fast path.** Fuzzy, spaces ignored, Cyrillic transliterated: `Caren`,
+  `VoiceAgent`, `Карен` all match, with no model call.
+- **Everything else is routed inside Karen's own Qwen session**: a text-only `response.create`
+  whose instructions carry the labelled last `GATE_CONTEXT_TURNS` lines and ask for one word, RESPOND
+  or IGNORE. Only RESPOND is followed by a spoken response; anything else, a timeout included, is
+  silence.
+
+Keyword rules were tried first and failed on a real call: a word count dropped "Почему?" right after
+Karen answered, and a filler list cannot tell "Почему?" to Karen from "Почему?" between colleagues.
+The prompt also tells the model that speech recognition clips the start of utterances, so "Арон,
+который час в Лондоне?" is read as a question to Karen.
+
+How routing got here, all measured on a 9-line Russian dialogue (Kirill and Sasha talking, Karen
+asked twice, "Почему?" once for Karen and once for Sasha):
+
+| Setup | Correct |
+| --- | --- |
+| One session, automatic responses, prompt says "produce no output" | 2/9 on 3.5 Plus (twice) and 3.8 Flash: it answered every line |
+| One session, manual mode, text RESPOND/IGNORE routing step, then speech | 9/9 on 3.8 Flash and 3.5 Plus, ~0.9s decision, ~0.9s to first audio |
+| Same, routing as a `route_turn` function call | 9/9, 9/9 on 3.8 Flash; 8/9 on 3.5 Plus |
+| A separate text-only Qwen judge session | 29/30 on 15 labelled lines, ~0.6s, but a second context |
+| GLM 5.2 classifier | 11/11, ~0.7s, but a second model |
+
+She ran the second row on `MEET_VOICE_MODEL` (`qwen3.5-omni-plus-realtime`) until the verdicts were found
+in her speech: every RESPOND/IGNORE/YES/NO stays in her history (DashScope ignores `conversation: "none"`
+and client item ids, and deleting a verdict item can delete the line before it), and six of them made
+her answer a question with "RESPOND" 8 times in 8. Live, it leaked 3 times in one five-minute run, once
+as a spoken "IGNORE". Routing, the promise check and the result-told check now go to `MeetJudge`, a
+text-only session of the same model that never speaks: 28/30 on the 15 labelled lines (14/15 per run,
+the miss is the clipped "Арон" for "Karen"), ~0.6s, against 23-26/30 for qwen-flash, qwen-plus,
+qwen3.5-flash, qwen3-max and qwen3.5-omni-plus over the plain HTTP endpoint. Her own session keeps only
+the keepalive. After a reply that carried results plays out, the judge is asked whether each one was
+actually passed on: given the team list and a found document in one answer, she said only the list, the
+document counted as told, and asked about it later she said nothing had been found. Left-out results go
+back to the queue; an empty verdict counts as told, so a failed check never makes her repeat herself.
+The check is 5/5 on that case and its neighbours once it says the result may be in English and partly
+told; worded as "the substance of this result" it called two Russian retellings NO.
+
+Her name skips the judge only when it calls her: in the first or last words of the line ("Мэгги, найди…", "…, Мэгги?"). Said in the middle it is usually about her to someone else ("помнишь, Мэгги там находила…" to Михаил), which she answered, so that goes to the judge, whose prompt now says talk about her is not for her: 18/19 with four such lines added. A follow-up line skips the judge, and when it was not for her she sometimes answered with a bare "IGNORE"; that is now taken as her decision to stay silent instead of a leak to ask again, which had made her say «Кирилл» and retell a long answer to someone talking to a colleague.
+Qwen 3.8 ignores the text-only request and speaks the verdict as well, about 1.1s of "IGNORE" per line
+(measured), which on a real call was heard in the room; Karen's audio output is muted for the length
+of every routing step. On the fixture page the five lines of side talk now put 0ms of her voice into
+the call.
+The session is still in manual response mode (`create_response` off, server VAD on), so VAD commits
+each turn and nothing speaks until asked. One response runs at a time, so routing steps, answers and
+deliveries take turns on a floor lock; a tool call's follow-up response keeps the floor.
+
+How long a person waits, from the end of their phrase to her voice in Meet: Qwen's VAD reports the
+phrase over only after `TURN_SILENCE_MS` of quiet, measured at 1.5s after the speech really ended with
+1200ms and 0.9s with 600ms; then ~0.2s for the transcript, ~1s for the routing step unless her name
+was in the line, 1.1–1.9s to first audio (a tool call adds a second response), and the trip back
+through the bridge. The page's `total` starts at the VAD event, so it leaves the first part out.
+`TURN_SILENCE_MS` is 500. From the end of the words to the transcript that took 1.0s, against 1.1s at
+600ms and about 1.4s at 900. Committing the turn ourselves on local silence (Meet's gate makes the
+pauses exact zeros) was only 0.1s faster, because Qwen then takes 0.5s to transcribe, and it let
+noise through as lines ("Что", "так"): 27% word errors on the Meet recording against 17%. 500 splits
+three Meet phrases mid-sentence ("Расскажи что-нибудь. | научный факт."), which the continuation
+handling below joins again. The person she just answered, speaking
+again within `FOLLOW_UP_WINDOW_S` of her reply ending, skips the routing step unless the line names
+a colleague who has spoken in the meeting. For comparison, OpenAI's full-duplex GPT-Live-1 measured
+~1.1s median end-of-speech to first audio in ChatGPT (Agora, n=30), and OpenAI documents it as built
+for one speaker.
+
+Her replies used to open the same formal way ("Хорошо", "Кирилл", "Сейчас"). The persona now asks for
+a person's reactions in her own words, "хм", "ага", "так-так", "ой, хороший вопрос", never reused within
+the meeting, and welcomes one before a tool call so the person hears her while it runs. A literal list
+got parroted ("Секунду, гляну" twice in eight replies); framed as examples, eight test questions came
+back with "Ой, хороший вопрос", "Так-так", "Хм" and plain answers.
+
+Fillers come from the model, the way OpenAI's voice models do it: GPT-Live generates its own "хм" and
+backchannels as part of its speech, and the gpt-realtime prompting guide asks for a short spoken
+preamble before a tool call, with varied sample phrases. Clips recorded in her voice were tried in
+between (the ElevenLabs / LiveKit / Pipecat way): a recording stitched onto live speech sounded like a
+seam, collided with her own words ("секунду… Секунду, я ищу"), and telling her a clip had played made
+her invent the fact instead of waiting for the tool in 3 of 5 follow-ups. So the persona asks for a
+short reaction that belongs to the sentence ("хм, ...", "ой, хороший вопрос, ...") and never the same
+one twice, a few words of her own before a background task, and nothing before time and weather: live
+she added "Сейчас проверю погоду в Лондоне", so those tools are called silently and answered with the
+result.
+
+The promise check quotes the reply it asks about. Asked about "your last reply", she also weighed the
+earlier ones: live, "мне нужно уточнить город" after "сейчас подберу факт, секунду" came back YES, and
+the correction made her call the weather tool for a city nobody named (5 of 5 in a replay). Quoted, 20
+of 20 checks were right, promises and questions back alike.
+
+A mid-sentence pause still ends a turn: "найди новый факт… и покажи какая погода" became two turns and
+she answered the first half. Qwen's `semantic_vad` (supported on the 3.5 Omni realtime models) ended
+turns by meaning and read the clean recording perfectly, but on the Meet recording it still split
+"на четверг. | половине четвертого" at 800ms and five phrases at 500ms, for 0.1s saved. So server VAD
+stays, and a continuation is handled the way LiveKit handles a false end of turn: if the same person
+starts speaking within `CONTINUATION_WINDOW_S` of the turn being heard and no tool has run yet, the
+answer is cancelled and muted (or its audio dropped if it already finished), and the next line from
+them is answered together with the first half, with no routing step. A line whose speaker is already
+talking again by the time it is judged waits for the rest the same way; if no more comes within
+`CONTINUATION_HOLD_S` (it was noise), the first half is answered alone.
+The page shows such a request as one line too: the agent publishes a `merged` event and the page folds
+the later fragments into the first ("а если например. Какая погода на в Лондоне." instead of three lines).
+
+She calls people by their first name as the transcript writes it: live she chose "Кирюш" on her own,
+and when "Мэгги" was heard as "Ангел" she told Kirill he was mixing her up with someone. The persona
+now rules out diminutives and says a misspelt name is speech recognition, never to be remarked on;
+6 of 6 replies to "Ангел, …", "Магер, …" and "Мэгги, …" then said "Кирилл" and answered the question.
+
+Several replies in a row should sound like one answer. A result that is told while her answer still
+plays, or within `GOING_ON_S` of it ending, queues right behind that answer, so its line asks her to go
+on from her last sentence as part of the same answer, with no name and no fresh start: 6 of 6 replays
+then ran on with "Кстати, у осьминогов…", where the plain line opened "Кирилл, у осьминогов…" 6 of 6
+times. Live, "Новый факт уже ищу" followed three seconds later by "А ещё, Кирилл, бананы…" had no
+connection: the fact was the thing she had promised, not one more thing. So the line now says to pick
+up a promise when its result turns up and to use "а ещё" / "кстати" only otherwise; 12 of 12 replays
+then went on with "О, а вот и факт: …" or "Уже нашла: …". The page folds her replies since a person
+last spoke into one bubble.
+The latency line of a reply that follows her own previous reply without anyone speaking between
+carries `gap`: the silence the room heard between the two, 0 when the new audio queued straight behind
+the old.
+
+A review of the turn handling (GPT, offline reproductions) found four real faults, each now with a test:
+- a cancelled response kept playing its late audio deltas, and reported itself completed (fixed in the
+  adapter, see `docs/REALTIME_ARCHITECTURE.md`);
+- quick-tool results were cleared before the follow-up said them, so a follow-up interrupted before
+  its first word lost the answer; they are now kept until a completed follow-up has spoken, and queued
+  otherwise. A background delivery that timed out without playing is retried instead of dropped;
+- any response's completion ended the current turn. The agent now owns the response its last request
+  created (`AssistantSpeechStarted`), ignores completions and text of any other, cancels the previous
+  owner when it takes the floor over after `FLOOR_TIMEOUT_S`, and ends the turn itself when DashScope
+  refuses a request because another response is active;
+- a transcript took whoever Meet highlighted when the text arrived, 0.5-1s after the words; it now
+  takes the speaker recorded when that utterance's speech stopped.
+Not changed: the browser's playback queue in the bridge has no clear command, but it is fed one 20ms
+frame at a time as LiveKit plays it out, so what remains there after a clear is the transport buffer,
+not the answer.
+A second review pass found four lifecycle gaps, each fixed with a test: a quick-tool answer counted as
+told once generated rather than once played, so talking over its playout lost it (now tool results
+share the delivery watcher and go back unless the reply played out); a routing step that timed out set
+a global discard flag that muted and swallowed the next answer, leaving the floor locked (now the
+routing response is cancelled and disowned, so its late completion is simply stale); a cancel in the
+window before `response.created` hit the previous response (now held for the one being created); and
+speaker attribution was a queue that one lost transcript shifted for good (now keyed by item id and
+cleared when the session is replaced).
+
+A result counts as told only by what the room heard. The sink counts the seconds of each reply it hands
+to the room; at a barge-in, what is still queued was never heard, and that share of her audio maps onto
+the reply's transcript ("В Токио сейчас 23 градуса…" cut after 0.4s of 2.4s is "В"). The result goes
+back to the queue with those words, and the retelling tells her where she was cut off, so she says only
+what was not heard: after "В То" 3 of 3 replays retold the weather, after "В Токио сейчас 23 градуса" 3 of
+3 said just "в Токио сейчас ясно". DashScope has no `conversation.item.truncate`, so this line is also
+what tells the model its reply did not get through. The retelling first also invented the still-running
+fact 4 times in 6 ("some wasps can recognise faces"); told to say only what the results hold, 1 in 9.
+A result already cut off once is not folded into the next answer: live, folded into "давай новый факт",
+the model started the fact search, skipped the talked-over weather, and it counted as told. It gets its
+own retelling right after that answer instead. The page marks a talked-over reply with how far she got.
+Playout is tracked per reply. Each response she owns gets a number and ends up played or cut; a result's
+watcher waits for the reply numbered right after its request, and only that one. With one shared
+"played" flag, "сейчас гляну" playing out before the tool answer marked the answer as heard, and talking
+over the answer then lost the result.
+A cut is placed on her audio timeline, not on the queue as a whole: each reply records where its audio
+starts and ends in the seconds handed to the room, and at a cut a reply that ended before the point
+the room had heard up to counts as heard. Marking every reply not yet drained as cut retold a weather
+answer that had just played, because a fact was queued behind it when someone started talking. The
+words heard are kept per reply, so each result is retold from its own reply's cut. A retelling that
+queues right behind her answer is told to go on as part of it: "Так вот, про погоду в Токио: …" in 4
+of 4 replays, where it opened afresh with "Кирилл, насчёт погоды…" live.
+
+Results that are no longer wanted are not told. A time or weather value goes stale once the same
+person looks that tool up again, whatever the arguments: Tokyo's weather still waiting after "а в
+Париже?" is dropped, as is an older copy of the same lookup. Background work is exempt ("давай новый
+факт" asks for another fact, it does not replace the first), and so is anyone else's lookup. A result
+talked over `DELIVERY_ATTEMPTS` times is no longer dropped in silence: it is offered once instead of
+told ("Кирилл, я там про погоду не договорила — рассказать?", 4 of 4 replays, none retold it), and let
+go only if the offer is talked over too.
+
+A fourth review pass found the edges of that bookkeeping, each now with a test. A request cancelled
+before its response existed never gets a start from the adapter, so nothing would ever complete it;
+the continuation that cancelled it left the sink muted and the floor locked. Now a request that will
+never be owned (cancelled before `response.created`, or refused as "already has an active response")
+is settled where it is cancelled: its reply number is spent as unheard and the turn ends there. A
+follow-up takes over the reply it continues, so a result riding on a reply that only called a tool
+counts as heard when the follow-up saying it plays out, instead of being retold after the 60s playout
+timeout; a silent reply with no follow-up counts as unheard at once. Routing steps get no reply
+number: a silent verdict left open took the cut marker away from the answer actually interrupted.
+
+The line is logged the moment it is heard and judged off the event pump, so waiting for the gate
+never delays barge-in; the page gets a separate `addressed` event and tags the line then.
+
+### Two models: Qwen Omni hears and speaks, GLM does the slow work
+
+| Job | Model |
+| --- | --- |
+| Hear the meeting, transcribe it, answer by voice, call fast tools | Qwen Omni (`qwen3.5-omni-plus-realtime`, `voice_agent/realtime/qwen/`), `create_response` off so it speaks only when asked |
+| Delegated work | `z-ai/glm-5.3` via `TaskSupervisor` |
+
+Meet audio from the bridge goes straight into the Qwen session; its server VAD and transcription
+(`qwen3-asr-flash-realtime`, part of the session) produce the text. Each transcript is labelled with
+the `meet_speaker` of the moment and added to `MeetMemory`, which keeps the last
+`MEET_CONTEXT_WINDOW_S` (10 minutes) and drops older turns; the full log is
+`meet-transcripts/<room>.jsonl`. No notes, no summaries.
+
+When Karen is addressed, the session prompt is replaced (`QwenOmniSession.update_instructions`, a
+`session.update`) with her rules, name, running background tasks and the labelled 10-minute log, then
+a plain `response.create` asks her to answer. Qwen has heard the audio itself; the log adds who said
+it. Two things decided this, both found against the live endpoint:
+
+- `response.create` with its own `instructions` makes the model stop calling tools, so the log has to
+  travel in the session prompt, which keeps tools and is replaced rather than accumulated.
+- Qwen keeps every utterance it hears server-side. `conversation.item.delete` is acknowledged but
+  the model still repeats the deleted audio word for word, so deleting cannot bound it. Instead the
+  session is renewed once it has heard a full window, at a quiet moment (nobody speaking, Karen
+  silent, 1.5s): the new one starts with the 10-minute log in its prompt and takes over the audio
+  before the old one closes. Qwen's context is therefore at most two windows of meeting, never the
+  whole call.
+
+| Tool | Runs | Result |
+| --- | --- | --- |
+| `get_current_time`, `get_current_weather` | Qwen native function call, executed inline | answered in the same reply |
+| `delegate_task(goal)` | `TaskSupervisor.start_background` on GLM 5.3 with `background_brief` (who asked, the goal, the 10-minute log) | returns "started" at once; Karen says she is on it |
+| `science_fact()` | a dummy background task: waits `SCIENCE_FACT_DELAY_S` (8s), then returns one of `SCIENCE_FACTS` | exercises the background path without a model |
+
+Every tool call is logged as a `[tool]` line (`get_current_time(timezone='Europe/London') → …`), so it
+shows on the page and Karen can see what she actually ran. Two prompt rules came from a live Russian
+call where she invented a task: the addressed line is also sent as a message before
+`response.create` (with only its audio in the session, Qwen answered every question it had heard,
+including one not meant for her, and claimed to have started work for it; 3/3 runs, fixed 3/3), and
+she may only say she started work if a tool call did.
+
+A finished background answer is added to the log and put on a delivery queue that a single worker
+drains, always after anything Karen was asked directly. Everything waiting is told in one turn, so two
+facts asked back to back come out as one flowing answer ("Bananas are slightly radioactive… Also, a
+day on Venus…") instead of two answers with a pause between; only people's silence counts as the
+pause, so Karen may go straight on after her own sentence. Asking for the same delegated check again
+replaces the first; asking for another science fact does not, which on the first try silently
+cancelled the first fact. Qwen 3.8 often says "I'm on it" in the same response that starts background work,
+so a background tool's result is returned without asking for another spoken response when something
+was already said; otherwise it acknowledged twice. Each waits for `QUIET_BEFORE_DELIVERY_S` (3s) of
+quiet. One that someone talks over goes back to the front and is finished at the next pause, after
+Karen has answered the interruption if it was for her. That was a real-call bug: interrupted mid-fact
+by "Какая погода в Лондоне?", she answered the weather and dropped the fact. Rehearsed on the fixture
+page: interrupted by "Karen, what's the weather in London?", she answered it, then said "So, about
+that science fact, octopuses have three hearts…". If Karen answered last she still holds the floor: the queue does not wait for the people's pause and
+starts the next reply as soon as her answer has finished generating, so its audio queues right behind
+the answer. Measured on the fixture page with a fact landing during a weather question: 11s of
+silence before this change, 1.8s after dropping a redundant sustained-quiet window, 0.8-0.9s now.
+Results already waiting when someone asks her something are folded into that answer. Told separately,
+she first said "I have not got the fact yet" with the fact waiting, then told it in a second reply. An
+early 3.8 Flash test skipped the weather tool when asked to do both; on 3.5 Plus, with the line saying
+to deal with the question first, calling its tool if it needs one, 10 of 10 answers (weather, time,
+arithmetic, small talk, "what about the fact?") called their tool and ran on into the result in one
+breath ("…14 градусов и небольшой дождь. Кстати, насчёт того научного факта: …"). The promise check is
+skipped while work runs or a result waits: "I'll tell you when it's ready" was judged a broken promise
+and started a second fact search.
+
+**Tools carry their own weight** (`examples/meet_tools.py`). Each `MeetTool` is LIGHT or HEAVY, and the
+agent dispatches on that alone: `get_current_time` and `get_current_weather` are light and answered inside
+the reply; `research` (GLM 5.3 with the 10-minute log) and `science_fact` are heavy, always run on the
+`TaskSupervisor`, and are told when they finish. A heavy tool's schema tells the model it returns at once,
+so it says it is on it; which tools are heavy is the tool's decision, not the model's.
+
+**A fictional team to work with** (`examples/meet_workspace.py`). For a corporate meeting assistant the
+tools read a hardcoded workspace: six people of a payments team with roles in English and Russian, an
+eight-task tracker for their migration to a new payment provider (owners, statuses, due dates,
+blockers; deadline 15 October), calendars counted from today, and four documents (an ADR, a runbook,
+meeting notes, the vacation policy). `list_tasks` (by name, nickname, "me" for whoever asks, or
+status in either language), `get_task` (a key survives speech recognition: "пэй сто четыре" is
+PAY-104), `get_schedule`, `find_free_slot` (all given people free, from now on for today) and `who_is`
+(a person, or the owner of an area) are light; `search_documents` is heavy with a 5s simulated search.
+Everything is read-only: writing (a task, a booking) is a side effect and would go through
+`ActionService` (AGENTS.md rule 13). Eight meeting questions against Qwen with the real tools picked the
+right tool and arguments 8 of 8 times ("с Анной и Димой завтра на полчаса" became
+`find_free_slot([Кирилл, Анна, Дима], 30, tomorrow)`). Two things needed fixing on the way: a status
+read out as "to do", so statuses are described in Russian; and "я нашла" said for a search that had
+only started, 4 times in 6, which came from the persona's own feminine-speech example "(я рада, я
+нашла)". With that example replaced and the start result saying nothing has come back yet, 6 of 6
+said "я уже ищу".
+
+Edge cases the test review found and fixed: a light tool that raised killed the event pump mid-call; it now answers the model with `Error: ...`. Results looked up just before a session reconnect were dropped with the turn; they now go to the result queue and are told at the next pause. `get_task("PAY-1")` matched PAY-101 by suffix; keys now match exactly. `find_free_slot` accepts a length the model sends as "1.5" or a negative number, and falls back to 30 minutes for one it cannot read.
+
+A spoken routing verdict is asked again once per turn. Live, Qwen said "RESPOND" on 11 retries in a row (each retry left one more verdict in its history) until the 10s floor timeout; a second leak now ends the turn quietly.
+
+`who_is("everyone")` lists the whole team: asked four times live for "кто все", she kept asking which area. The promise check now runs while a result only waits to be told (it is still skipped while work runs, where it once started a second search); the checker is told what is waiting. Live, «я запускаю исследование» went unchecked and no research was started.
+
+The floor timeout takes over only a reply that has stopped producing words; it once cut a summary off ten seconds in. A takeover also clears the cut reply's words, which had otherwise picked up the next check's verdict and were logged as her line ending in "IGNORE".
+
+Why the verdicts stay in her history: DashScope ignores `"conversation": "none"` on `response.create`, ignores client-set item ids (and acknowledges deleting an unknown id), and sometimes gives a verdict the id of the user item before it, so `conversation.item.delete` on a verdict removed the user's line too (a code word recalled 4/4 without the delete, 0/4 with it). Six routing verdicts in a session made her answer "RESPOND" to a question 8 times in 8.
+
+**Handed-off work.** Background tools take an optional `quietly`. Asked directly ("Мэгги, найди документы про вебхуки") she says she is on it, as before; handed off while the people go on talking ("Мэгги, поищи пока…, а мы продолжим") she starts the same background task without a word, and the result is delivered the same way at the next pause. With only "hands you work and goes on talking" in the prompt Qwen set it on 6 of 6 requests, plain ones included; naming a plain request as not quiet made it 12 of 12 right over two runs (3 direct, 3 handed off each).
+
+**No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
+and removed: on a real call they sounded strange rather than responsive.
+
+**Identity first.** The rules open with who Karen is: a woman (feminine forms, "я рада"), the one people
+call Karen. Buried deeper, she answered "Карен, как дела?" with "Привет, Карен!" and spoke of herself in the
+masculine. Two tiles carrying one name (the bot signed in as a participant's own account) no longer
+produce "Kirill Starkov, Kirill Starkov" as the speaker.
+
+**Why 3.5 Plus, not 3.8 Flash.** On a real call 3.8 Flash called a tool once and then only promised
+("сейчас подберу ещё один", "сейчас посмотрю погоду") without calling any. Replaying that call's exact
+sequence (fact, its delivery, "А ещё какой-нибудь факт?", "Какая погода в Лондоне?"), 3.8 Flash called
+the right tool in about half the cases whatever the prompt held, and once told a fact from memory; 3.5 Plus
+called it 20/20. The session prompt now lists only the people's lines: with Karen's own "сейчас найду"
+listed as text beside them, 3.8 Flash imitated the promise (1/3). Routing still gets the full labelled log.
+
+**Recognition quality: the audio path, measured.** A real call was recorded at two points while 12 known
+Russian phrases were read: A, the audio as the bridge received it from Meet, and B, exactly what Qwen got.
+Replayed into a listen-only Qwen session and scored against the text, A had 9-10% word errors and B
+19-21%: our path doubled them. Pushing A back through the local LiveKit per variant (two runs each):
+
+| Path | Word errors |
+| --- | --- |
+| as it was: DTX on, default bitrate, received at 24kHz, resampled to 16kHz | 19%, 19% |
+| DTX off, 64kbps | 21%, 17% |
+| received directly at 16kHz | 17%, 12% |
+| both | 9%, 10% |
+
+So the bridge now publishes with DTX off at `MEET_PUBLISH_BITRATE` (64kbps), and the agent takes the
+bridge audio straight at `HEARING_SAMPLE_RATE_HZ` (16kHz, Qwen's input rate). Recognizer hints were tried
+on the same data and left out: DashScope accepts `corpus` and `prompt` in `input_audio_transcription`;
+`prompt` changed nothing; a `corpus` listing the script's own words cut errors to 6%, but that vocabulary is
+not known before a real meeting, names alone did not help (10%, 14%), and a bare names list was copied into
+the transcript verbatim ("Карен, Кирилл Старков" for "Кирилл, ты отправил отчёт…"). A VAD pre-roll of
+500ms and a 0.3 threshold changed nothing. The recordings also showed two ~30ms digital dropouts inside the
+bridge's own capture, before LiveKit, in two of the worst phrases; the page's ScriptProcessor running on
+Meet's busy main thread is the suspect.
+
+**A turn, not a response.** Karen's reply to a line can take several Qwen responses, so the agent tracks
+the turn. Tool results go back without asking for a response each: when Qwen called two tools in one
+response, the second request collided ("Conversation already has an active response") and speech that
+arrived meanwhile was never transcribed. One follow-up is asked for when the tool-call response ends
+(none for heavy work she already announced). A request cut off before any reply or tool call, because
+someone started talking, is asked again once at the next pause instead of being forgotten; a reply
+that called no tool gets a silent YES/NO check for an unstarted promise ("я начала проверку" without
+`research`), and a YES tells her to call the tool; a spoken reply that begins with a routing verdict
+("RESPOND" was once heard) is muted but not cancelled: Qwen says the verdict and then calls the tool in
+the same response, and cancelling it dropped the call, so the retry leaked again (a live tool turn took
+12s through 12 retries). Only a response that called no tool is asked again. A light tool result
+whose follow-up never came because someone started talking joins the delivery queue instead of being
+dropped (a live time lookup was lost to a stray "Вин."). And the follow-up that speaks a tool result takes
+along whatever is already waiting in that queue, so "weather in London" plus a finished fact is one answer,
+not two back to back. Time and weather results are marked as
+valid only at that moment, after a live answer repeated a Tokyo time from eleven minutes earlier without
+calling the tool (not reproducible in a short replay, 5/5 called there either way). Rehearsed: "Карен,
+какая погода в Лондоне, и расскажи научный факт" got both tools, one spoken answer and the fact later;
+"Карен, который час в Токио?" talked over by Anna was answered once she finished. Known gap: the speaker
+label is read when the transcript arrives, so a line followed quickly by someone else can be credited
+to them.
+
+**Bridge capture is not the dropout source.** The ~10-30ms runs of digital silence in the recordings were
+checked against the page's ScriptProcessor: with a continuous tone and the page's main thread blocked
+150ms in every 300, and then 500ms in every 700, the bridge delivered 0 gaps of 3ms or more. Chrome
+queues the capture input rather than dropping it, so the silences arrive from Meet and an AudioWorklet
+rewrite would not change them.
+
+**One language.** `MEET_LANGUAGE` pins Qwen's transcription (`input_audio_transcription.language`, which
+DashScope accepts): unpinned it wrote Russian speech as Polish ("karol daj proszę…") and Chinese, and
+Karen then answered the garbled line from her own knowledge instead of calling the tool. The rules tell
+her to always speak `MEET_LANGUAGE_NAME`. Pinned to Russian, English speech is transcribed as Russian.
+
+**Barge-in is local.** Qwen's VAD reports speech only after a round trip to the endpoint, and Karen kept
+talking meanwhile. The agent now watches the bridge audio itself: a person above `BARGE_IN_DBFS` for
+`BARGE_IN_S` (150ms) while her audio is queued clears it and cancels her response, and counts as human
+speech until Qwen reports its end. Measured on the fixture page: Karen still audible 0.65s after Anna started talking. Without that last part the delivery queue re-sent a talked-over result
+into the speech, Qwen cancelled that response without finishing it, and the floor stayed locked.
+
+**One session, kept alive.** The 10-minute renewal is gone: the session accumulates the whole meeting
+(audio, routing, replies) until DashScope closes it, which it does after "no response was generated for
+300 seconds" (its words). A silent one-word keepalive response goes out after `KEEPALIVE_S` (240s) without
+one, so a quiet stretch no longer costs Karen her context. If it is closed anyway it reopens seeded with
+the text log.
+
+Every Karen reply logs `latency heard=… decide=… voice=… total=…` and the page shows it under the
+line: `heard` is VAD end of speech to transcript, `decide` transcript to decision (0 when she was named,
+the routing step otherwise), `voice` request to the first audio chunk, `total` end of speech to first
+audio. VAD declares the end of speech `TURN_SILENCE_MS` after the person stops, so add that for the
+wait a person actually hears. On the fixture page: total 1.1-2.2s after the VAD end (the longest with a
+tool call), heard ~0.2s, voice ~1.0s.
+
+Qwen's server VAD waits `TURN_SILENCE_MS` (1.2s)
+before ending a turn, so a pause mid-sentence is not taken as the end of a question. Also rehearsed:
+"Why is that?" after a fact got an answer; "Anna, can you send me the report?" and "How are you doing
+today?" got silence. While it runs, the prompt
+lists it, so Karen says it is in progress rather than guessing. When anyone starts speaking over
+Karen, the endpoint cancels her response and her queued audio is dropped.
+
+Verified end to end against a local LiveKit, live Qwen and live GLM, with `say`-generated speech and
+a 90s window patched in the test process only, so the session renewed mid-meeting. All transcripts
+came from Qwen. Five turns of side talk got no reply. "Karen, what time is it in Tokyo?" called
+`get_current_time(Asia/Tokyo)` and answered 11:26 PM, correct. After the renewal, "please check in
+the background whether the deadline still works if Dmitry only starts the webhooks on October 13th"
+called `delegate_task`, got "I'm on it, Carl", and GLM's answer (he would finish on the 16th; start
+by the 12th) was spoken 8s later. "What was the migration deadline again?" got October 15th. Not
+verified: a real Meet call, or a real 10-minute window.
+
+`FlexusOpenRouterSTT` (used by the Boss / Alice / Bob call, no longer by Karen) raised its own
+`SttError`, which LiveKit does not retry: one 15s TLS stall ended recognition for the rest of the
+call. It now translates it into `APIConnectionError` (retryable unless `auth`/`invalid_request`) and
+drops `invalid_audio` as an empty transcript; `tests/test_stt_recovery.py` covers it.
+
+Meet's **Noise cancellation**, on the speaking participant's own client, trims the first 100-300ms of
+speech after a pause. On a real call it turned «Карен, который час…» into «Арон, …» and "Karen, what
+time…" into "And what's time…"; a second, independent recogniser heard the same, so the audio itself
+was clipped before the bridge. With it turned off (Settings → Audio) the same phrases were recognised
+exactly. Ask participants to turn it off, or to put a word before the name ("Слушай, Карен").
+
+DashScope closed Karen's Qwen session exactly every five minutes on a real call (20:09, 20:14, 20:19, …,
+while nobody was speaking; whether that is an idle timeout or a hard cap is not known). `pump_events`
+reopens it seeded with the 10-minute log, but the first close caught the audio pump mid-write, and
+`ClientConnectionResetError` killed it: every later session was healthy and heard nothing.
+`MeetCall.forward_frame` now drops the one frame that hits a closing session instead;
+`tests/test_meet_agent.py` covers it.
+
+Known limits:
+
+- The speaker is whoever was last highlighted when the turn ends, so a turn two people shared is
+  credited to the later one. The upgrade is Meet's own roster: RTP contributing sources mapped
+  through the `collections` data channel, which is what Attendee and MeetingBaas do.
+- The speaking check and the join flow read Meet's DOM, which Google changes without notice. The
+  selectors are the ones current open-source bots used in September 2026.
+- Editing the turn invalidates LiveKit's preemptive generation, so the reply starts only after the
+  turn is committed.
+- A delegated answer can run long when spoken; the reasoning model is asked for five sentences at
+  most, and Karen relays it in her own words.
+- Anyone speaking cuts Karen off, including a cough.
+- A session renewal and an utterance can overlap only if someone starts talking in the instant the
+  new session takes over; the renewal waits for a 1.5s pause to make that unlikely, not impossible.
+- `RTCRtpReceiver.createEncodedStreams` is deleted before Meet loads; with it present Meet decodes
+  audio in its own worklet and the receiver tracks go silent.
+- The bridge mints its own token with `can_update_own_metadata`. Without it LiveKit refuses the
+  attribute update with `NOT_ALLOWED` and the Python SDK does not raise, so names silently vanish.
+
+Verified: `tests/test_meet_bridge.py` (marked `integration`, needs a LiveKit server and Chrome)
+runs the bridge against a local page with real WebRTC — a 440Hz remote track arrives in the room
+at 440Hz, a 660Hz agent track arrives on the page's microphone at 660Hz, and a highlighted tile
+becomes `meet_speaker`. End to end with the real agent and a spoken question on that page, the
+graph received `[Anna] Hi, what time is it in Tokyo right now?`, Boss handed off to Bob, and Bob's
+answer played back into the page's microphone. Not verified: a real Meet call. The join flow and
+tile selectors have not been exercised against meet.google.com.
 
 ## Verified and not
 

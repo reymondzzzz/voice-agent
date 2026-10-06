@@ -65,6 +65,31 @@ flowchart TB
     class audio,semantic,effects plane
 ```
 
+## Where the code lives
+
+| Path | What it is |
+| --- | --- |
+| `voice_agent/session.py` | `ConversationSession`, which wires one conversation together |
+| `voice_agent/correlation.py` | the identity every event on both planes carries |
+| `voice_agent/realtime/` | the audio plane: `events`, the `RealtimeSpeechSession` protocol (`session`), `audio` sinks, `capabilities`, the `bridge` to the semantic plane, the scriptable `fake`, and the `qwen/` adapter |
+| `voice_agent/livekit/adapter.py` | the LiveKit transport |
+| `voice_agent/agent/events.py` | semantic events (task started, completed, superseded, action awaiting confirmation, ...) |
+| `voice_agent/agent/delegation.py` | `DelegationAPI`, the whole surface the speech model may touch |
+| `voice_agent/agent/conversation/` | the per-utterance decisions: `director`, `routing`, `speech_policy`, `runtime` |
+| `voice_agent/agent/tasks/` | background work: `models`, `registry`, `supervisor`, and the `results` a worker returns |
+| `voice_agent/agent/delivery/` | what happens when a result arrives (`policy`) and the `mailbox` back to the session |
+| `voice_agent/agent/actions/` | side effects: commands, policy, `ActionService`, store, audit |
+| `voice_agent/demo.py` | `uv run python -m voice_agent.demo`, the whole flow against the fake session |
+
+The diagrams below draw the semantic plane as LangGraph with a `ChatState` and a separate
+`ReasoningModel`. That graph (`agent/graph.py`, with `agent/state.py`, `agent/reasoning.py` and an
+`agent/memory.py` long-term store) was never wired into `ConversationSession`, and was removed with the
+unused `storage/repositories.py`; the semantic decisions run in `ConversationDirector`, and background
+work is whatever runner the `TaskSupervisor` is given. The diagrams still show where a graph would plug in.
+With them went the prompts that only an LLM router and a reasoning worker would have read
+(`ROUTER_PROMPT`, `BACKGROUND_REASONING_PROMPT`), `SemanticResult.from_payload`, the unused
+`COMPATIBILITY_PIPELINE` capability profile and `RealtimeCommand` alias, and counters nothing read.
+
 ## Who owns what
 
 | Component | Owns | Must never |
@@ -86,9 +111,9 @@ because none of those belong in transport callbacks.
 
 | Component | Question it answers |
 | --- | --- |
-| `SemanticRouter` (`agent/routing/router.py`) | local, delegate, or wait for more speech? |
+| `SemanticRouter` (`agent/conversation/routing.py`) | local, delegate, or wait for more speech? |
 | `classify_relationship` | is this NEW, RELATED, EXTENDS or SUPERSEDES? |
-| `SpeechPolicy` (`agent/speech_policy.py`) | what is the actor allowed to say right now? |
+| `SpeechPolicy` (`agent/conversation/speech_policy.py`) | what is the actor allowed to say right now? |
 | `DeliveryPolicy` | does this result deserve the floor? |
 | `ConversationDirector` | all of the above, per utterance |
 
@@ -266,6 +291,13 @@ sequenceDiagram
 | 5 | A stale proposal cannot overwrite newer state | precondition captured in `prepare`, compared in `execute` → `CONFLICT` |
 | 6 | Cancelling or superseding prevents future execution | `ACTION_LEGAL_TRANSITIONS` terminal states |
 | 7 | Simultaneous commits execute once | per-action `asyncio.Lock` in `ActionService` |
+| 7a | Asking for the same effect again while one is proposed or running joins it | `prepare` returns the live record for the idempotency key; an expired unconfirmed one is expired first, so a fresh request makes a fresh proposal |
+| 7b | A running effect is not called back halfway | `cancel` of an `EXECUTING` action returns it unchanged; it finishes once |
+| 7c | Background work is bounded, including the model's own tool calls | `delegate_task` and `reconcile_with_final` refuse past `vmax_active`; a repeat of running work replaces it without a new slot |
+| 7d | A cancelled task is not retried | `_execute` retries only a task that is not terminal |
+| 7e | One malformed provider frame does not end the session | the Qwen reader turns it into a recoverable `RealtimeSessionError`; a delta without `response_id` belongs to the current response, so a cancelled reply leaks neither audio nor words |
+| 7f | A `response.create` the server never answers cannot silence later replies | the Qwen adapter keeps pending creates as send times and forgets one after `CREATE_LOST_S`; an interrupt cancels only responses to creates sent before it |
+| 7g | A create cancelled before its response existed ends nothing it does not own | DashScope answers it with a `response.done` whose id is empty or missing and no `response.created`; the adapter settles that pending create and reports no stop, which had freed a floor nobody owned and let two requests run at once |
 | 8 | Duplicate realtime events are ignored | `ConversationRuntime.seen` / `tool_call_seen` |
 | 9 | A background result is never a second answer to a tool call | mailbox delivery is a separate event path |
 | 10 | A task is not killed merely because the turn changed | staleness judged on `conversation_epoch`, never `turn_id` |
@@ -289,6 +321,63 @@ Adding a native duplex model should require **one adapter and a capability decla
    in `REALTIME_TOOL_SCHEMAS`.
 
 Nothing else in the codebase should need to change.
+
+## Qwen Omni Realtime adapter
+
+`voice_agent/realtime/qwen/` is the protocol against a hosted duplex model, cherry-picked from the
+`worktree-personaplex-mlx` branch (42d586a) without the PersonaPlex adapter that precedes it there.
+Nothing outside the adapter changed to add it.
+
+| Capability | Qwen Omni Realtime |
+| --- | --- |
+| `function_calling` | true: a tool call arrives as `RealtimeToolCallRequested` with a `call_id`, the answer goes back as `function_call_output` |
+| `requires_transcript_router()` | false |
+| User transcripts | `conversation.item.input_audio_transcription.completed` |
+| Response cancel | `response.cancel` |
+| Languages | 60+ in, 30+ voices out |
+
+Rates are asymmetric and easy to get wrong — **16 kHz in, 24 kHz out** — so microphone audio is
+downsampled through the moved `PcmResampler` on the way out while output passes through at the room
+rate untouched.
+
+Three details came from a live `session.created` rather than the documentation, which is wrong about
+all of them: the default voice is `Tina`, the transcription model is `qwen3-asr-flash-realtime`, and
+turn detection is `server_vad` with `create_response` and `interrupt_response` rather than the
+`semantic_vad` the docs describe. The endpoint interrupts the model itself, so `interrupt()` only
+has to drop queued playback.
+
+Every response carries its own id, and the adapter reports it both ways: `response.created` becomes
+`AssistantSpeechStarted(vresponse_id)` and `response.done` becomes `AssistantSpeechStopped` with that
+id and `vcompleted` from the response's status, false for a cancelled one. A cancelled response is not
+over when `response.cancel` goes out: live, two more audio deltas arrived and `response.done` came
+0.29s later. The adapter drops the audio and text of any response it cancelled, since `interrupt()`
+has already cleared playback and those late deltas would otherwise start it again.
+A cancel sent after `response.create` but before `response.created` belongs to the response being
+made, whose id is not known yet: the adapter holds it and cancels that response by id the moment it
+exists, and reports no `AssistantSpeechStarted` for it: a consumer already waiting on a newer
+request would otherwise take the cancelled response for its own (a routing step cancelled on timeout,
+then the next answer requested, then the routing step's late `response.created`). Pending creations are
+counted, since two can be outstanding at once, and a create refused with "already has an active
+response" stops counting: left pending, it made the next interrupt hold its cancel for the following
+answer while the interrupted response's late audio still played. `UserSpeechStopped` and `UserTranscriptFinal` carry the utterance's `item_id`, so a consumer can
+pair a transcript with the moment its speech ended even when another utterance started in between or a
+transcript was lost.
+
+Two additions for a bot that must stay silent until addressed (the Meet agent, `examples/meet_agent.py`):
+
+- `vauto_response=False` turns `create_response` off while keeping server VAD, so the model answers
+  only a `request_response`.
+- `ResponseRequest.vtext_only` asks for a text-only response (the Meet agent's routing step), and
+  `send_tool_result(..., vrespond=False)` returns a tool result without requesting another response.
+- `vsilence_ms` sets how long server VAD waits before ending a turn; the Meet agent uses 1200ms so a
+  pause mid-sentence is not the end of a question.
+- `update_instructions` replaces the session prompt with `session.update`. Use it, not
+  `ResponseRequest.vinstructions`, for per-reply context: DashScope stops calling tools when a
+  `response.create` carries its own instructions.
+
+`conversation.item.delete` is acknowledged but does not make the model forget the deleted item, so
+context cannot be bounded by deleting audio after the fact. The Meet agent bounds it by renewing the
+session once it has heard a full window, seeded with the text log of that window.
 
 ## Unresolved decisions that genuinely depend on the model
 
@@ -323,7 +412,7 @@ Nothing else in the codebase should need to change.
   a small classifier means implementing `SemanticRouter` and nothing else.
 - *Speculation can waste work.* A candidate task that the final transcript contradicts is cancelled
   and thrown away. That is the price of starting before end of turn.
-- *In-memory stores.* `InMemoryActionStore`, `InMemoryTaskRepository` and the mailbox are process
+- *In-memory stores.* `InMemoryActionStore` and the mailbox are process
   local. The Protocols are the durable boundary; Postgres implementations are drop-ins, and until
   then "survives restart" is an interface promise rather than a fact.
 - *One `asyncio` mailbox per conversation.* Fine in-process; distributing it means replacing one

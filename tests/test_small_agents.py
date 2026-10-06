@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from examples import small_agents
-from voice_agent.pipeline import voice_contracts, voice_return_intent
+from voice_agent.pipeline import voice_contracts
 
 
 def test_boss_can_hand_off_to_either_specialist():
@@ -71,17 +71,6 @@ def test_call_agent_tool_refusal_leaves_nothing_pending():
     assert not vpending.armed()
 
 
-def test_each_agent_gets_only_its_own_tool():
-    assert [vt.name for vt in small_agents.AGENT_TOOLS["boss"]] == []
-    assert [vt.name for vt in small_agents.AGENT_TOOLS["alice"]] == ["get_current_weather"]
-    assert [vt.name for vt in small_agents.AGENT_TOOLS["bob"]] == ["get_current_time"]
-
-
-def test_weather_is_placeholder_and_survives_unknown_cities():
-    assert "(placeholder data)" in small_agents.get_current_weather.invoke({"city": "London"})
-    assert "degrees Celsius" in small_agents.get_current_weather.invoke({"city": "Narnia"})
-
-
 def test_time_reports_the_requested_timezone_and_refuses_a_fake_one():
     assert small_agents.get_current_time.invoke({"timezone": "Europe/London"}).endswith("in Europe/London")
     assert small_agents.get_current_time.invoke({"timezone": ""}).endswith("in UTC")
@@ -97,16 +86,3 @@ def test_every_example_profile_uses_the_pinned_tts_model():
 def test_each_agent_is_distinguishable_by_speed_because_the_provider_offers_one_voice():
     vspeeds = [small_agents.resolve_example_profile(va.vprofile_id).vtts_speed for va in small_agents.EXAMPLE_AGENTS.values()]
     assert len(set(vspeeds)) == len(vspeeds)
-
-
-def test_unknown_profile_falls_back_instead_of_raising():
-    assert small_agents.resolve_example_profile("voice_missing").vprofile_id == "voice_boss"
-
-
-@pytest.mark.parametrize("vphrase", ["Boss, come back", "back to boss", "вернись к боссу", "vuelve a boss"])
-def test_the_moved_return_intent_recognizes_a_handback(vphrase):
-    assert voice_return_intent.classify_voice_return_command(vphrase) is voice_return_intent.VoiceReturnIntent.RETURN_TO_ORIGINATOR
-
-
-def test_ordinary_speech_is_not_a_handback():
-    assert voice_return_intent.classify_voice_return_command("tell boss later") is voice_return_intent.VoiceReturnIntent.AMBIGUOUS

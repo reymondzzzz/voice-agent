@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext
-from livekit.agents.voice.agent_session import TurnHandlingOptions
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions
 from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
 
@@ -35,9 +35,9 @@ def mirror_flexus_livekit_env() -> None:
     voice_contracts.require_self_hosted_livekit_url(os.environ["LIVEKIT_URL"])
 
 
-def build_llm():
+def build_llm(vmodel: str = EXAMPLE_LLM_MODEL):
     return init_chat_model(
-        f"openai:{EXAMPLE_LLM_MODEL}",
+        f"openai:{vmodel}",
         base_url=voice_contracts.OPENROUTER_AUDIO_BASE_URL,
         api_key=os.environ["OPENROUTER_API_KEY"],
     )
@@ -53,7 +53,8 @@ class PersonaAgent(Agent):
     ) -> None:
         super().__init__(
             instructions="",
-            llm=langchain.LLMAdapter(graph=small_agents.build_agent_graph(vagent, build_llm(), vpending)),
+            # SpokenOnlyGraph stands in for the compiled graph: it forwards everything and only filters what is spoken.
+            llm=langchain.LLMAdapter(graph=cast(Any, small_agents.build_agent_graph(vagent, build_llm(), vpending))),
             tts=FlexusOpenRouterTTS(small_agents.resolve_example_profile(vagent.vprofile_id)),
             allow_interruptions=True,
         )
@@ -138,11 +139,9 @@ class ExampleCall:
 server = AgentServer()
 
 
-@server.rtc_session()
-async def entrypoint(ctx: JobContext) -> None:
-    mirror_flexus_livekit_env()
+def build_agent_session() -> AgentSession:
     vinterruption = voice_interruption_policy.VOICE_DEFAULT_INTERRUPTION_CONFIG.validated()
-    vsession = AgentSession(
+    return AgentSession(
         stt=FlexusOpenRouterSTT(),
         vad=silero.VAD.load(
             min_speech_duration=vinterruption.vminimum_speech_ms / 1000,
@@ -163,6 +162,12 @@ async def entrypoint(ctx: JobContext) -> None:
             },
         ),
     )
+
+
+@server.rtc_session()
+async def entrypoint(ctx: JobContext) -> None:
+    mirror_flexus_livekit_env()
+    vsession = build_agent_session()
     vcall = ExampleCall(vsession, ctx.room)
 
     vsession.on("agent_state_changed", vcall.on_agent_state_changed)

@@ -12,16 +12,6 @@ from voice_agent.agent.tasks.supervisor import TaskSupervisor
 
 logger = logging.getLogger("voice_agent.delegation")
 
-REALTIME_TOOL_NAMES = (
-    "delegate_task",
-    "cancel_task",
-    "get_task_status",
-    "request_action",
-    "confirm_action",
-    "cancel_action",
-    "get_action_status",
-)
-
 REALTIME_TOOL_SCHEMAS: tuple[dict[str, Any], ...] = (
     {
         "name": "delegate_task",
@@ -90,6 +80,10 @@ class DelegationAPI:
     async def delegate_task(self, *, vgoal: str, vmode: str, vintent: str, vcontext: DelegationContext) -> dict[str, Any]:
         vtask_mode = TaskMode(vmode)
         vspec = TaskSpec(vgoal=vgoal, vmode=vtask_mode, vintent=vintent)
+        vrepeat = any(not vrunning.vterminal for vrunning in self.vsupervisor.vregistry.by_fingerprint(vspec.vfingerprint))
+        if vtask_mode is TaskMode.BACKGROUND and self.vsupervisor.at_capacity() and not vrepeat:
+            # The model's own tool calls are bounded too; a repeat of running work replaces it and needs no new slot.
+            return {"status": "rejected", "reason": "too much background work is already running; say so and offer to try again later"}
         vrecord = self.vsupervisor.create_record(
             vspec=vspec,
             vconversation_epoch=vcontext.vconversation_epoch,

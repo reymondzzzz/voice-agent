@@ -16,11 +16,11 @@ from voice_agent.agent.events import (
     BackgroundTaskSuperseded,
     Criticality,
 )
-from voice_agent.agent.runtime import ConversationRuntime
+from voice_agent.agent.conversation.runtime import ConversationRuntime
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, TaskStatus
 from voice_agent.agent.tasks.registry import TaskRegistry
 from voice_agent.agent.tasks.supervisor import TaskSupervisor
-from voice_agent.agent.tools.delegation import DelegationAPI
+from voice_agent.agent.delegation import DelegationAPI
 from voice_agent.correlation import Correlation
 from voice_agent.realtime.bridge import RealtimeAgentBridge
 from voice_agent.realtime.session import RealtimeSpeechSession

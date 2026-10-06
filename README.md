@@ -1,12 +1,10 @@
 # voice-agent
 
-The flexus voice agent, moved out of the flexus `voice-agent` branch and given three small
-LangGraph agents to drive it: Boss routes the call, Alice knows the weather, Bob knows the time,
+A realtime voice agent: a Google Meet assistant, «Мэгги», on one Qwen Omni realtime session, and a
+LiveKit voice pipeline with three small LangGraph agents to drive it: Boss routes the call, Alice knows the weather, Bob knows the time,
 and any of them can hand the live call to any other with the voice changing on the switch.
 
-The pipeline is flexus's own code, moved rather than rewritten — 155 of 156 moved files are
-byte-identical to the branch. What was left behind, and why, is in
-[docs/MOVED.md](docs/MOVED.md).
+The speech pipeline lives in `voice_agent/pipeline/`.
 
 ```bash
 uv sync
@@ -30,5 +28,4 @@ watch the first finish *quietly* because the topic moved on, then ask for it and
 - [AGENTS.md](AGENTS.md) — the rules and the one command that gates a commit.
 - [docs/REALTIME_ARCHITECTURE.md](docs/REALTIME_ARCHITECTURE.md) — the two planes, sequence diagrams, invariants, extension points and trade-offs.
 - [docs/EXAMPLES.md](docs/EXAMPLES.md) — the three agents and how the handoff works.
-- [docs/MOVED.md](docs/MOVED.md) — the move: what came, what did not.
 - [docs/voice-agent/implementation_plan.md](docs/voice-agent/implementation_plan.md) — the original design, verbatim.

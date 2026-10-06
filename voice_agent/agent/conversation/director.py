@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from voice_agent.agent.delivery.policy import DeliveryContext, DeliveryDecision, DeliveryPolicy, topic_relevance
 from voice_agent.agent.events import BackgroundTaskCompleted, Criticality
-from voice_agent.agent.routing.router import (
+from voice_agent.agent.conversation.routing import (
     RouteAction,
     RoutingDecision,
     SemanticRouter,
@@ -12,8 +13,8 @@ from voice_agent.agent.routing.router import (
     is_active,
     looks_like_recall,
 )
-from voice_agent.agent.runtime import ConversationRuntime
-from voice_agent.agent.speech_policy import ResponseMode, SpeechPolicy, informed_injection, mode_for
+from voice_agent.agent.conversation.runtime import ConversationRuntime
+from voice_agent.agent.conversation.speech_policy import ResponseMode, SpeechPolicy, informed_injection, mode_for
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskSpec, TaskStatus
 from voice_agent.agent.tasks.registry import TaskRegistry
 from voice_agent.agent.tasks.supervisor import TaskSupervisor
@@ -48,7 +49,6 @@ class ConversationDirector:
         self.vdelivery = vpolicy or DeliveryPolicy()
         self.vcandidate: TaskRecord | None = None
         self.vcurrent_topic = ""
-        self.vlast_decision: RoutingDecision | None = None
 
     def active_tasks(self) -> tuple[TaskRecord, ...]:
         return tuple(vrecord for vrecord in self.vregistry.all() if is_active(vrecord))
@@ -75,7 +75,7 @@ class ConversationDirector:
             vtransient = informed_injection(
                 vtopic=vrecord.vtopic or vrecord.vgoal,
                 vsummary=vrecord.vresult.vsummary if vrecord.vresult else "",
-                vimportant_points=tuple(str(vpoint) for vpoint in (vrecord.vresult.vpayload.get("important_points", []) if vrecord.vresult else [])),
+                vimportant_points=tuple(str(vpoint) for vpoint in (cast(list[object], vrecord.vresult.vpayload.get("important_points", [])) if vrecord.vresult else [])),
             )
         return SpeechPolicy(vmode=vmode, vtransient=vtransient)
 
@@ -98,7 +98,6 @@ class ConversationDirector:
 
     async def on_final_transcript(self, vtext: str) -> tuple[RoutingDecision, TaskRecord | None]:
         vdecision = await self.vrouter.route(vtext)
-        self.vlast_decision = vdecision
 
         if looks_like_recall(vtext):
             return vdecision, None

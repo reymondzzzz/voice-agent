@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<body>
+  <div data-participant-id="spaces/s/devices/1"><span class="notranslate">Voice Agent</span><div style="border: 4px solid blue"></div></div>
+  <div data-participant-id="spaces/s/devices/2"><span class="notranslate">Anna</span><div id="anna-glow" style="border: 4px solid blue; display: none"></div></div>
+  <div data-participant-id="spaces/s/devices/3"><span class="notranslate">Bob</span><div style="border: 4px solid blue; display: none"></div></div>
+  <script>
+    (async () => {
+      const context = new AudioContext({ sampleRate: 48000 });
+      const tone = context.createOscillator();
+      tone.frequency.value = 440;
+      const sent = context.createMediaStreamDestination();
+      tone.connect(sent);
+      tone.start();
+      const sender = new RTCPeerConnection();
+      const receiver = new RTCPeerConnection();
+      sender.onicecandidate = (event) => event.candidate && receiver.addIceCandidate(event.candidate);
+      receiver.onicecandidate = (event) => event.candidate && sender.addIceCandidate(event.candidate);
+      receiver.ontrack = (event) => {
+        const element = new Audio();
+        element.srcObject = event.streams[0];
+        element.play();
+      };
+      sent.stream.getTracks().forEach((track) => sender.addTrack(track, sent.stream));
+      await sender.setLocalDescription();
+      await receiver.setRemoteDescription(sender.localDescription);
+      await receiver.setLocalDescription();
+      await sender.setRemoteDescription(receiver.localDescription);
+
+      const microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 8192;
+      context.createMediaStreamSource(microphone).connect(analyser);
+      const bins = new Float32Array(analyser.frequencyBinCount);
+      window.microphonePeakHz = () => {
+        analyser.getFloatFrequencyData(bins);
+        let peak = 1;
+        for (let i = 1; i < bins.length; i++) if (bins[i] > bins[peak]) peak = i;
+        return peak * context.sampleRate / analyser.fftSize;
+      };
+      document.getElementById("anna-glow").style.display = "block";
+    })();
+  </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 [project]
 name = "voice-agent"
 version = "0.1.0"
-description = "Flexus voice agent, moved out of the flexus voice-agent branch: realtime voice pipeline with live agent-to-agent handoff."
+description = "Realtime voice agent: a Google Meet assistant on Qwen Omni and a LiveKit voice pipeline with live agent-to-agent handoff."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -20,6 +20,7 @@ dependencies = [
     "langgraph>=1.2.11",
     "langchain-openai>=1.6.0",
     "aiohttp>=3.14.3",
+    "playwright>=1.63.0",
 ]
 
 [dependency-groups]
@@ -40,7 +41,6 @@ select = ["ASYNC", "F401", "F841", "RUF100", "RUF012", "PLE"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/test_*.py" = ["ASYNC"]
-"flexus_backend/tests/**" = ["ASYNC"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -49,8 +49,8 @@ asyncio_default_test_loop_scope = "session"
 timeout = 300
 timeout_method = "thread"
 pythonpath = ["."]
-testpaths = ["flexus_backend/tests", "tests"]
+testpaths = ["tests"]
 markers = [
-    "integration: needs a live redis. The unit tier runs -m 'not integration'.",
+    "integration: needs live infrastructure (redis, a LiveKit server, Chrome). The unit tier runs -m 'not integration'.",
     "provider: makes an explicitly enabled, cost-bounded call to an external provider.",
 ]

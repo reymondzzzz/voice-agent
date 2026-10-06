@@ -5,9 +5,9 @@ import asyncio
 import pytest
 
 from voice_agent.agent.delivery.policy import DeliveryDecision
-from voice_agent.agent.director import ConversationDirector
-from voice_agent.agent.routing.router import HeuristicRouter, RouteAction
-from voice_agent.agent.speech_policy import ResponseMode
+from voice_agent.agent.conversation.director import ConversationDirector
+from voice_agent.agent.conversation.routing import HeuristicRouter, RouteAction
+from voice_agent.agent.conversation.speech_policy import ResponseMode
 from voice_agent.agent.tasks.models import TaskStatus
 
 pytestmark = pytest.mark.asyncio
@@ -114,5 +114,5 @@ async def test_backpressure_rejects_runaway_task_creation(harness):
         await harness.pump(2)
 
     vactive = [vr for vr in harness.vsession.vregistry.all() if not vr.vterminal]
-    assert len(vactive) <= 4
-    assert harness.vsession.vsupervisor.vrunning_count <= 4
+    assert len(vactive) == 2, "two slots, four distinct requests: the last two are refused"
+    assert len(harness.vrun_log) == 2

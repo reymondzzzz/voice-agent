@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 from voice_agent.agent.delivery.mailbox import AsyncioSessionMailbox
 from voice_agent.agent.delivery.policy import DeliveryContext, DeliveryDecision, DeliveryPolicy
@@ -13,8 +14,8 @@ from voice_agent.agent.events import (
     BackgroundTaskFailed,
     SemanticEvent,
 )
-from voice_agent.agent.runtime import ConversationRuntime
-from voice_agent.agent.tools.delegation import DelegationAPI, DelegationContext
+from voice_agent.agent.conversation.runtime import ConversationRuntime
+from voice_agent.agent.delegation import DelegationAPI, DelegationContext
 from voice_agent.realtime import events
 from voice_agent.realtime.session import RealtimeSpeechSession
 
@@ -119,8 +120,9 @@ class RealtimeAgentBridge:
             return
         await self._dispatch_tool(vevent.vtool_name, vevent.varguments, vtool_call_id=vevent.vtool_call_id, vcorrelation=vevent.vcorrelation)
 
-    async def _dispatch_tool(self, vtool_name: str, varguments: dict[str, object], *, vtool_call_id: str, vcorrelation) -> dict[str, object]:
+    async def _dispatch_tool(self, vtool_name: str, varguments: dict[str, object], *, vtool_call_id: str, vcorrelation) -> dict[str, Any]:
         vcontext = self.delegation_context()
+        vresult: dict[str, Any]
         try:
             match vtool_name:
                 case "delegate_task":
@@ -137,7 +139,7 @@ class RealtimeAgentBridge:
                 case "request_action":
                     vresult = await self.vdelegation.request_action(
                         vaction_type=str(varguments.get("action_type", "")),
-                        varguments=dict(varguments.get("arguments", {}) or {}),
+                        varguments=dict(cast(Any, varguments.get("arguments", {})) or {}),
                         vcontext=vcontext,
                     )
                 case "confirm_action":
@@ -155,7 +157,7 @@ class RealtimeAgentBridge:
         await self._return_tool_result(vtool_call_id, vresult, vcorrelation)
         return vresult
 
-    async def _return_tool_result(self, vtool_call_id: str, vresult: dict[str, object], vcorrelation) -> None:
+    async def _return_tool_result(self, vtool_call_id: str, vresult: dict[str, Any], vcorrelation) -> None:
         if self.vsession.vcapabilities.supports_tool_results:
             await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vtool_call_id, vresult=vresult, vcorrelation=vcorrelation))
             return
