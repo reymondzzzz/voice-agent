@@ -12,16 +12,6 @@ from voice_agent.agent.tasks.supervisor import TaskSupervisor
 
 logger = logging.getLogger("voice_agent.delegation")
 
-REALTIME_TOOL_NAMES = (
-    "delegate_task",
-    "cancel_task",
-    "get_task_status",
-    "request_action",
-    "confirm_action",
-    "cancel_action",
-    "get_action_status",
-)
-
 REALTIME_TOOL_SCHEMAS: tuple[dict[str, Any], ...] = (
     {
         "name": "delegate_task",

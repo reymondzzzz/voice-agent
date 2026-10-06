@@ -86,6 +86,9 @@ The diagrams below draw the semantic plane as LangGraph with a `ChatState` and a
 `agent/memory.py` long-term store) was never wired into `ConversationSession`, and was removed with the
 unused `storage/repositories.py`; the semantic decisions run in `ConversationDirector`, and background
 work is whatever runner the `TaskSupervisor` is given. The diagrams still show where a graph would plug in.
+With them went the prompts that only an LLM router and a reasoning worker would have read
+(`ROUTER_PROMPT`, `BACKGROUND_REASONING_PROMPT`), `SemanticResult.from_payload`, the unused
+`COMPATIBILITY_PIPELINE` capability profile and `RealtimeCommand` alias, and counters nothing read.
 
 ## Who owns what
 

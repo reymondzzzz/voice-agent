@@ -45,7 +45,6 @@ class TaskSupervisor:
         self._vtasks: dict[str, asyncio.Task[None]] = {}
         self._vclosed = False
         self.vmax_active = vmax_active
-        self.vrejected = 0
 
     @property
     def vrunning_count(self) -> int:
@@ -91,7 +90,6 @@ class TaskSupervisor:
         if vexisting:
             return vexisting[0]
         if self.at_capacity():
-            self.vrejected += 1
             logger.warning("task rejected, conversation at capacity", extra={"conversation_id": self.vconversation_id, "goal": vspec.vgoal})
             return None
         vrecord = self.create_record(vspec=vspec, vconversation_epoch=vconversation_epoch, vsource_turn_id=vsource_turn_id)

@@ -47,16 +47,3 @@ NATIVE_DUPLEX = RealtimeModelCapabilities(
     supports_audio_playback_ack=True,
 )
 
-COMPATIBILITY_PIPELINE = RealtimeModelCapabilities(
-    native_audio_input=False,
-    native_audio_output=False,
-    full_duplex=False,
-    barge_in=True,
-    function_calling=False,
-    transcript_events=True,
-    context_injection=True,
-    async_context_updates=False,
-    supports_response_cancel=True,
-    supports_tool_results=False,
-    supports_manual_response_trigger=True,
-)

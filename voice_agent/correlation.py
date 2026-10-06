@@ -8,8 +8,6 @@ import uuid
 from voice_agent.pipeline import voice_contracts
 
 
-CONVERSATION_ID_PREFIX = "conv_"
-SESSION_ID_PREFIX = "sess_"
 TURN_ID_PREFIX = "turn_"
 EVENT_ID_PREFIX = "evt_"
 TASK_ID_PREFIX = "task_"
@@ -77,7 +75,5 @@ class Correlation:
             "event_id": self.vevent_id,
         }
 
-
-CORRELATION_LOG_FIELDS = ("conversation_id", "session_id", "conversation_epoch", "turn_id", "event_id", "task_id", "event_type")
 
 assert set(voice_contracts.VOICE_CORRELATION_ID_FIELDS) & {"conversation_id", "turn_id"}, "flexus correlation contract changed"

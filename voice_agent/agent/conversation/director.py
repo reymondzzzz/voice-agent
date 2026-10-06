@@ -49,7 +49,6 @@ class ConversationDirector:
         self.vdelivery = vpolicy or DeliveryPolicy()
         self.vcandidate: TaskRecord | None = None
         self.vcurrent_topic = ""
-        self.vlast_decision: RoutingDecision | None = None
 
     def active_tasks(self) -> tuple[TaskRecord, ...]:
         return tuple(vrecord for vrecord in self.vregistry.all() if is_active(vrecord))
@@ -99,7 +98,6 @@ class ConversationDirector:
 
     async def on_final_transcript(self, vtext: str) -> tuple[RoutingDecision, TaskRecord | None]:
         vdecision = await self.vrouter.route(vtext)
-        self.vlast_decision = vdecision
 
         if looks_like_recall(vtext):
             return vdecision, None

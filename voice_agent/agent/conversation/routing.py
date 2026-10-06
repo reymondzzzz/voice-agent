@@ -7,22 +7,6 @@ from typing import Protocol
 
 from voice_agent.agent.tasks.models import TaskRecord, TaskRelationship, TaskStatus, Urgency, fingerprint_goal
 
-ROUTER_PROMPT = """Decide what should happen with this partial or final user utterance.
-
-Return JSON only:
-{"action": "local" | "delegate" | "wait_for_more_input",
- "confidence": 0.0-1.0,
- "topic": short noun phrase or null,
- "normalized_goal": imperative restatement of the request, or null,
- "urgency": "low" | "normal" | "high"}
-
-Choose "local" when the assistant can answer from conversation alone: small talk, trivia,
-clarification, or anything already established.
-Choose "delegate" when it needs research, current information, tools, code, or multi-step work.
-Choose "wait_for_more_input" when the utterance is still too incomplete to tell.
-
-Be fast and decisive. This runs on every partial transcript."""
-
 
 class RouteAction(enum.Enum):
     LOCAL = "local"

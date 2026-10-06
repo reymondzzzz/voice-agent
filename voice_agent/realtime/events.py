@@ -143,5 +143,3 @@ class InterruptRequest:
     vcorrelation: Correlation
     vreason: str = "handoff"
 
-
-RealtimeCommand = InputAudioChunk | InputAudioCommit | SessionContextUpdate | ToolResultPayload | ResponseRequest | InterruptRequest
