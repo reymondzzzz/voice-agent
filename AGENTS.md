@@ -109,7 +109,7 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
   pipeline imports. Do not grow these; a new import here means the flexus app is leaking back in.
 - `tests/pipeline/**` — the moved tests, unchanged.
 - `voice_agent/` — the realtime agent architecture. `realtime/` is the model-neutral speech
-  boundary, `agent/` the semantic plane (state, graph, tasks, actions, delivery), `livekit/` the
+  boundary, `agent/` the semantic plane (conversation, tasks, actions, delivery), `livekit/` the
   transport adapter. A provider SDK may only ever be imported from a `realtime/` adapter.
 - `examples/` — the small LangGraph agents and the LiveKit entrypoint that demo the moved pipeline.
 - `tests/` — tests for `examples/` only.

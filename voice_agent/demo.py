@@ -6,9 +6,9 @@ from voice_agent.agent.actions.commands import CommandRegistry
 from voice_agent.agent.actions.service import ActionService
 from voice_agent.agent.actions.store import InMemoryActionStore
 from voice_agent.agent.delivery.policy import DeliveryDecision
-from voice_agent.agent.director import ConversationDirector
-from voice_agent.agent.results import Fact, SemanticResult
-from voice_agent.agent.routing.router import HeuristicRouter
+from voice_agent.agent.conversation.director import ConversationDirector
+from voice_agent.agent.tasks.results import Fact, SemanticResult
+from voice_agent.agent.conversation.routing import HeuristicRouter
 from voice_agent.agent.tasks.models import TaskRecord, TaskResult
 from voice_agent.realtime.fake import FakeRealtimeSpeechSession
 from voice_agent.session import ConversationSession

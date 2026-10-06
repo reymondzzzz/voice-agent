@@ -13,8 +13,8 @@ from voice_agent.agent.events import (
     BackgroundTaskFailed,
     SemanticEvent,
 )
-from voice_agent.agent.runtime import ConversationRuntime
-from voice_agent.agent.tools.delegation import DelegationAPI, DelegationContext
+from voice_agent.agent.conversation.runtime import ConversationRuntime
+from voice_agent.agent.delegation import DelegationAPI, DelegationContext
 from voice_agent.realtime import events
 from voice_agent.realtime.session import RealtimeSpeechSession
 

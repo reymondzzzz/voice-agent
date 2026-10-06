@@ -65,6 +65,28 @@ flowchart TB
     class audio,semantic,effects plane
 ```
 
+## Where the code lives
+
+| Path | What it is |
+| --- | --- |
+| `voice_agent/session.py` | `ConversationSession`, which wires one conversation together |
+| `voice_agent/correlation.py` | the identity every event on both planes carries |
+| `voice_agent/realtime/` | the audio plane: `events`, the `RealtimeSpeechSession` protocol (`session`), `audio` sinks, `capabilities`, the `bridge` to the semantic plane, the scriptable `fake`, and the `qwen/` adapter |
+| `voice_agent/livekit/adapter.py` | the LiveKit transport |
+| `voice_agent/agent/events.py` | semantic events (task started, completed, superseded, action awaiting confirmation, ...) |
+| `voice_agent/agent/delegation.py` | `DelegationAPI`, the whole surface the speech model may touch |
+| `voice_agent/agent/conversation/` | the per-utterance decisions: `director`, `routing`, `speech_policy`, `runtime` |
+| `voice_agent/agent/tasks/` | background work: `models`, `registry`, `supervisor`, and the `results` a worker returns |
+| `voice_agent/agent/delivery/` | what happens when a result arrives (`policy`) and the `mailbox` back to the session |
+| `voice_agent/agent/actions/` | side effects: commands, policy, `ActionService`, store, audit |
+| `voice_agent/demo.py` | `uv run python -m voice_agent.demo`, the whole flow against the fake session |
+
+The diagrams below draw the semantic plane as LangGraph with a `ChatState` and a separate
+`ReasoningModel`. That graph (`agent/graph.py`, with `agent/state.py`, `agent/reasoning.py` and an
+`agent/memory.py` long-term store) was never wired into `ConversationSession`, and was removed with the
+unused `storage/repositories.py`; the semantic decisions run in `ConversationDirector`, and background
+work is whatever runner the `TaskSupervisor` is given. The diagrams still show where a graph would plug in.
+
 ## Who owns what
 
 | Component | Owns | Must never |
@@ -86,9 +108,9 @@ because none of those belong in transport callbacks.
 
 | Component | Question it answers |
 | --- | --- |
-| `SemanticRouter` (`agent/routing/router.py`) | local, delegate, or wait for more speech? |
+| `SemanticRouter` (`agent/conversation/routing.py`) | local, delegate, or wait for more speech? |
 | `classify_relationship` | is this NEW, RELATED, EXTENDS or SUPERSEDES? |
-| `SpeechPolicy` (`agent/speech_policy.py`) | what is the actor allowed to say right now? |
+| `SpeechPolicy` (`agent/conversation/speech_policy.py`) | what is the actor allowed to say right now? |
 | `DeliveryPolicy` | does this result deserve the floor? |
 | `ConversationDirector` | all of the above, per utterance |
 
@@ -380,7 +402,7 @@ session once it has heard a full window, seeded with the text log of that window
   a small classifier means implementing `SemanticRouter` and nothing else.
 - *Speculation can waste work.* A candidate task that the final transcript contradicts is cancelled
   and thrown away. That is the price of starting before end of turn.
-- *In-memory stores.* `InMemoryActionStore`, `InMemoryTaskRepository` and the mailbox are process
+- *In-memory stores.* `InMemoryActionStore` and the mailbox are process
   local. The Protocols are the durable boundary; Postgres implementations are drop-ins, and until
   then "survives restart" is an interface promise rather than a fact.
 - *One `asyncio` mailbox per conversation.* Fine in-process; distributing it means replacing one

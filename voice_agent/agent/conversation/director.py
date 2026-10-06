@@ -4,7 +4,7 @@ import logging
 
 from voice_agent.agent.delivery.policy import DeliveryContext, DeliveryDecision, DeliveryPolicy, topic_relevance
 from voice_agent.agent.events import BackgroundTaskCompleted, Criticality
-from voice_agent.agent.routing.router import (
+from voice_agent.agent.conversation.routing import (
     RouteAction,
     RoutingDecision,
     SemanticRouter,
@@ -12,8 +12,8 @@ from voice_agent.agent.routing.router import (
     is_active,
     looks_like_recall,
 )
-from voice_agent.agent.runtime import ConversationRuntime
-from voice_agent.agent.speech_policy import ResponseMode, SpeechPolicy, informed_injection, mode_for
+from voice_agent.agent.conversation.runtime import ConversationRuntime
+from voice_agent.agent.conversation.speech_policy import ResponseMode, SpeechPolicy, informed_injection, mode_for
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskSpec, TaskStatus
 from voice_agent.agent.tasks.registry import TaskRegistry
 from voice_agent.agent.tasks.supervisor import TaskSupervisor

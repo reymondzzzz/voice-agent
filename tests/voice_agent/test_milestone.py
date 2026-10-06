@@ -5,9 +5,9 @@ import asyncio
 import pytest
 
 from voice_agent.agent.delivery.policy import DeliveryDecision
-from voice_agent.agent.director import ConversationDirector
-from voice_agent.agent.routing.router import HeuristicRouter, RouteAction
-from voice_agent.agent.speech_policy import ResponseMode
+from voice_agent.agent.conversation.director import ConversationDirector
+from voice_agent.agent.conversation.routing import HeuristicRouter, RouteAction
+from voice_agent.agent.conversation.speech_policy import ResponseMode
 from voice_agent.agent.tasks.models import TaskStatus
 
 pytestmark = pytest.mark.asyncio

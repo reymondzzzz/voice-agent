@@ -7,7 +7,7 @@ import pytest
 from tests.voice_agent.fake_domain import DeleteProjectHandler, FakeProjectRepository
 from voice_agent.agent.actions.models import ActionStatus
 from voice_agent.agent.tasks.models import TaskStatus
-from voice_agent.agent.tools.delegation import DelegationContext
+from voice_agent.agent.delegation import DelegationContext
 from voice_agent.realtime.events import ContextScope
 
 pytestmark = pytest.mark.asyncio
