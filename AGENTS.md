@@ -3,7 +3,6 @@
 Rules only. What this repo is, and what it deliberately is not, lives in `docs/`:
 
 - [docs/REALTIME_ARCHITECTURE.md](docs/REALTIME_ARCHITECTURE.md) — the realtime agent architecture: the two planes, lifecycles, invariants, and where a future speech model plugs in.
-- [docs/MOVED.md](docs/MOVED.md) — what was moved out of the flexus `voice-agent` branch, what was left behind, and why.
 - [docs/EXAMPLES.md](docs/EXAMPLES.md) — the Boss / Alice / Bob LangGraph agents and how to run them.
 - [docs/voice-agent/implementation_plan.md](docs/voice-agent/implementation_plan.md) — the original design, moved verbatim. Still the authority on the pipeline.
 - [docs/voice-agent/task_backlog.md](docs/voice-agent/task_backlog.md) — the M0–M7 backlog, moved verbatim.
@@ -36,30 +35,29 @@ uv run python -m examples.voice_app dev
 Environment traps: secrets load from `.env.local` (`cp .env.example .env.local`), and the names are
 the ones `voice_contracts.VOICE_ENV_VARS` declares — `FLEXUS_VOICE_LIVEKIT_*`, not `LIVEKIT_*`.
 `examples/voice_app.py` mirrors them into the `LIVEKIT_*` names the SDK reads. `pytest` puts the
-repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on the branch.
+repo root on the path, so imports are `voice_agent.pipeline.…`, `voice_agent.…` and `examples.…`.
 
 ## Rules (enforced, numbered)
 
-1. Lint is `ruff check .` with flexus's own narrow select set (`ASYNC`, `F401`, `F841`, `RUF100`,
-   `RUF012`, `PLE`) at line-length 320. Do not widen it, add a formatter, or reformat moved code —
-   the narrow set is what keeps this diffable against the branch. Enforced by the `ruff` check.
+1. Lint is `ruff check .` with a narrow select set (`ASYNC`, `F401`, `F841`, `RUF100`,
+   `RUF012`, `PLE`) at line-length 320. Do not widen it, add a formatter, or reformat the pipeline
+   wholesale. Enforced by the `ruff` check.
 2. The unit tier stays green with no network, no credentials, and no redis:
    `pytest -m "not integration and not provider"`. Tests that spend money are marked `provider`;
    tests needing infrastructure are marked `integration`. Fix or delete a broken test, never
    skip-and-forget. Enforced by the `tests` check.
 3. Dependencies change only through `uv add` / `uv remove`, and `uv.lock` co-commits. Only add a
    dependency the voice code or the examples actually import — the first attempt at this move
-   dragged in cocoindex, strawberry, fastapi and telegram through transitive flexus imports, none
+   dragged in cocoindex, strawberry, fastapi and telegram through transitive imports, none
    of which have anything to do with voice. Enforced by the push-stage `uv-lock` check.
 4. No LiveKit Cloud, ever. Media stays on a self-hosted server, and
    `voice_contracts.require_self_hosted_livekit_url` refuses a managed host at runtime — call it
    before connecting rather than trusting the environment. The cloud inference gateway
    (`livekit.agents.inference`) is equally off limits: speech goes through the moved OpenRouter
    providers. Enforced by that guard plus the `no-cloud` check; keep the check at zero.
-5. `flexus_backend/**` is moved code, not new code. Change it only to fix something genuinely
-   broken by the move, and keep every change small enough to read as a diff against the flexus
-   `voice-agent` branch — that branch is still the upstream. New behavior belongs in `examples/`.
-   Anything deleted or retargeted gets a row in `docs/MOVED.md`. Reviewers enforce.
+5. `voice_agent/pipeline/**` is the speech pipeline the agents stand on: contracts, OpenRouter STT
+   and TTS, PCM resampling, segmentation, interruption. Change it to fix it, with a test in
+   `tests/pipeline/`; new behavior belongs in `examples/`. Reviewers enforce.
 6. Tools belong in the LangGraph graph, never on the persona `Agent`. `langchain.LLMAdapter`
    converts graph output with `_to_chat_chunk`, which only ever emits
    `ChoiceDelta(role="assistant", content=...)` and never `tool_calls` — so a LiveKit
@@ -103,25 +101,20 @@ repo root on the path, so imports are `voice_agent.pipeline.…` exactly as on t
 
 ## Layout
 
-- `voice_agent/pipeline/**` — the moved pipeline: contracts, providers, PCM, queues,
-  segmentation, interruption, latency tracing. 28 modules.
-- `flexus_backend/{hallucitron,flexus_utils,services}/` — only the handful of support modules the
-  pipeline imports. Do not grow these; a new import here means the flexus app is leaking back in.
-- `tests/pipeline/**` — the moved tests, unchanged.
+- `voice_agent/pipeline/**` — the speech pipeline: contracts, OpenRouter STT and TTS and their
+  client, PCM resampling, speech segments, TTS prefetch, interruption, profiles, return intent.
+- `tests/pipeline/**` — the pipeline's tests.
 - `voice_agent/` — the realtime agent architecture. `realtime/` is the model-neutral speech
   boundary, `agent/` the semantic plane (conversation, tasks, actions, delivery), `livekit/` the
   transport adapter. A provider SDK may only ever be imported from a `realtime/` adapter.
 - `examples/` — the small LangGraph agents and the LiveKit entrypoint that demo the moved pipeline.
 - `tests/` — tests for `examples/` only.
-- `flexus_frontend/src/features/voice/**`, `components/ui/voice-orb.tsx` — the moved voice page and
-  the procedural shader orb. No build tooling is moved with them; see `docs/MOVED.md`.
 - `compose.voice.yml`, `dockerfiles/livekit.dev.yaml` — the self-hosted LiveKit stack, moved verbatim.
 
 ## Documentation
 
 | You changed | You update |
 | --- | --- |
-| anything under `flexus_backend/` | `docs/MOVED.md`, with what changed and why |
 | anything under `examples/` | `docs/EXAMPLES.md` |
 | anything under `voice_agent/` | `docs/REALTIME_ARCHITECTURE.md` |
 | a command in this file | run it first, then change it |

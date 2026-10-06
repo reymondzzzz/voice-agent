@@ -7,6 +7,5 @@ __pycache__/
 .env
 .env.local
 .DS_Store
-flexus_backend/prisma_stubs
 meet-transcripts/
 .meet-profile/

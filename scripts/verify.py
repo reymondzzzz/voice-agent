@@ -19,7 +19,6 @@ STAGE_PUSH = "push"
 STAGE_ORDER = (STAGE_COMMIT, STAGE_PUSH)
 
 DOC_AREA_MAP = (
-    (("voice_agent/pipeline/",), "docs/MOVED.md"),
     (("examples/",), "docs/EXAMPLES.md"),
     (("voice_agent/",), "docs/REALTIME_ARCHITECTURE.md"),
 )
@@ -102,7 +101,6 @@ def check_no_cloud_endpoints() -> CheckResult:
     vfiles = [
         *sorted((REPO_ROOT / "examples").rglob("*.py")),
         *sorted((REPO_ROOT / "voice_agent").rglob("*.py")),
-        *sorted((REPO_ROOT / "flexus_backend/services/voice").rglob("*.py")),
     ]
     for vpath in vfiles:
         if not vpath.exists():

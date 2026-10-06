@@ -154,8 +154,7 @@ belong to the flexus worker that was not moved, and `AgentSession` provides its 
 
 `examples/web/orb.js` renders a procedural WebGL orb — no CSS gradients, blurred divs or scale
 pulses. The GLSL is flexus's own `voiceOrbShader.ts` (simplex noise, FBM, domain warping, fresnel
-rim, iridescence, tone mapping) with the lighting reworked; the flexus original stays untouched at
-`flexus_frontend/src/components/ui/voiceOrbShader.ts` if you want to diff.
+rim, iridescence, tone mapping) with the lighting reworked.
 
 Three bugs had to be fixed before it looked like anything:
 
