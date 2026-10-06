@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import cast
 
 from voice_agent.agent.actions.audit import AuditSink, audit_entry
 from voice_agent.agent.actions.commands import CommandRegistry
@@ -11,6 +12,7 @@ from voice_agent.agent.actions.models import (
     ActionProposal,
     ActionRecord,
     ActionStatus,
+    Command,
     FailureCode,
     new_action_id,
 )
@@ -166,7 +168,7 @@ class ActionService:
             vrecord.transition_to(ActionStatus.EXECUTING)
             await self.vstore.put(vrecord)
             try:
-                voutcome = await vhandler.execute(vrecord.vcommand, vrecord.vproposal)
+                voutcome = await vhandler.execute(cast(Command, vrecord.vcommand), vrecord.vproposal)
             except Exception as vexc:  # an unexpected handler failure must not leave the action EXECUTING forever
                 voutcome = ActionOutcome(False, vfailure=FailureCode.EXTERNAL_SERVICE_FAILED, vmessage=f"{type(vexc).__name__}: {vexc}")
                 logger.warning("action handler raised", extra={**vrecord.log_fields(), "error": voutcome.vmessage})

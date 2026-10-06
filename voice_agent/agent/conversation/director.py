@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from voice_agent.agent.delivery.policy import DeliveryContext, DeliveryDecision, DeliveryPolicy, topic_relevance
 from voice_agent.agent.events import BackgroundTaskCompleted, Criticality
@@ -75,7 +76,7 @@ class ConversationDirector:
             vtransient = informed_injection(
                 vtopic=vrecord.vtopic or vrecord.vgoal,
                 vsummary=vrecord.vresult.vsummary if vrecord.vresult else "",
-                vimportant_points=tuple(str(vpoint) for vpoint in (vrecord.vresult.vpayload.get("important_points", []) if vrecord.vresult else [])),
+                vimportant_points=tuple(str(vpoint) for vpoint in (cast(list[object], vrecord.vresult.vpayload.get("important_points", [])) if vrecord.vresult else [])),
             )
         return SpeechPolicy(vmode=vmode, vtransient=vtransient)
 

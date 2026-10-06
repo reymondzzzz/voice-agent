@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+from typing import cast
 
 import numpy
 
 from livekit import rtc
-from livekit.agents import APIConnectionError, APIConnectOptions, stt, tts, utils
+from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, APIConnectionError, APIConnectOptions, stt, tts, utils
+from livekit.agents.language import LanguageCode
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 from livekit.agents.utils import AudioBuffer
 
@@ -33,10 +35,10 @@ class FlexusOpenRouterTTS(tts.TTS):
         self.vprofile = vprofile
         self.vapi_key = os.environ["OPENROUTER_API_KEY"]
 
-    def synthesize(self, text: str, *, conn_options: APIConnectOptions) -> FlexusChunkedStream:
+    def synthesize(self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS) -> FlexusChunkedStream:
         return FlexusChunkedStream(tts=self, input_text=text, conn_options=conn_options)
 
-    def stream(self, *, conn_options: APIConnectOptions) -> FlexusSynthesizeStream:
+    def stream(self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS) -> FlexusSynthesizeStream:
         return FlexusSynthesizeStream(tts=self, conn_options=conn_options)
 
     async def open_segment(self, vtext: str) -> DrainedSegment:
@@ -54,7 +56,7 @@ class FlexusOpenRouterTTS(tts.TTS):
 
 class FlexusChunkedStream(tts.ChunkedStream):
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
-        vtts: FlexusOpenRouterTTS = self._tts
+        vtts = cast(FlexusOpenRouterTTS, self._tts)
         vrequest = openrouter_tts.VoiceTtsRequest(
             vtts_input=self.input_text,
             vtts_voice=vtts.vprofile.vtts_voice_id,
@@ -107,7 +109,7 @@ class FlexusOpenRouterSTT(stt.STT):
         return stt.SpeechEvent(
             type=stt.SpeechEventType.FINAL_TRANSCRIPT,
             request_id=utils.shortuuid("OR_"),
-            alternatives=[stt.SpeechData(text="", language="")],
+            alternatives=[stt.SpeechData(text="", language=cast(LanguageCode, ""))],
         )
 
     async def _recognize_impl(
@@ -138,7 +140,7 @@ class FlexusOpenRouterSTT(stt.STT):
         return stt.SpeechEvent(
             type=stt.SpeechEventType.FINAL_TRANSCRIPT,
             request_id=vevent.stte_provider_generation_id or utils.shortuuid("OR_"),
-            alternatives=[stt.SpeechData(text=vtext, language=vevent.stte_language or "")],
+            alternatives=[stt.SpeechData(text=vtext, language=cast(LanguageCode, vevent.stte_language or ""))],
         )
 
     async def aclose(self) -> None:
@@ -206,7 +208,7 @@ class DrainedSegment:
 
 class FlexusSynthesizeStream(tts.SynthesizeStream):
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
-        vtts: FlexusOpenRouterTTS = self._tts
+        vtts = cast(FlexusOpenRouterTTS, self._tts)
         output_emitter.initialize(
             request_id=utils.shortuuid("OR_"),
             sample_rate=voice_contracts.VOICE_TTS_SAMPLE_RATE_HZ,

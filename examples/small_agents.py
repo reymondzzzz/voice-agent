@@ -7,7 +7,6 @@ import zoneinfo
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
-from langgraph.graph.state import CompiledStateGraph
 
 from examples.spoken_only_graph import SpokenOnlyGraph
 from voice_agent.pipeline import voice_contracts, voice_profile_ops
@@ -198,6 +197,6 @@ def build_call_agent_tool(vagent: ExampleAgent, vpending: PendingHandoff) -> Bas
     return call_agent
 
 
-def build_agent_graph(vagent: ExampleAgent, vllm: BaseChatModel, vpending: PendingHandoff) -> CompiledStateGraph:
+def build_agent_graph(vagent: ExampleAgent, vllm: BaseChatModel, vpending: PendingHandoff) -> SpokenOnlyGraph:
     vtools = [build_call_agent_tool(vagent, vpending), *AGENT_TOOLS.get(vagent.vagent_id, ())]
     return SpokenOnlyGraph(create_agent(vllm, vtools, system_prompt=vagent.vinstructions))

@@ -61,17 +61,19 @@ async def main() -> None:
 
     say("user", f'"{GOAL_A}"')
     vdecision, vtask_a = await vdirector.on_final_transcript(GOAL_A)
+    assert vtask_a is not None, "a research request starts a task"
     await asyncio.sleep(0)
     say("system", f"route={vdecision.vaction.value} → task {vtask_a.vtask_id[:12]} started, mode={vdirector.response_mode().value}")
     say("assistant", '"sure, looking into that now"   ← spoken immediately, no waiting')
 
     say("user", f'"{GOAL_B}"')
-    vdecision_b, vtask_b = await vdirector.on_final_transcript(GOAL_B)
+    vdecision_b, _ = await vdirector.on_final_transcript(GOAL_B)
     say("system", f"route={vdecision_b.vaction.value} → answered locally, no task, A still {vtask_a.vstatus.value}")
     say("assistant", '"full duplex means it listens while it talks"')
 
     say("user", f'"{GOAL_C}"')
-    vdecision_c, vtask_c = await vdirector.on_final_transcript(GOAL_C)
+    _, vtask_c = await vdirector.on_final_transcript(GOAL_C)
+    assert vtask_c is not None, "a research request starts a task"
     await asyncio.sleep(0)
     say("system", f"task {vtask_c.vtask_id[:12]} started — now {vsession.vsupervisor.vrunning_count} running concurrently")
 
@@ -85,6 +87,7 @@ async def main() -> None:
 
     say("user", '"what did you find about Moshi?"')
     vrecalled = vdirector.recall_for("what did you find about Moshi?")
+    assert vrecalled is not None and vrecalled.vresult is not None, "the finished Moshi task is recalled"
     vdecision_recall = vdirector.delivery_decision(vdirector.completion_event(vrecalled), vexplicitly_requested=True)
     say("system", f"recall → {vrecalled.vtask_id[:12]} delivery={vdecision_recall.value} mode={vdirector.response_mode().value}")
     say("assistant", f'"{vrecalled.vresult.vsummary}"')

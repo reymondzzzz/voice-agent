@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext
-from livekit.agents.voice.agent_session import TurnHandlingOptions
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions
 from livekit.agents.voice.events import AgentStateChangedEvent, UserInputTranscribedEvent
 from livekit.plugins import langchain, silero
 
@@ -53,7 +53,8 @@ class PersonaAgent(Agent):
     ) -> None:
         super().__init__(
             instructions="",
-            llm=langchain.LLMAdapter(graph=small_agents.build_agent_graph(vagent, build_llm(), vpending)),
+            # SpokenOnlyGraph stands in for the compiled graph: it forwards everything and only filters what is spoken.
+            llm=langchain.LLMAdapter(graph=cast(Any, small_agents.build_agent_graph(vagent, build_llm(), vpending))),
             tts=FlexusOpenRouterTTS(small_agents.resolve_example_profile(vagent.vprofile_id)),
             allow_interruptions=True,
         )
