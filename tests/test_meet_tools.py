@@ -3,6 +3,7 @@ import pytest
 from examples import meet_agent, meet_workspace
 from examples.meet_agent import MeetCall, Turn
 from examples.meet_delivery import PendingResult, ResultQueue
+from examples.meet_tools import MEET_TOOLS_BY_NAME
 from voice_agent.correlation import Correlation
 from voice_agent.realtime import events
 
@@ -91,3 +92,18 @@ async def test_results_looked_up_before_a_reconnect_are_told_on_the_new_session(
     vcall.vturn.vresults = [PendingResult("Kirill", "get_task(PAY-101)", "PAY-101: в работе")]
     await vcall.open_session()
     assert vcall.vturn.vresults == [] and [vresult.vanswer for vresult in vcall.vqueue.take_all()] == ["PAY-101: в работе"]
+
+
+@pytest.mark.asyncio
+async def test_work_handed_over_quietly_starts_without_a_word_and_a_direct_ask_still_gets_one():
+    vquiet = bare_call()
+    await vquiet.on_tool_call(call_with("search_documents", {"query": "вебхуки", "quietly": True}))
+    assert vquiet.vstarted == ["search_documents"] and not vquiet.vturn.vneeds_followup, "handed over, she said «сейчас найду» over the people talking"
+    vdirect = bare_call()
+    await vdirect.on_tool_call(call_with("search_documents", {"query": "вебхуки"}))
+    assert vdirect.vturn.vneeds_followup, "asked directly, she still says she is on it"
+
+
+def test_only_background_tools_offer_to_start_quietly():
+    assert "quietly" in MEET_TOOLS_BY_NAME["research"].schema()["parameters"]["properties"]
+    assert "quietly" not in MEET_TOOLS_BY_NAME["get_task"].schema()["parameters"]["properties"]

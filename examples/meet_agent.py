@@ -18,7 +18,7 @@ from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
 from examples.meet_delivery import PendingResult, ResultQueue
 from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn
 from examples.meet_playout import PlayoutLedger, RoomAudioSink, loudness_dbfs
-from examples.meet_prompts import BACKGROUND_STARTED, LIVE_VALUE_NOTE, PROMISE_CHECK, PROMISE_CORRECTION, delivery_line, meanwhile_line, session_instructions
+from examples.meet_prompts import BACKGROUND_STARTED, BACKGROUND_STARTED_QUIETLY, LIVE_VALUE_NOTE, PROMISE_CHECK, PROMISE_CORRECTION, delivery_line, meanwhile_line, session_instructions
 from examples.meet_tools import MEET_TOOLS, MEET_TOOLS_BY_NAME, MeetTool, ToolWeight
 from voice_agent.pipeline import voice_contracts
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, TaskSpec, TaskStatus
@@ -674,18 +674,20 @@ class MeetCall:
             vnumber = self.vqueue.record_call(self.requester(), vcall.vtool_name)
             self.vturn.vresults.append(PendingResult(self.requester(), f"{vcall.vtool_name}({vargs})", vresult, vtool=vcall.vtool_name, vcall=vnumber))
         else:
-            vresult = self.start_background(vtool, vcall.varguments)
+            self.start_background(vtool, vcall.varguments)
+            vresult = BACKGROUND_STARTED_QUIETLY if vcall.varguments.get("quietly") is True else BACKGROUND_STARTED
         self.remember(MeetTurn(time.time(), "tool", f"{vcall.vtool_name}({vargs}) → {vresult}", MeetRole.NOTE))
         assert self.vsession is not None
         self.vturn.vtools += 1
         # Qwen can call several tools in one response, and a response.create per result collided ("Conversation
         # already has an active response"), swallowing speech that arrived meanwhile. Results go back now; one
         # follow-up is asked for when this response ends. A heavy tool needs none if she already said she is on it.
-        self.vturn.vneeds_followup = self.vturn.vneeds_followup or vtool is None or vlight or self.vverdict_leaked or not "".join(self.vreply_parts).strip()
+        vquiet = vresult is BACKGROUND_STARTED_QUIETLY
+        self.vturn.vneeds_followup = self.vturn.vneeds_followup or vtool is None or vlight or self.vverdict_leaked or not ("".join(self.vreply_parts).strip() or vquiet)
         vfor_model = vresult + LIVE_VALUE_NOTE if vlight else vresult
         await self.vsession.send_tool_result(events.ToolResultPayload(vtool_call_id=vcall.vtool_call_id, vresult={"result": vfor_model}, vcorrelation=self.vsession.correlation()), vrespond=False)
 
-    def start_background(self, vtool: MeetTool, varguments: dict[str, object]) -> str:
+    def start_background(self, vtool: MeetTool, varguments: dict[str, object]) -> None:
         vgoal = vtool.goal(varguments)
         vrequester = self.requester()
         vrecord = self.vsupervisor.create_record(
@@ -698,7 +700,6 @@ class MeetCall:
         self.vsupervisor.start_background(vrecord)
         logger.info("background task=%s tool=%s requester=%s goal=%s", vrecord.vtask_id, vtool.vname, vrequester, vgoal)
         self.publish(type="task", id=vrecord.vtask_id, goal=vgoal, requester=vrequester, status="running")
-        return BACKGROUND_STARTED
 
     def running_work(self) -> list[str]:
         vrunning = (vrecord for vrecord in self.vregistry.all() if vrecord.vstatus in (TaskStatus.PENDING, TaskStatus.RUNNING))

@@ -44,10 +44,12 @@ class MeetTool:
     vrun: ToolRun
 
     def schema(self) -> dict[str, object]:
-        vdescription = self.vdescription
+        vdescription, vparameters = self.vdescription, self.vparameters
         if self.vweight is ToolWeight.HEAVY:
             vdescription += " Runs in the background: it returns at once and the answer is told when it is ready."
-        return {"type": "function", "name": self.vname, "description": vdescription, "parameters": self.vparameters}
+            vproperties = {**vparameters["properties"], "quietly": QUIETLY_PARAMETER}  # type: ignore[dict-item]
+            vparameters = {**vparameters, "properties": vproperties}
+        return {"type": "function", "name": self.vname, "description": vdescription, "parameters": vparameters}
 
     def goal(self, varguments: dict[str, object]) -> str:
         return str(varguments.get("question") or self.vname.replace("_", " "))
@@ -93,6 +95,10 @@ async def research(vcontext: ToolContext, varguments: dict[str, object]) -> str:
     return str((await vcontext.vdelegate_llm.ainvoke(vbrief)).content)
 
 
+QUIETLY_PARAMETER = {
+    "type": "boolean",
+    "description": "False for a plain request to you. True only when the person hands it off and turns back to the others in the same breath (пока, потом скажешь, а мы продолжим): start it without a word and tell only the result.",
+}
 DAY_PARAMETER = {"type": "string", "description": "today, tomorrow, or a date as YYYY-MM-DD"}
 
 MEET_TOOLS = (

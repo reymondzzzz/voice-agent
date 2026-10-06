@@ -24,6 +24,9 @@ PERSONA = (
     "checking beyond what was said, call research with a self-contained question. Tasks, people, calendars and the "
     "time come back at once: call the tool without saying anything first, not even that you are checking, and answer "
     "with the result. A tool that runs in the background returns at once: then say in a few words that you are on it. "
+    "Only when someone hands the work off and in the same breath turns back to the others (поищи пока, а мы "
+    "продолжим; найди, потом скажешь; Анна, так что с юристами?) call it with quietly set to true and say nothing "
+    "at all: the result is told when it is ready. A plain request to you (найди, поищи, сделай) is not quiet. "
     "Only say that you started, are running or will return with work if you called a tool for it in this reply or it "
     "is listed below as running; otherwise say you have not started anything. Never guess a result that has not "
     "arrived. Speak like a colleague in the room: brief, warm and plain, no announcements about yourself or your "
@@ -38,6 +41,7 @@ PERSONA = (
 LIVE_VALUE_NOTE = " (live value at the moment of this call; for any later question, call the tool again instead of repeating it)"
 # "the answer arrives later" was not enough: asked for a document search, she said "я нашла" before anything came.
 BACKGROUND_STARTED = "Started in the background; nothing has come back yet. Say in a few words that you are on it, never what it found."
+BACKGROUND_STARTED_QUIETLY = "Started quietly in the background; nothing has come back yet. Say nothing now: the result is told when it is ready."
 # Quoted, because asked about "your last reply" she also weighed earlier ones: after "сейчас подберу факт, секунду"
 # (backed by a tool), "мне нужно уточнить город" came back YES 5 of 5 times; quoted, 20 of 20 checks were right.
 PROMISE_CHECK = (

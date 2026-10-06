@@ -592,6 +592,8 @@ The floor timeout takes over only a reply that has stopped producing words; it o
 
 Why the verdicts stay in her history: DashScope ignores `"conversation": "none"` on `response.create`, ignores client-set item ids (and acknowledges deleting an unknown id), and sometimes gives a verdict the id of the user item before it, so `conversation.item.delete` on a verdict removed the user's line too (a code word recalled 4/4 without the delete, 0/4 with it). Six routing verdicts in a session made her answer "RESPOND" to a question 8 times in 8.
 
+**Handed-off work.** Background tools take an optional `quietly`. Asked directly ("Мэгги, найди документы про вебхуки") she says she is on it, as before; handed off while the people go on talking ("Мэгги, поищи пока…, а мы продолжим") she starts the same background task without a word, and the result is delivered the same way at the next pause. With only "hands you work and goes on talking" in the prompt Qwen set it on 6 of 6 requests, plain ones included; naming a plain request as not quiet made it 12 of 12 right over two runs (3 direct, 3 handed off each).
+
 **No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
 and removed: on a real call they sounded strange rather than responsive.
 
