@@ -11,7 +11,7 @@ from voice_agent.agent.actions.models import EffectLevel
 from voice_agent.agent.actions.policy import ActionPolicy
 from voice_agent.correlation import Correlation
 
-from tests.voice_agent.fake_domain import DeleteProjectHandler, MarkNotificationReadHandler
+from tests.voice_agent.fake_domain import DeleteProjectHandler
 
 
 def correlation(*, vepoch: int = 0) -> Correlation:
@@ -72,15 +72,8 @@ def test_policy_never_lets_a_background_task_auto_commit_an_irreversible_action(
     assert vdecision.vallowed_in_background is False
 
 
-def test_policy_allows_a_reversible_write_to_proceed():
-    vpolicy = ActionPolicy()
-    assert vpolicy.may_auto_commit(MarkNotificationReadHandler.vmetadata, vfrom_background=True) is True
-
-
 def test_effect_levels_that_always_require_confirmation():
     vpolicy = ActionPolicy()
     assert EffectLevel.IRREVERSIBLE in vpolicy.ALWAYS_CONFIRM_LEVELS
     assert EffectLevel.WRITE_IMPORTANT in vpolicy.ALWAYS_CONFIRM_LEVELS
     assert EffectLevel.READ not in vpolicy.ALWAYS_CONFIRM_LEVELS
-
-

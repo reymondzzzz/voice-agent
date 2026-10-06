@@ -291,6 +291,11 @@ sequenceDiagram
 | 5 | A stale proposal cannot overwrite newer state | precondition captured in `prepare`, compared in `execute` → `CONFLICT` |
 | 6 | Cancelling or superseding prevents future execution | `ACTION_LEGAL_TRANSITIONS` terminal states |
 | 7 | Simultaneous commits execute once | per-action `asyncio.Lock` in `ActionService` |
+| 7a | Asking for the same effect again while one is proposed or running joins it | `prepare` returns the live record for the idempotency key; an expired unconfirmed one is expired first, so a fresh request makes a fresh proposal |
+| 7b | A running effect is not called back halfway | `cancel` of an `EXECUTING` action returns it unchanged; it finishes once |
+| 7c | Background work is bounded, including the model's own tool calls | `delegate_task` and `reconcile_with_final` refuse past `vmax_active`; a repeat of running work replaces it without a new slot |
+| 7d | A cancelled task is not retried | `_execute` retries only a task that is not terminal |
+| 7e | One malformed provider frame does not end the session | the Qwen reader turns it into a recoverable `RealtimeSessionError`; a delta without `response_id` belongs to the current response, so a cancelled reply leaks neither audio nor words |
 | 8 | Duplicate realtime events are ignored | `ConversationRuntime.seen` / `tool_call_seen` |
 | 9 | A background result is never a second answer to a tool call | mailbox delivery is a separate event path |
 | 10 | A task is not killed merely because the turn changed | staleness judged on `conversation_epoch`, never `turn_id` |

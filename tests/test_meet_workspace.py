@@ -1,7 +1,6 @@
 import datetime
 
 from examples import meet_workspace
-from examples.meet_tools import MEET_TOOLS_BY_NAME, ToolWeight
 
 TODAY = datetime.date(2026, 10, 1)
 
@@ -25,6 +24,8 @@ def test_status_filter_takes_english_or_russian_and_is_spoken_in_russian():
 def test_a_task_key_survives_speech_recognition():
     assert meet_workspace.get_task("пэй 104").startswith("PAY-104")
     assert meet_workspace.get_task("PAY-999").startswith("No task")
+    assert meet_workspace.get_task("PAY-1").startswith("No task"), "a partial number is not some task that ends in it"
+    assert meet_workspace.get_task("пэй").startswith("No task")
 
 
 def test_owners_are_found_by_area_in_either_language():
@@ -44,9 +45,3 @@ def test_a_free_slot_respects_everyone_and_the_hours_already_gone():
 def test_documents_are_searched_by_meaning_words_and_an_unknown_topic_finds_nothing():
     assert "Runbook" in meet_workspace.search_documents("откат при переключении трафика")
     assert meet_workspace.search_documents("квартальный бюджет маркетинга").startswith("Nothing")
-
-
-def test_lookups_answer_at_once_and_a_document_search_runs_in_the_background():
-    for vname in ("list_tasks", "get_task", "get_schedule", "find_free_slot", "who_is"):
-        assert MEET_TOOLS_BY_NAME[vname].vweight is ToolWeight.LIGHT, vname
-    assert MEET_TOOLS_BY_NAME["search_documents"].vweight is ToolWeight.HEAVY

@@ -136,7 +136,7 @@ def list_tasks(vassignee: str, vstatus: str, vrequester: str) -> str:
 
 def get_task(vkey: str) -> str:
     vnumber = re.sub(r"\D", "", vkey)
-    vtask = next((vtask for vtask in TASKS if vtask.vkey.endswith(vnumber)), None) if vnumber else None
+    vtask = next((vtask for vtask in TASKS if vtask.vkey == f"PAY-{vnumber}"), None)
     return describe_task(vtask) if vtask else f"No task {vkey}. Tasks are PAY-101 to PAY-108."
 
 

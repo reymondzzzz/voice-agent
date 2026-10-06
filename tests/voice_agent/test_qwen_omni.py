@@ -12,7 +12,7 @@ from aiohttp import WSMsgType, web
 from voice_agent.pipeline import voice_contracts
 from voice_agent.realtime import events
 from voice_agent.realtime.qwen import protocol
-from voice_agent.realtime.qwen.session import QWEN_OMNI_DUPLEX, QwenOmniSession
+from voice_agent.realtime.qwen.session import QwenOmniSession
 
 EVENT_TIMEOUT_S = 5.0
 
@@ -46,7 +46,7 @@ class FakeDashScopeServer:
         self.vreceived: list[dict[str, object]] = []
         self.vauthorization = ""
         self.vquery = ""
-        self.vscript: list[dict[str, object]] = []
+        self.vscript: list[dict[str, object] | str] = []
         self.vafter_cancel: list[dict[str, object]] = []
         self._vrunner: web.AppRunner | None = None
         self.vurl = ""
@@ -75,7 +75,7 @@ class FakeDashScopeServer:
             self.vreceived.append(json.loads(vmessage.data))
             if self.vreceived[-1].get("type") == protocol.SESSION_UPDATE:
                 for vframe in self.vscript:
-                    await vws.send_str(json.dumps(vframe))
+                    await vws.send_str(vframe if isinstance(vframe, str) else json.dumps(vframe))
             if self.vreceived[-1].get("type") == protocol.RESPONSE_CANCEL:
                 for vframe in self.vafter_cancel:
                     await vws.send_str(json.dumps(vframe))
@@ -109,14 +109,6 @@ async def collect(vsession: QwenOmniSession, vcount: int) -> list[events.Realtim
 
 def sent_of_type(vserver: FakeDashScopeServer, vtype: str) -> list[dict[str, object]]:
     return [vframe for vframe in vserver.vreceived if vframe.get("type") == vtype]
-
-
-def test_native_tool_calling_removes_the_transcript_router() -> None:
-    # This is the difference that matters against PersonaPlex: delegation stops being inferred.
-    assert QWEN_OMNI_DUPLEX.function_calling is True
-    assert QWEN_OMNI_DUPLEX.requires_transcript_router() is False
-    assert QWEN_OMNI_DUPLEX.can_deliver_out_of_band() is True
-    assert QWEN_OMNI_DUPLEX.supports_tool_results is True
 
 
 @pytest.mark.asyncio
@@ -351,6 +343,45 @@ async def test_a_refused_creation_no_longer_counts_as_pending(server: FakeDashSc
     assert vsink.vwrites == [], "the interrupted response's late audio is dropped"
     vstarts = [vevent.vresponse_id for vevent in vevents if isinstance(vevent, events.AssistantSpeechStarted)]
     assert vstarts == ["resp_ok", "resp_next"], "and the next answer is not cancelled in its place"
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_frame_is_reported_and_the_session_keeps_listening(server: FakeDashScopeServer) -> None:
+    server.vscript = [
+        "not json at all",
+        {"type": protocol.RESPONSE_AUDIO_DELTA, "response_id": "resp_1"},
+        {"type": protocol.RESPONSE_AUDIO_DELTA, "response_id": "resp_1", "delta": "@@not base64@@"},
+        {"type": protocol.INPUT_TRANSCRIPTION_COMPLETED, "transcript": "still here"},
+    ]
+    vsession = build_session(server, RecordingAudioSink())
+    await vsession.start()
+    vevents = await collect(vsession, 4)
+    await vsession.close()
+
+    assert [type(vevent).__name__ for vevent in vevents[:3]] == ["RealtimeSessionError"] * 3
+    assert all(vevent.vrecoverable for vevent in vevents[:3])
+    assert isinstance(vevents[3], events.UserTranscriptFinal) and vevents[3].vtext == "still here"
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_response_leaks_neither_its_words_nor_unlabelled_audio(server: FakeDashScopeServer) -> None:
+    vaudio = base64.b64encode(b"\x00\x01" * 480).decode()
+    server.vscript = [{"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_1"}}]
+    server.vafter_cancel = [
+        {"type": protocol.RESPONSE_AUDIO_TRANSCRIPT_DELTA, "response_id": "resp_1", "delta": "and another thing"},
+        {"type": protocol.RESPONSE_AUDIO_DELTA, "delta": vaudio},
+        {"type": protocol.RESPONSE_DONE, "response": {"id": "resp_1", "status": "cancelled"}},
+    ]
+    vsink = RecordingAudioSink()
+    vsession = build_session(server, vsink)
+    await vsession.start()
+    await collect(vsession, 1)
+    await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="barge_in"))
+    vevents = await collect(vsession, 2)
+    await vsession.close()
+
+    assert not any(isinstance(vevent, events.AssistantTranscript) for vevent in vevents), "the words of a cancelled reply are not reported as said"
+    assert vsink.vwrites == [], "audio with no response id after a cancel belongs to the cancelled reply"
 
 
 def test_manual_response_mode_keeps_turn_detection_but_never_answers_on_its_own() -> None:

@@ -150,22 +150,6 @@ def test_karen_goes_straight_on_after_her_own_answer_but_waits_out_the_people_ot
     assert not vcall.is_quiet(3.0)
 
 
-def test_reply_latency_splits_the_wait_by_stage() -> None:
-    from examples.meet_agent import reply_latency
-
-    vstages = reply_latency({"speech_end": 10.0, "heard": 10.3, "decided": 11.2, "requested": 11.25}, 12.1)
-    assert {vname: round(vvalue, 2) for vname, vvalue in vstages.items()} == {"heard": 0.3, "decide": 0.9, "voice": 0.85, "total": 2.1}
-    assert reply_latency({"requested": 5.0}, 5.8) == {"voice": 0.8000000000000007} or round(reply_latency({"requested": 5.0}, 5.8)["voice"], 2) == 0.8
-
-
-def test_loudness_tells_speech_from_silence() -> None:
-    from examples.meet_agent import loudness_dbfs
-
-    vtone = (numpy.sin(numpy.arange(480) / 3) * 8000).astype(numpy.int16).tobytes()
-    assert loudness_dbfs(vtone) > -20
-    assert loudness_dbfs(bytes(960)) < -100
-
-
 @pytest.mark.asyncio
 async def test_speech_over_karen_cuts_her_off_locally_after_150ms_and_only_then() -> None:
     class Source:

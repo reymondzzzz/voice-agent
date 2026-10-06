@@ -120,6 +120,9 @@ class TaskSupervisor:
         if vcandidate is not None and vcandidate.vstatus in {TaskStatus.CANDIDATE, TaskStatus.PENDING, TaskStatus.RUNNING}:
             self.cancel(vcandidate.vtask_id)
 
+        if self.at_capacity() and vrelationship is not TaskRelationship.SUPERSEDES:
+            logger.warning("task rejected, conversation at capacity", extra={"conversation_id": self.vconversation_id, "goal": vfinal_spec.vgoal})
+            return None
         vrecord = self.create_record(vspec=vfinal_spec, vconversation_epoch=vconversation_epoch, vsource_turn_id=vsource_turn_id)
         vrecord.vrelationship = vrelationship
         if vrelationship is TaskRelationship.SUPERSEDES:
@@ -189,7 +192,8 @@ class TaskSupervisor:
                 await self._von_finished(vrecord)
             raise
         except Exception as vexc:  # a task failure must reach the conversation, not the event loop
-            if vrecord.vattempts < vrecord.vspec.vmax_attempts:
+            # A task cancelled while its attempt was failing stays cancelled: retrying it would run work nobody wants.
+            if vrecord.vattempts < vrecord.vspec.vmax_attempts and not vrecord.vterminal:
                 logger.warning("task attempt failed, retrying", extra={**vrecord.log_fields(), "error": type(vexc).__name__})
                 vrecord.vstatus = TaskStatus.PENDING
                 await self._execute(vrecord)

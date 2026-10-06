@@ -114,5 +114,5 @@ async def test_backpressure_rejects_runaway_task_creation(harness):
         await harness.pump(2)
 
     vactive = [vr for vr in harness.vsession.vregistry.all() if not vr.vterminal]
-    assert len(vactive) <= 4
-    assert harness.vsession.vsupervisor.vrunning_count <= 4
+    assert len(vactive) == 2, "two slots, four distinct requests: the last two are refused"
+    assert len(harness.vrun_log) == 2

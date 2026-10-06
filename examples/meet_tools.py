@@ -72,8 +72,10 @@ async def get_schedule(vcontext: ToolContext, varguments: dict[str, object]) -> 
 async def find_free_slot(vcontext: ToolContext, varguments: dict[str, object]) -> str:
     vpeople = varguments.get("people")
     vpeople = vpeople if isinstance(vpeople, list) else []
-    vminutes = varguments.get("minutes")
-    vminutes = int(vminutes) if isinstance(vminutes, (int, float, str)) and str(vminutes).isdigit() else 30
+    try:
+        vminutes = max(int(float(str(varguments.get("minutes") or 30))), 1)
+    except ValueError:
+        vminutes = 30
     return meet_workspace.find_free_slot([str(vperson) for vperson in vpeople], vminutes, str(varguments.get("day", "")), vcontext.requester(), datetime.datetime.now())
 
 

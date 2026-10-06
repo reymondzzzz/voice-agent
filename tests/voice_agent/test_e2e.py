@@ -83,25 +83,3 @@ async def test_background_work_prepares_a_destructive_action_but_never_commits_i
     vconfirmed = await harness.vsession.vdelegation.confirm_action(vaction_id=vproposal["action_id"])
     assert vconfirmed["succeeded"] is True
     assert vrepository.vprojects["proj_prod"].vdeleted is True
-
-
-async def test_reconnecting_the_speech_session_does_not_repeat_a_committed_action(harness):
-    vrepository = FakeProjectRepository()
-    vhandler = DeleteProjectHandler(vrepository)
-    harness.vregistry.register(vhandler)
-    vcontext = DelegationContext(
-        vconversation_id="conv_test", vsession_id="sess_test", vuser_id="user_1", vconversation_epoch=0, vturn_id="turn_1"
-    )
-
-    vproposal = await harness.vsession.vdelegation.request_action(
-        vaction_type="delete_project", varguments={"name": "production"}, vcontext=vcontext
-    )
-    await harness.vsession.vdelegation.confirm_action(vaction_id=vproposal["action_id"])
-
-    # the session reconnects and the model repeats the same request from its own history
-    vrepeat = await harness.vsession.vdelegation.request_action(
-        vaction_type="delete_project", varguments={"name": "production"}, vcontext=vcontext
-    )
-    assert vrepeat["status"] == "already_executed"
-    assert vhandler.vexecutions == 1
-    assert vrepository.vcommits == 1

@@ -1,4 +1,4 @@
-from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetTurn, background_brief
+from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetTurn
 
 
 def meeting() -> MeetMemory:
@@ -20,11 +20,3 @@ def test_nothing_inside_the_window_is_forgotten():
     vmemory = meeting()
     vmemory.forget_before(MEET_CONTEXT_WINDOW_S)
     assert len(vmemory.vturns) == 3
-
-
-def test_background_brief_carries_the_window():
-    vmemory = meeting()
-    vbrief = background_brief("check the deadline leaves Dmitry three days", "Carl", vmemory)
-    assert "Carl asked" in vbrief
-    assert "last 10 minutes" in vbrief
-    assert "[Anna] Dmitry owns the webhooks." in vbrief

@@ -29,10 +29,11 @@ class InMemoryActionStore:
 
     async def put(self, vrecord: ActionRecord) -> ActionRecord:
         self._vrecords[vrecord.vaction_id] = vrecord
-        vexisting = self._vby_key.get(vrecord.vidempotency_key)
-        if vexisting is None or vexisting == vrecord.vaction_id:
-            self._vby_key[vrecord.vidempotency_key] = vrecord.vaction_id
-        elif vrecord.vstatus is ActionStatus.SUCCEEDED:
+        vexisting = self._vrecords.get(self._vby_key.get(vrecord.vidempotency_key, ""))
+        # The key names the record that decides a repeat: a succeeded one, else the newest that has not ended badly.
+        # Left on an expired or cancelled first proposal, it hid a live second one and a third could be made.
+        vended_unexecuted = vexisting is not None and vexisting.vterminal and vexisting.vstatus is not ActionStatus.SUCCEEDED
+        if vexisting is None or vexisting is vrecord or vrecord.vstatus is ActionStatus.SUCCEEDED or vended_unexecuted:
             self._vby_key[vrecord.vidempotency_key] = vrecord.vaction_id
         return vrecord
 

@@ -205,6 +205,10 @@ class MeetCall:
         self.vheard_speakers.clear()
         self.vowned, self.vawaiting = "", False
         self.vturn.vneeds_followup = False
+        if self.vturn.vresults:
+            # Looked up before the session dropped and never said: told at the next pause on the new session.
+            self.vqueue.add(self.vturn.vresults)
+            self.vturn.vresults = []
         self.end_turn()
         self.spawn(self.pump_events(vsession))
         if vprevious is not None:
@@ -650,7 +654,10 @@ class MeetCall:
         if vtool is None:
             vresult = f"Error: unknown tool {vcall.vtool_name}"
         elif vlight:
-            vresult = await vtool.vrun(self, vcall.varguments)
+            try:
+                vresult = await vtool.vrun(self, vcall.varguments)
+            except Exception as vexc:  # a bad argument is the model's to fix; uncaught it killed the event pump mid-turn
+                vresult = f"Error: {type(vexc).__name__}: {vexc}"
             vnumber = self.vqueue.record_call(self.requester(), vcall.vtool_name)
             self.vturn.vresults.append(PendingResult(self.requester(), f"{vcall.vtool_name}({vargs})", vresult, vtool=vcall.vtool_name, vcall=vnumber))
         else:

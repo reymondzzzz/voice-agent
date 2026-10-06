@@ -216,7 +216,12 @@ class QwenOmniSession:
         try:
             async for vmessage in self._vws:
                 if vmessage.type is aiohttp.WSMsgType.TEXT:
-                    await self._on_frame(json.loads(vmessage.data))
+                    try:
+                        await self._on_frame(json.loads(vmessage.data))
+                    except (ValueError, KeyError, TypeError) as vexc:  # one malformed frame must not end the session
+                        await self._vevents.put(
+                            events.RealtimeSessionError(vcorrelation=self.correlation(), vmessage=f"malformed frame: {type(vexc).__name__}: {vexc}", vrecoverable=True)
+                        )
                 elif vmessage.type is aiohttp.WSMsgType.ERROR:
                     await self._vevents.put(
                         events.RealtimeSessionError(vcorrelation=self.correlation(), vmessage=str(self._vws.exception()), vrecoverable=False)
@@ -229,7 +234,8 @@ class QwenOmniSession:
         vtype = vframe.get("type")
 
         if vtype == protocol.RESPONSE_AUDIO_DELTA:
-            if vframe.get("response_id") not in self._vcancelled:
+            # A delta without its response id belongs to the current response, cancelled or not.
+            if vframe.get("response_id", self._vresponse_id) not in self._vcancelled:
                 await self._vaudio_sink.write(base64.b64decode(vframe["delta"]), protocol.OUTPUT_SAMPLE_RATE_HZ)
 
         elif vtype == protocol.RESPONSE_CREATED:
@@ -257,7 +263,7 @@ class QwenOmniSession:
             )
 
         elif vtype in (protocol.RESPONSE_AUDIO_TRANSCRIPT_DELTA, protocol.RESPONSE_TEXT_DELTA):
-            if vframe.get("response_id") in self._vcancelled:
+            if vframe.get("response_id", self._vresponse_id) in self._vcancelled:
                 return
             self._vresponse_id = str(vframe.get("response_id", self._vresponse_id))
             await self._vevents.put(

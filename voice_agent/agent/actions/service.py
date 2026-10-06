@@ -73,6 +73,14 @@ class ActionService:
         vkey = build_idempotency_key(vconversation_id, vaction_type, vprepared.vresolved_target, vprepared.vparameters)
 
         vexisting = await self.vstore.find_by_idempotency_key(vkey)
+        if vexisting is not None and vexisting.vstatus is ActionStatus.AWAITING_CONFIRMATION and vexisting.vproposal.is_expired():
+            vexisting.transition_to(ActionStatus.EXPIRED)
+            await self.vstore.put(vexisting)
+        if vexisting is not None and not vexisting.vterminal:
+            # The same effect is already proposed or running. A second proposal could be committed alongside it, and
+            # the effect would run twice; the request is answered with the one in flight.
+            logger.info("action already in flight", extra=vexisting.log_fields())
+            return vexisting, None
         if vexisting is not None and vexisting.vstatus is ActionStatus.SUCCEEDED:
             logger.info("action already executed", extra=vexisting.log_fields())
             return vexisting, ActionOutcome(
@@ -188,7 +196,8 @@ class ActionService:
 
     async def cancel(self, vaction_id: str, *, vactor: str = "user") -> ActionRecord | None:
         vrecord = await self.vstore.get(vaction_id)
-        if vrecord is None or vrecord.vterminal:
+        # A running effect cannot be called back halfway; the caller learns it is executing.
+        if vrecord is None or vrecord.vterminal or vrecord.vstatus is ActionStatus.EXECUTING:
             return vrecord
         vrecord.transition_to(ActionStatus.CANCELLED)
         await self.vstore.put(vrecord)

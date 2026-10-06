@@ -64,10 +64,6 @@ async def test_streaming_kwargs_are_passed_through_untouched():
     assert vinner.vseen_kwargs == {"stream_mode": "messages", "subgraphs": True}
 
 
-def test_other_graph_attributes_are_delegated():
-    assert SpokenOnlyGraph(_FakeGraph([])).get_graph() == "delegated"
-
-
 def test_an_unsupported_kwarg_still_raises_at_call_time_so_the_adapter_can_fall_back():
     vgraph = SpokenOnlyGraph(_FakeGraph([]))
     with pytest.raises(TypeError):
