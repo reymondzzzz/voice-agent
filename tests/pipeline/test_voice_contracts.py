@@ -172,14 +172,13 @@ def test_unknown_id_prefixes_are_refused():
         voice_contracts.new_opaque_voice_id("room_")
 
 
-def test_env_var_contract_is_unique_prefixed_and_documented():
+def test_env_var_contract_is_unique_and_documented():
     names = [v.vvar_name for v in voice_contracts.VOICE_ENV_VARS]
     assert len(set(names)) == len(names)
-    assert {n for n in names if not n.startswith("FLEXUS_VOICE_")} == {"OPENROUTER_API_KEY"}
     assert {v.vvar_name for v in voice_contracts.VOICE_ENV_VARS if v.vvar_required} == {
-        "FLEXUS_VOICE_LIVEKIT_URL",
-        "FLEXUS_VOICE_LIVEKIT_API_KEY",
-        "FLEXUS_VOICE_LIVEKIT_API_SECRET",
+        "LIVEKIT_URL",
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET",
         "OPENROUTER_API_KEY",
     }
     for v in voice_contracts.VOICE_ENV_VARS:

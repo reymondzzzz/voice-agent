@@ -109,7 +109,7 @@ async def wait_until_call_ends(vpage: Page) -> None:
 
 
 async def run_bridge(vmeet_url: str, vroom_name: str, vbot_name: str, *, vheadless: bool, vprofile: pathlib.Path | None = None) -> None:
-    voice_app.mirror_flexus_livekit_env()
+    voice_app.require_self_hosted_livekit()
     vroom = rtc.Room()
     vsource = rtc.AudioSource(MEET_SAMPLE_RATE_HZ, 1)
     vjoined = asyncio.Event()

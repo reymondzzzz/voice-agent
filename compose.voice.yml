@@ -28,7 +28,7 @@ services:
       - --config
       - /etc/livekit.yaml
     environment:
-      LIVEKIT_KEYS: "${FLEXUS_VOICE_LIVEKIT_API_KEY:?set FLEXUS_VOICE_LIVEKIT_API_KEY}: ${FLEXUS_VOICE_LIVEKIT_API_SECRET:?set FLEXUS_VOICE_LIVEKIT_API_SECRET}"
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}"
     volumes:
       - ./dockerfiles/livekit.dev.yaml:/etc/livekit.yaml:ro
     ports:

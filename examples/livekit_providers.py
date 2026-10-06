@@ -124,7 +124,7 @@ class FlexusOpenRouterSTT(stt.STT):
         if not has_speech_energy(vpcm, self.vinterruption, vframe.sample_rate):
             return self.empty_transcript()
         vconfig = voice_stt.SttConfig(
-            sttc_model=os.environ.get("FLEXUS_VOICE_STT_MODEL") or voice_contracts.VOICE_DEFAULT_STT_MODEL,
+            sttc_model=os.environ.get("VOICE_STT_MODEL") or voice_contracts.VOICE_DEFAULT_STT_MODEL,
             sttc_language=language or None,
             sttc_sample_rate_hz=vframe.sample_rate,
             sttc_deadline_s=voice_contracts.VOICE_STT_REQUEST_DEADLINE_S,
