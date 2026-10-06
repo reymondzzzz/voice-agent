@@ -12,7 +12,7 @@ PROVIDER_TEST_VOICES = ("am_adam", "af_heart")
 
 @pytest.mark.integration
 @pytest.mark.provider
-@pytest.mark.skipif(os.getenv("FLEXUS_PROVIDER_TESTS") != "1", reason="set FLEXUS_PROVIDER_TESTS=1 for metered provider tests")
+@pytest.mark.skipif(os.getenv("VOICE_PROVIDER_TESTS") != "1", reason="set VOICE_PROVIDER_TESTS=1 for metered provider tests")
 @pytest.mark.parametrize("vtts_voice", PROVIDER_TEST_VOICES)
 @pytest.mark.asyncio
 async def test_openrouter_pcm_provider_streams_and_cancels(vtts_voice: str) -> None:

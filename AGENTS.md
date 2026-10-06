@@ -33,8 +33,8 @@ uv run python -m examples.voice_app dev
 ```
 
 Environment traps: secrets load from `.env.local` (`cp .env.example .env.local`), and the names are
-the ones `voice_contracts.VOICE_ENV_VARS` declares — `FLEXUS_VOICE_LIVEKIT_*`, not `LIVEKIT_*`.
-`examples/voice_app.py` mirrors them into the `LIVEKIT_*` names the SDK reads. `pytest` puts the
+the ones `voice_contracts.VOICE_ENV_VARS` declares: the `LIVEKIT_*` names the SDK reads, `OPENROUTER_API_KEY`
+and `DASHSCOPE_API_KEY`. `pytest` puts the
 repo root on the path, so imports are `voice_agent.pipeline.…`, `voice_agent.…` and `examples.…`.
 
 ## Rules (enforced, numbered)

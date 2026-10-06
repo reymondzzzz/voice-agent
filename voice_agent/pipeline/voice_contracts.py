@@ -115,14 +115,12 @@ class VoiceEnvVar:
 
 
 VOICE_ENV_VARS = (
-    VoiceEnvVar("FLEXUS_VOICE_ENABLED", False, "prototype gate; voice session creation stays refused unless this is 1"),
-    VoiceEnvVar("FLEXUS_VOICE_LIVEKIT_URL", True, "self-hosted livekit signal url, ws or wss, never a managed livekit host"),
-    VoiceEnvVar("FLEXUS_VOICE_LIVEKIT_API_KEY", True, "livekit api key used to mint short-lived room-scoped access tokens"),
-    VoiceEnvVar("FLEXUS_VOICE_LIVEKIT_API_SECRET", True, "livekit api secret, server side only, never sent to a client"),
-    VoiceEnvVar("FLEXUS_VOICE_REDIS_DB", False, "redis database index isolating prototype voice state from application state"),
-    VoiceEnvVar("FLEXUS_VOICE_STT_MODEL", False, "openrouter transcription model id, defaults to VOICE_DEFAULT_STT_MODEL"),
-    VoiceEnvVar("FLEXUS_VOICE_WORKER_MAX_SESSIONS", False, "per-replica voice session slots, defaults to VOICE_WORKER_DEFAULT_MAX_SESSIONS until VA-106 measures the safe value"),
+    VoiceEnvVar("LIVEKIT_URL", True, "self-hosted livekit signal url, ws or wss, never a managed livekit host"),
+    VoiceEnvVar("LIVEKIT_API_KEY", True, "livekit api key used to mint short-lived room-scoped access tokens"),
+    VoiceEnvVar("LIVEKIT_API_SECRET", True, "livekit api secret, server side only, never sent to a client"),
+    VoiceEnvVar("VOICE_STT_MODEL", False, "openrouter transcription model id, defaults to VOICE_DEFAULT_STT_MODEL"),
     VoiceEnvVar("OPENROUTER_API_KEY", True, "shared openrouter credential used by voice stt and tts"),
+    VoiceEnvVar("DASHSCOPE_API_KEY", False, "Qwen Omni realtime (DashScope, Singapore) for the Meet assistant and its judge session"),
 )
 
 

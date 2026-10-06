@@ -824,7 +824,7 @@ server = AgentServer()
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
-    voice_app.mirror_flexus_livekit_env()
+    voice_app.require_self_hosted_livekit()
     vcall = MeetCall(ctx.room)
     ctx.room.on("track_subscribed", vcall.on_track_subscribed)
     ctx.add_shutdown_callback(vcall.aclose)
@@ -840,5 +840,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
-    voice_app.mirror_flexus_livekit_env()
+    voice_app.require_self_hosted_livekit()
     agents.cli.run_app(server)

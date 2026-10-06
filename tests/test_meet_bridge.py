@@ -84,7 +84,7 @@ class FakeAgent:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_bridge_carries_audio_both_ways_and_names_the_speaker(monkeypatch: pytest.MonkeyPatch) -> None:
-    voice_app.mirror_flexus_livekit_env()
+    voice_app.require_self_hosted_livekit()
     vagent = FakeAgent()
     vmicrophone_hz: list[float] = []
 

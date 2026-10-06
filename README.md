@@ -8,7 +8,7 @@ The speech pipeline lives in `voice_agent/pipeline/`.
 
 ```bash
 uv sync
-cp .env.example .env.local      # FLEXUS_VOICE_LIVEKIT_* and OPENROUTER_API_KEY
+cp .env.example .env.local      # LIVEKIT_*, OPENROUTER_API_KEY, DASHSCOPE_API_KEY
 uv run python scripts/verify.py --stage commit
 uv run python -m examples.voice_app console
 ```
@@ -21,14 +21,14 @@ realtime session. She answers only when spoken to; a task handed off while peopl
 ("Мэгги, поищи пока доку, а мы продолжим") runs in the background and only its result is said.
 
 You need Google Chrome, `livekit-server` (`brew install livekit`) and, in `.env.local`,
-`FLEXUS_VOICE_LIVEKIT_API_KEY` / `FLEXUS_VOICE_LIVEKIT_API_SECRET` (any pair you choose for the dev
+`LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` (any pair you choose for the dev
 server), `DASHSCOPE_API_KEY` (Qwen, Singapore region) and `OPENROUTER_API_KEY` (research on GLM).
 
 ```bash
 set -a; source .env.local; set +a
 
 # 1. LiveKit, local only
-livekit-server --dev --bind 127.0.0.1 --keys "$FLEXUS_VOICE_LIVEKIT_API_KEY: $FLEXUS_VOICE_LIVEKIT_API_SECRET"
+livekit-server --dev --bind 127.0.0.1 --keys "$LIVEKIT_API_KEY: $LIVEKIT_API_SECRET"
 
 # 2. the agent (new terminal)
 uv run python -m examples.meet_agent dev

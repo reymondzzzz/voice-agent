@@ -23,9 +23,9 @@ The LLM is `z-ai/glm-5.2` over OpenRouter, chosen because it emits tool calls re
 ## Running
 
 ```bash
-cp .env.example .env.local     # fill in FLEXUS_VOICE_LIVEKIT_* and OPENROUTER_API_KEY
+cp .env.example .env.local     # fill in LIVEKIT_* and OPENROUTER_API_KEY
 uv run python -m examples.voice_app console   # terminal audio, no LiveKit server needed
-uv run python -m examples.voice_app dev       # joins a room on FLEXUS_VOICE_LIVEKIT_URL
+uv run python -m examples.voice_app dev       # joins a room on LIVEKIT_URL
 ```
 
 Start with `console`: it exercises the graphs, the tools, and the handoff commit without any media

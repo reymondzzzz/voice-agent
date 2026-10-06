@@ -23,15 +23,7 @@ load_dotenv(".env.local")
 EXAMPLE_LLM_MODEL = "z-ai/glm-5.2"
 
 
-def mirror_flexus_livekit_env() -> None:
-    for vflexus_name, vsdk_name in (
-        ("FLEXUS_VOICE_LIVEKIT_URL", "LIVEKIT_URL"),
-        ("FLEXUS_VOICE_LIVEKIT_API_KEY", "LIVEKIT_API_KEY"),
-        ("FLEXUS_VOICE_LIVEKIT_API_SECRET", "LIVEKIT_API_SECRET"),
-    ):
-        vvalue = os.environ.get(vflexus_name)
-        if vvalue and not os.environ.get(vsdk_name):
-            os.environ[vsdk_name] = vvalue
+def require_self_hosted_livekit() -> None:
     voice_contracts.require_self_hosted_livekit_url(os.environ["LIVEKIT_URL"])
 
 
@@ -166,7 +158,7 @@ def build_agent_session() -> AgentSession:
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
-    mirror_flexus_livekit_env()
+    require_self_hosted_livekit()
     vsession = build_agent_session()
     vcall = ExampleCall(vsession, ctx.room)
 
@@ -184,5 +176,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
-    mirror_flexus_livekit_env()
+    require_self_hosted_livekit()
     agents.cli.run_app(server)
