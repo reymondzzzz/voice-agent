@@ -225,7 +225,7 @@ async def test_both_sides_of_the_conversation_are_reported(server: FakeDashScope
         {"type": protocol.INPUT_TRANSCRIPTION_COMPLETED, "transcript": "what's the weather in London"},
         {"type": protocol.RESPONSE_AUDIO_TRANSCRIPT_DELTA, "delta": "It is twelve degrees.", "response_id": "resp_1"},
         {"type": protocol.RESPONSE_AUDIO_DELTA, "delta": base64.b64encode(b"\x00\x01" * 480).decode()},
-        {"type": protocol.RESPONSE_DONE},
+        {"type": protocol.RESPONSE_DONE, "response": {"id": "resp_1", "status": "completed"}},
     ]
     vsink = RecordingAudioSink()
     vsession = build_session(server, vsink)
@@ -366,12 +366,13 @@ async def test_a_create_the_server_never_answers_does_not_swallow_every_later_re
 
 
 @pytest.mark.asyncio
-async def test_a_create_cancelled_before_it_existed_settles_without_a_stop_or_a_shifted_count(server: FakeDashScopeServer) -> None:
+@pytest.mark.parametrize("vresponse", [{"id": "", "status": "cancelled"}, {"status": "cancelled"}])
+async def test_a_create_cancelled_before_it_existed_settles_without_a_stop_or_a_shifted_count(server: FakeDashScopeServer, vresponse: dict) -> None:
     vsession = build_session(server, RecordingAudioSink())
     await vsession.start()
     await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
     await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="barge_in"))
-    await vsession._on_frame({"type": protocol.RESPONSE_DONE, "response": {"id": "", "status": "cancelled"}})
+    await vsession._on_frame({"type": protocol.RESPONSE_DONE, "response": vresponse})
     await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
     await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": "resp_answer"}})
     vevents = await collect(vsession, 2)

@@ -297,14 +297,15 @@ class QwenOmniSession:
 
         elif vtype == protocol.RESPONSE_DONE:
             vresponse = vframe.get("response") or {}
-            if "id" in vresponse and not vresponse["id"]:
-                # A create cancelled before its response existed ends in a done with an empty id and no created. It
+            if not vresponse.get("id"):
+                # A create cancelled before its response existed ends in a done with an empty or missing id and no
+                # created; read as the previous response's done instead, it left the create pending for good. It
                 # settles that create; reported as a stop it matched a consumer owning nothing and freed its floor.
                 if self.pending_creates():
                     self._vcreates_sent_at.popleft()
                 logger.info("a response cancelled before it existed is done; pending creates left %d", len(self._vcreates_sent_at))
                 return
-            vresponse_id = str(vresponse.get("id", self._vresponse_id))
+            vresponse_id = str(vresponse["id"])
             vcompleted = vresponse.get("status", "completed") == "completed" and vresponse_id not in self._vcancelled
             self._vcancelled.discard(vresponse_id)
             logger.info("response %s done, status %s", vresponse_id, vresponse.get("status"))
