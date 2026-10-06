@@ -122,6 +122,17 @@ async def test_a_spoken_verdict_is_muted_and_the_answer_asked_for_again():
 
 
 @pytest.mark.asyncio
+async def test_a_verdict_spoken_again_on_the_retry_ends_the_turn_instead_of_looping():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    for _ in range(2):
+        await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="RESPOND"))
+        await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert vcall.vsession.vresponses == 1, "asked again once, not until the floor times out"
+    assert not vcall.vsink.vmuted
+
+
+@pytest.mark.asyncio
 async def test_a_spoken_verdict_does_not_cancel_the_tool_call_after_it():
     vcall = bare_call()
     await vcall.vfloor.acquire()

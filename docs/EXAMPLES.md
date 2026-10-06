@@ -584,6 +584,8 @@ said "я уже ищу".
 
 Edge cases the test review found and fixed: a light tool that raised killed the event pump mid-call; it now answers the model with `Error: ...`. Results looked up just before a session reconnect were dropped with the turn; they now go to the result queue and are told at the next pause. `get_task("PAY-1")` matched PAY-101 by suffix; keys now match exactly. `find_free_slot` accepts a length the model sends as "1.5" or a negative number, and falls back to 30 minutes for one it cannot read.
 
+A spoken routing verdict is asked again once per turn. Live, Qwen said "RESPOND" on 11 retries in a row (each retry left one more verdict in its history) until the 10s floor timeout; a second leak now ends the turn quietly.
+
 **No fillers.** Short fillers in Karen's voice ("Секунду.", played the moment she was addressed) were tried
 and removed: on a real call they sounded strange rather than responsive.
 

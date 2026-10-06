@@ -92,6 +92,7 @@ class Turn:
     vresults: list[PendingResult] = dataclasses.field(default_factory=list)
     vneeds_followup: bool = False
     vresults_followup: bool = False
+    vverdict_retried: bool = False
 
 
 class MeetCall:
@@ -418,10 +419,14 @@ class MeetCall:
             self.vverdict_leaked = False
             self.vsink.vmuted = False
             vreply = ""
-            if not self.vturn.vneeds_followup:
+            # Asked again once: each retry leaves another spoken verdict in her history, and she repeated it 11 times
+            # in a row until the floor timeout. A second leak ends the turn quietly; the question can be asked again.
+            if not self.vturn.vneeds_followup and not self.vturn.vverdict_retried:
+                self.vturn.vverdict_retried = True
                 logger.info("routing verdict leaked into speech; asking for the answer again")
                 await self.request_followup()
                 return
+            logger.info("routing verdict leaked into speech again; leaving the turn")
         self.vledger.finish(self.vsink.vtimeline_s, vreply)
         if self.vturn.vresults_followup:
             # The follow-up that speaks tool results ended without a word: hand them back now rather than
