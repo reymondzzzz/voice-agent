@@ -21,7 +21,7 @@ ADDRESSEE_PROMPT = """You decide whether the latest line in a meeting transcript
 
 The transcript comes from speech recognition over a video call. The start of an utterance is often clipped, so a first word missing its first sound or two, or a similar-sounding word, can be a mangled "{name}". Lines marked [{name}] are the assistant's own replies.
 
-Say it is for {name} when the line names {name}, or continues an exchange with {name}: a follow-up or reaction to what {name} just said, a question aimed at the assistant, or a request for the assistant to do something. Say it is not when it is talk between the participants, addresses someone else by name, is a filler or acknowledgement (угу, ok, thanks), is a sound check, or is too garbled to be meant for anyone. Greetings and small talk ("как дела?", "how are you?") are for the people unless they name {name} or answer something {name} just said.
+Say it is for {name} when the line speaks to {name} by name, or continues an exchange with {name}: a follow-up or reaction to what {name} just said, a question aimed at the assistant, or a request for the assistant to do something. Say it is not when it is talk between the participants, addresses someone else by name, only talks about {name} to someone else ("помнишь, {name} нашла…"), is a filler or acknowledgement (угу, ok, thanks), is a sound check, or is too garbled to be meant for anyone. Greetings and small talk ("как дела?", "how are you?") are for the people unless they name {name} or answer something {name} just said.
 
 Transcript, oldest first:
 {transcript}
@@ -48,14 +48,28 @@ def mentions_name(vtext: str, vname: str) -> bool:
     return any(len(vcandidate) <= len(vtarget) and difflib.SequenceMatcher(None, vcandidate, vtarget).ratio() >= NAME_MATCH_RATIO for vcandidate in vcandidates)
 
 
+def calls_name(vtext: str, vname: str) -> bool:
+    # Said to her, the name opens or closes the line ("Мэгги, найди…", "…, Мэгги?"). In the middle it is usually said
+    # about her to someone else ("помнишь, Мэгги там находила…"), which she answered; that one goes to the judge.
+    vwords = _words(vtext)
+    vspan = len(_words(vname)) + 1
+    return mentions_name(" ".join(vwords[:vspan]), vname) or mentions_name(" ".join(vwords[-vspan:]), vname)
+
+
 def addressee_prompt(vbot_name: str, vtranscript: str, vspeaker: str, vtext: str) -> str:
     return ADDRESSEE_PROMPT.format(name=vbot_name, transcript=vtranscript or "(nothing yet)", speaker=vspeaker, text=vtext)
 
 
-def is_spoken_verdict(vtext: str) -> bool:
-    # A spoken reply that is only the routing verdict: the routing steps share her session.
+def spoken_verdict(vtext: str) -> str:
+    # A spoken reply that is only a verdict word, RESPOND or IGNORE, or "" when it is a real reply.
     vword = "".join(vchar for vchar in vtext.upper() if vchar.isalpha())
-    return bool(vword) and any(vverdict.startswith(vword) or vword.startswith(vverdict) for vverdict in ("RESPOND", "IGNORE")) and len(vword) >= 3
+    if len(vword) < 3:
+        return ""
+    return next((vverdict for vverdict in ("RESPOND", "IGNORE") if vverdict.startswith(vword) or vword.startswith(vverdict)), "")
+
+
+def is_spoken_verdict(vtext: str) -> bool:
+    return bool(spoken_verdict(vtext))
 
 
 def is_no(vreply: str) -> bool:
@@ -89,7 +103,7 @@ class MeetAddressing:
     vengaged_speaker: str = ""
 
     async def is_addressed(self, vspeaker: str, vtext: str, vtranscript: str) -> bool:
-        vaddressed = mentions_name(vtext, self.vbot_name) or parse_addressee(await self.vjudge(addressee_prompt(self.vbot_name, vtranscript, vspeaker, vtext)))
+        vaddressed = calls_name(vtext, self.vbot_name) or parse_addressee(await self.vjudge(addressee_prompt(self.vbot_name, vtranscript, vspeaker, vtext)))
         if vaddressed:
             self.engage(vspeaker)
         return vaddressed

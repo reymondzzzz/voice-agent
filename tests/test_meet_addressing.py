@@ -1,6 +1,6 @@
 import pytest
 
-from examples.meet_addressing import MeetAddressing, addressee_prompt, mentions_name, parse_addressee
+from examples.meet_addressing import calls_name, MeetAddressing, addressee_prompt, mentions_name, parse_addressee
 from examples.meet_agent import MEET_DEFAULT_BOT_NAME
 
 
@@ -84,3 +84,9 @@ def test_the_meet_name_survives_a_clipped_start_and_no_colleague_answers_to_it()
 def test_a_longer_word_is_never_the_name():
     for vword in ("руки", "брюки", "юбки", "штуки", "звуки"):
         assert not mentions_name(f"{vword}, привет", "Юки"), vword
+
+
+def test_her_name_said_about_her_to_someone_else_is_not_a_call():
+    assert calls_name("Мэгги, найди документы", "Мэгги")
+    assert calls_name("а найди документы про вебхуки, Мэгги?", "Мэгги")
+    assert not calls_name("Помнишь, значит, Мэгги там находила разную документацию, давай это обсудим", "Мэгги"), "she answered a line said to Михаил about her"

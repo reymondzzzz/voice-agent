@@ -360,6 +360,8 @@ document counted as told, and asked about it later she said nothing had been fou
 back to the queue; an empty verdict counts as told, so a failed check never makes her repeat herself.
 The check is 5/5 on that case and its neighbours once it says the result may be in English and partly
 told; worded as "the substance of this result" it called two Russian retellings NO.
+
+Her name skips the judge only when it calls her: in the first or last words of the line ("Мэгги, найди…", "…, Мэгги?"). Said in the middle it is usually about her to someone else ("помнишь, Мэгги там находила…" to Михаил), which she answered, so that goes to the judge, whose prompt now says talk about her is not for her: 18/19 with four such lines added. A follow-up line skips the judge, and when it was not for her she sometimes answered with a bare "IGNORE"; that is now taken as her decision to stay silent instead of a leak to ask again, which had made her say «Кирилл» and retell a long answer to someone talking to a colleague.
 Qwen 3.8 ignores the text-only request and speaks the verdict as well, about 1.1s of "IGNORE" per line
 (measured), which on a real call was heard in the room; Karen's audio output is muted for the length
 of every routing step. On the fixture page the five lines of side talk now put 0ms of her voice into

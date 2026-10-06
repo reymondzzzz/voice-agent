@@ -134,6 +134,15 @@ async def test_a_verdict_spoken_again_on_the_retry_ends_the_turn_instead_of_loop
 
 
 @pytest.mark.asyncio
+async def test_a_spoken_ignore_is_her_answer_that_the_line_was_not_for_her():
+    vcall = bare_call()
+    await vcall.vfloor.acquire()
+    await vcall.on_event(events.AssistantTranscript(vcorrelation=CORRELATION, vtext="IGNORE"))
+    await vcall.on_event(events.AssistantSpeechStopped(vcorrelation=CORRELATION))
+    assert vcall.vsession.vresponses == 0 and vcall.vturn.vdeclined, "asked again, she talked over someone speaking to a colleague"
+
+
+@pytest.mark.asyncio
 async def test_a_spoken_verdict_does_not_cancel_the_tool_call_after_it():
     vcall = bare_call()
     await vcall.vfloor.acquire()

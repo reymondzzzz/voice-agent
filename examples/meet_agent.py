@@ -13,7 +13,7 @@ from livekit import agents, rtc
 from livekit.agents import AgentServer, JobContext
 
 from examples import voice_app
-from examples.meet_addressing import MeetAddressing, is_no, is_spoken_verdict, mentions_name, parse_yes
+from examples.meet_addressing import MeetAddressing, is_no, is_spoken_verdict, mentions_name, parse_yes, spoken_verdict
 from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
 from examples.meet_delivery import PendingResult, ResultQueue
 from examples.meet_judge import MeetJudge
@@ -94,6 +94,7 @@ class Turn:
     vneeds_followup: bool = False
     vresults_followup: bool = False
     vverdict_retried: bool = False
+    vdeclined: bool = False
 
 
 class MeetCall:
@@ -428,15 +429,21 @@ class MeetCall:
         if self.vverdict_leaked:
             self.vverdict_leaked = False
             self.vsink.vmuted = False
+            # A bare IGNORE is her own answer that the line was not for her ("Я разговариваю с Михаилом"): asked
+            # again, she said «Кирилл» and retold a long answer to someone talking to a colleague.
+            self.vturn.vdeclined = spoken_verdict(vreply) == "IGNORE"
             vreply = ""
+            if self.vturn.vdeclined:
+                logger.info("she judged the line not for her; staying silent")
             # Asked again once: each retry leaves another spoken verdict in her history, and she repeated it 11 times
             # in a row until the floor timeout. A second leak ends the turn quietly; the question can be asked again.
-            if not self.vturn.vneeds_followup and not self.vturn.vverdict_retried:
+            if not self.vturn.vneeds_followup and not self.vturn.vverdict_retried and not self.vturn.vdeclined:
                 self.vturn.vverdict_retried = True
                 logger.info("routing verdict leaked into speech; asking for the answer again")
                 await self.request_followup()
                 return
-            logger.info("routing verdict leaked into speech again; leaving the turn")
+            if not self.vturn.vdeclined:
+                logger.info("routing verdict leaked into speech again; leaving the turn")
         self.vledger.finish(self.vsink.vtimeline_s, vreply)
         if self.vturn.vresults_followup:
             # The follow-up that speaks tool results ended without a word: hand them back now rather than
@@ -600,7 +607,7 @@ class MeetCall:
                     await asyncio.wait_for(self.vturn_done.wait(), TURN_TIMEOUT_S)
                 if self.vcontinued is vturn:
                     return
-                if self.vturn.vspoke or self.vturn.vtools:
+                if self.vturn.vspoke or self.vturn.vtools or self.vturn.vdeclined:
                     break
                 if vattempt:
                     return
