@@ -13,12 +13,13 @@ from livekit import agents, rtc
 from livekit.agents import AgentServer, JobContext
 
 from examples import voice_app
-from examples.meet_addressing import MeetAddressing, is_spoken_verdict, mentions_name, parse_yes
+from examples.meet_addressing import MeetAddressing, is_no, is_spoken_verdict, mentions_name, parse_yes
 from examples.meet_bridge import MEET_BOT_NAME_ATTRIBUTE, MEET_SPEAKER_ATTRIBUTE
 from examples.meet_delivery import PendingResult, ResultQueue
+from examples.meet_judge import MeetJudge
 from examples.meet_memory import MEET_CONTEXT_WINDOW_S, MeetMemory, MeetRole, MeetTurn
 from examples.meet_playout import PlayoutLedger, RoomAudioSink, loudness_dbfs
-from examples.meet_prompts import BACKGROUND_STARTED, BACKGROUND_STARTED_QUIETLY, LIVE_VALUE_NOTE, PROMISE_CHECK, PROMISE_CORRECTION, delivery_line, meanwhile_line, session_instructions
+from examples.meet_prompts import BACKGROUND_STARTED, BACKGROUND_STARTED_QUIETLY, LIVE_VALUE_NOTE, PROMISE_CHECK, PROMISE_CORRECTION, RESULT_TOLD_CHECK, delivery_line, meanwhile_line, result_items, session_instructions
 from examples.meet_tools import MEET_TOOLS, MEET_TOOLS_BY_NAME, MeetTool, ToolWeight
 from voice_agent.pipeline import voice_contracts
 from voice_agent.agent.tasks.models import TaskMode, TaskRecord, TaskResult, TaskSpec, TaskStatus
@@ -107,6 +108,7 @@ class MeetCall:
         self.vsession: QwenOmniSession | None = None
         self.vmemory = MeetMemory()
         self.vaddressing: MeetAddressing | None = None
+        self.vjudge = MeetJudge(vroom.name, MEET_VOICE_MODEL)
         self.vdelegate_llm = voice_app.build_llm(MEET_DELEGATE_MODEL)
         self.vregistry = TaskRegistry()
         self.vsupervisor = TaskSupervisor(
@@ -164,7 +166,7 @@ class MeetCall:
 
     def addressing(self) -> MeetAddressing:
         if self.vaddressing is None:
-            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME, self.route)
+            self.vaddressing = MeetAddressing(self.meet_attribute(MEET_BOT_NAME_ATTRIBUTE) or MEET_DEFAULT_BOT_NAME, self.vjudge)
         return self.vaddressing
 
     def current_speaker(self) -> str:
@@ -217,6 +219,7 @@ class MeetCall:
 
     async def aclose(self) -> None:
         await self.vsupervisor.aclose()
+        await self.vjudge.close()
         if self.vsession is not None:
             vsession, self.vsession = self.vsession, None
             await vsession.close()
@@ -620,7 +623,7 @@ class MeetCall:
         # whether it promised work; if so, she is told to start it.
         vwaiting = "; ".join(vresult.vgoal for vresult in self.vqueue.vwaiting)
         vfound = f" Already found and waiting to be told: {vwaiting}. Offering to tell that is NO." if vwaiting else ""
-        if not parse_yes(await self.route(PROMISE_CHECK.format(reply=vreply, found=vfound))):
+        if not parse_yes(await self.vjudge(PROMISE_CHECK.format(reply=vreply, found=vfound))):
             return
         logger.info("reply promised work without a tool call; asking for the tool")
         await self.take_floor()
@@ -757,6 +760,14 @@ class MeetCall:
         vheard, vheard_words = await self.vledger.outcome(vcarrier, DELIVERY_PLAYOUT_TIMEOUT_S)
         if not vheard:
             self.vqueue.retry(vresults, vheard_words)
+            return
+        # Played out is not said: asked to give the team list and a found document in one answer, she gave only the
+        # list, the document counted as told, and asked about it later she said nothing had been found.
+        vsaid = self.vledger.said(vcarrier)
+        vleft_out = [vresult for vresult in vresults if not vresult.voffered and is_no(await self.vjudge(RESULT_TOLD_CHECK.format(reply=vsaid, result=result_items([vresult]))))]
+        if vleft_out:
+            logger.info("%d result(s) left out of the reply; will tell them at the next pause", len(vleft_out))
+            self.vqueue.retry(vleft_out, "")
 
     def is_quiet(self, vpause_s: float) -> bool:
         # Only people's silence counts. If she answered last she still has the floor and goes straight on, even

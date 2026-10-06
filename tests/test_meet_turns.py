@@ -78,6 +78,7 @@ def bare_call() -> MeetCall:
     vcall.current_speaker = lambda: "Kirill"
     vcall.vowned, vcall.vawaiting, vcall.vheard_speakers = "", False, {}
     vcall.vaddressing = MeetAddressing("Мэгги", lambda _vprompt: asyncio.sleep(0, "IGNORE"))
+    vcall.vjudge = lambda _vprompt: asyncio.sleep(0, "YES")
     vcall.vlast_bot_played, vcall.vlast_human_speech, vcall.vlast_bot_reply_done = 0.0, 0.0, 0.0
     vcall.vpublished = []
     vcall.publish = lambda **vevent: vcall.vpublished.append(vevent)
@@ -184,7 +185,7 @@ async def test_a_reply_that_promised_work_without_a_tool_is_corrected():
     async def speak(vline: str) -> None:
         vspoken.append(vline)
 
-    vcall.route, vcall.speak = route, speak
+    vcall.vjudge, vcall.speak = route, speak
     await vcall.check_promise("Я уже начала проверку, скоро скажу.")
     assert "«Я уже начала проверку, скоро скажу.»" in vasked[0], "the reply is quoted, or earlier promises count too"
     assert vspoken and vspoken[0].startswith("[internal] Your last reply promised")
@@ -340,7 +341,7 @@ async def test_the_promise_check_knows_what_is_already_waiting_to_be_told():
         vasked.append(vprompt)
         return "NO"
 
-    vcall.route = route
+    vcall.vjudge = route
     vcall.vqueue.vwaiting.append(PendingResult("Kirill", "search documents", "Протокол"))
     await vcall.check_promise("Рассказать про дедлайн?")
     assert "waiting to be told: search documents" in vasked[0]
@@ -653,3 +654,63 @@ async def test_a_routing_step_is_not_a_reply_and_takes_no_cut_marker():
     await vcall.request(events.ResponseRequest(vcorrelation=CORRELATION, vtext_only=True))
     await vcall.on_event(events.AssistantSpeechStarted(vcorrelation=CORRELATION, vresponse_id="resp_route"))
     assert vcall.vledger.vlast == 0 and not vcall.vledger.vopen
+
+
+class SettledLedger(PlayoutLedger):
+    def __init__(self, vheard: bool, vsaid: str) -> None:
+        super().__init__()
+        self.vsettled, self.vtext = vheard, vsaid
+
+    async def outcome(self, vreply: int, vtimeout_s: float) -> tuple[bool, str]:
+        return self.vsettled, ""
+
+    def said(self, vreply: int) -> str:
+        return self.vtext
+
+
+def judged(vcall: MeetCall, vverdicts: dict[str, str]) -> list[str]:
+    vasked: list[str] = []
+
+    async def judge(vprompt: str) -> str:
+        vasked.append(vprompt)
+        return next((vverdict for vgoal, vverdict in vverdicts.items() if vgoal in vprompt), "YES")
+
+    vcall.vjudge = judge
+    return vasked
+
+
+@pytest.mark.asyncio
+async def test_a_result_that_played_out_but_was_left_out_of_the_reply_is_told_later():
+    vcall = bare_call()
+    vcall.vledger = SettledLedger(True, "Кирилл — тимлид, Анна — продакт, Дмитрий — бэкенд.")
+    judged(vcall, {"search documents": "NO"})
+    vteam = PendingResult("Kirill", "who_is(everyone)", "Кирилл: тимлид; Анна: продакт")
+    vdocs = PendingResult("Kirill", "search documents", "«Протокол встречи 24 сентября»: webhooks are the critical path")
+    await vcall.requeue_if_talked_over([vteam, vdocs], 1)
+    assert [vresult.vgoal for vresult in vcall.vqueue.vwaiting] == ["search documents"], "the found document was lost, and she later said nothing was found"
+
+
+@pytest.mark.asyncio
+async def test_a_check_that_says_nothing_does_not_make_her_repeat_a_result():
+    vcall = bare_call()
+    vcall.vledger = SettledLedger(True, "Нашла протокол встречи от 24 сентября.")
+    judged(vcall, {"search documents": ""})
+    await vcall.requeue_if_talked_over([PendingResult("Kirill", "search documents", "Протокол")], 1)
+    assert not vcall.vqueue.vwaiting
+
+
+@pytest.mark.asyncio
+async def test_an_offer_heard_is_not_checked_for_the_content_it_only_offered():
+    vcall = bare_call()
+    vcall.vledger = SettledLedger(True, "Я там про дедлайн не договорила — рассказать?")
+    vasked = judged(vcall, {"deadline": "NO"})
+    await vcall.requeue_if_talked_over([PendingResult("Kirill", "deadline", "2 октября", voffered=True)], 1)
+    assert vasked == [] and not vcall.vqueue.vwaiting
+
+
+@pytest.mark.asyncio
+async def test_internal_checks_never_go_to_her_own_session():
+    vcall = bare_call()
+    judged(vcall, {"Сейчас посмотрю": "NO"})
+    await vcall.check_promise("Сейчас посмотрю.")
+    assert vcall.vsession.vresponses == 0, "a verdict in her session is a verdict in her history, and she repeats it"

@@ -165,6 +165,9 @@ class PlayoutLedger:
         vcarrier = self.carrier_of(vreply)
         return vcarrier in self.vplayed and vcarrier not in self.vcut, self.vheard.get(vcarrier, "")
 
+    def said(self, vreply: int) -> str:
+        return self.vaudio.get(self.carrier_of(vreply), (0.0, 0.0, ""))[2]
+
     def changed(self) -> None:
         # Every waiter holds the event it waited on; a fresh one is armed for the next change.
         self.vchanged.set()

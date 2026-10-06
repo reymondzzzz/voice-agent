@@ -58,6 +58,11 @@ def is_spoken_verdict(vtext: str) -> bool:
     return bool(vword) and any(vverdict.startswith(vword) or vword.startswith(vverdict) for vverdict in ("RESPOND", "IGNORE")) and len(vword) >= 3
 
 
+def is_no(vreply: str) -> bool:
+    # Only an explicit NO: a check that timed out or said nothing must not make her repeat what she said.
+    return vreply.strip().upper().startswith("NO")
+
+
 def parse_yes(vreply: str) -> bool:
     vupper = vreply.upper()
     return "YES" in vupper and "NO" not in vupper.replace("YES", "")

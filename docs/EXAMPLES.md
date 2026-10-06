@@ -309,6 +309,7 @@ Only meaning crosses into the agent: the speaker name is an attribute, never aud
 | `examples/meet_delivery.py` | `PendingResult` and `ResultQueue`: what is waiting to be told, what went stale, and the retry-then-offer rule |
 | `examples/meet_prompts.py` | Everything she reads: the persona, the per-session instructions, the promise check, and the lines that hand her results |
 | `examples/meet_addressing.py` | Whether a line was for her: the name, the routing prompt, and the parsers of her verdicts |
+| `examples/meet_judge.py` | `MeetJudge`: the one-word internal checks (routing, broken promise, result told) on a text-only Qwen session of their own |
 | `examples/meet_tools.py`, `examples/meet_workspace.py` | Her tools, and the fictional payments team they read |
 | `examples/meet_memory.py`, `examples/meet_bridge.py` | The ten-minute log, and the Playwright bridge into Meet |
 
@@ -345,9 +346,20 @@ asked twice, "Почему?" once for Karen and once for Sasha):
 | A separate text-only Qwen judge session | 29/30 on 15 labelled lines, ~0.6s, but a second context |
 | GLM 5.2 classifier | 11/11, ~0.7s, but a second model |
 
-Karen runs the second row on `MEET_VOICE_MODEL` (`qwen3.5-omni-plus-realtime`): the routing step hears
-exactly what she heard and knows what she last said, with no second session to keep in sync. Asked
-to quote its own messages afterwards, the model listed only its spoken answers, not the verdicts.
+She ran the second row on `MEET_VOICE_MODEL` (`qwen3.5-omni-plus-realtime`) until the verdicts were found
+in her speech: every RESPOND/IGNORE/YES/NO stays in her history (DashScope ignores `conversation: "none"`
+and client item ids, and deleting a verdict item can delete the line before it), and six of them made
+her answer a question with "RESPOND" 8 times in 8. Live, it leaked 3 times in one five-minute run, once
+as a spoken "IGNORE". Routing, the promise check and the result-told check now go to `MeetJudge`, a
+text-only session of the same model that never speaks: 28/30 on the 15 labelled lines (14/15 per run,
+the miss is the clipped "Арон" for "Karen"), ~0.6s, against 23-26/30 for qwen-flash, qwen-plus,
+qwen3.5-flash, qwen3-max and qwen3.5-omni-plus over the plain HTTP endpoint. Her own session keeps only
+the keepalive. After a reply that carried results plays out, the judge is asked whether each one was
+actually passed on: given the team list and a found document in one answer, she said only the list, the
+document counted as told, and asked about it later she said nothing had been found. Left-out results go
+back to the queue; an empty verdict counts as told, so a failed check never makes her repeat herself.
+The check is 5/5 on that case and its neighbours once it says the result may be in English and partly
+told; worded as "the substance of this result" it called two Russian retellings NO.
 Qwen 3.8 ignores the text-only request and speaks the verdict as well, about 1.1s of "IGNORE" per line
 (measured), which on a real call was heard in the room; Karen's audio output is muted for the length
 of every routing step. On the fixture page the five lines of side talk now put 0ms of her voice into

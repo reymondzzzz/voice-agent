@@ -49,6 +49,12 @@ PROMISE_CHECK = (
     "looking something up, checking it or will come back with an answer? Asking them something, such as which city "
     "they mean, is NO.{found} Reply with exactly one word: YES or NO."
 )
+RESULT_TOLD_CHECK = (
+    "Internal check. A reply said aloud in a meeting, in Russian: «{reply}». A result that came back, perhaps in "
+    "English: {result} Does the reply pass on what this result found, even only part of it, paraphrased or "
+    "translated? Saying that it is still looking, or talking about something else, is NO. Reply with exactly one "
+    "word: YES or NO."
+)
 PROMISE_CORRECTION = (
     "[internal] Your last reply promised to look something up or check it, but you started no tool. Call the right "
     "tool now; do not repeat the promise."
