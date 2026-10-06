@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import collections
 import contextlib
 import json
+import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
@@ -94,9 +96,10 @@ class QwenOmniSession:
         # measured); they are dropped here, or they play after the clear that interrupt() already did.
         self._vcancelled: set[str] = set()
         # Between response.create and response.created the id of the response being made is not known yet;
-        # a cancel in that window belongs to it, not to the previous response.
-        self._vcreates_pending = 0
-        self._vcancel_on_create = False
+        # a cancel in that window belongs to it, not to the previous response. Kept as send times: a create the
+        # server never answers must expire, or every later interrupt is held for it and cancels the next real reply.
+        self._vcreates_sent_at: collections.deque[float] = collections.deque()
+        self._vcancel_through = float("-inf")
 
     @property
     def vcapabilities(self) -> RealtimeModelCapabilities:
@@ -178,7 +181,7 @@ class QwenOmniSession:
     async def send_tool_result(self, vresult: events.ToolResultPayload, *, vrespond: bool = True) -> None:
         await self._send(protocol.function_output_frame(vresult.vtool_call_id, json.dumps(vresult.vresult)))
         if vrespond:
-            self._vcreates_pending += 1
+            self._vcreates_sent_at.append(time.monotonic())
             await self._send({"type": protocol.RESPONSE_CREATE})
 
     async def request_response(self, vrequest: events.ResponseRequest) -> None:
@@ -190,12 +193,12 @@ class QwenOmniSession:
         vframe: dict[str, object] = {"type": protocol.RESPONSE_CREATE}
         if vresponse:
             vframe["response"] = vresponse
-        self._vcreates_pending += 1
+        self._vcreates_sent_at.append(time.monotonic())
         await self._send(vframe)
 
     async def interrupt(self, vrequest: events.InterruptRequest) -> None:
-        if self._vcreates_pending:
-            self._vcancel_on_create = True
+        if self.pending_creates():
+            self._vcancel_through = self._vcreates_sent_at[-1]
         elif self._vresponse_id:
             self._vcancelled.add(self._vresponse_id)
         await self._send({"type": protocol.RESPONSE_CANCEL})
@@ -203,6 +206,12 @@ class QwenOmniSession:
         await self._vevents.put(
             events.RealtimeInterrupted(vcorrelation=self.correlation(), vreason=vrequest.vreason, vresponse_id=self._vresponse_id)
         )
+
+    def pending_creates(self) -> int:
+        vlost_before = time.monotonic() - CREATE_LOST_S
+        while self._vcreates_sent_at and self._vcreates_sent_at[0] < vlost_before:
+            self._vcreates_sent_at.popleft()
+        return len(self._vcreates_sent_at)
 
     async def events(self) -> AsyncIterator[events.RealtimeEvent]:
         while True:
@@ -240,11 +249,10 @@ class QwenOmniSession:
 
         elif vtype == protocol.RESPONSE_CREATED:
             self._vresponse_id = str((vframe.get("response") or {}).get("id", ""))
-            self._vcreates_pending = max(0, self._vcreates_pending - 1)
-            if self._vcancel_on_create:
+            vsent_at = self._vcreates_sent_at.popleft() if self.pending_creates() else None
+            if vsent_at is not None and vsent_at <= self._vcancel_through:
                 # The cancel went out before this response existed, so the server may not have applied it. No start
                 # is reported: a consumer already waiting on its next request would take this one for it.
-                self._vcancel_on_create = False
                 self._vcancelled.add(self._vresponse_id)
                 await self._send({"type": protocol.RESPONSE_CANCEL})
                 return
@@ -299,8 +307,8 @@ class QwenOmniSession:
             if REJECTED_CREATE in str(verror.get("message", "")):
                 # This response.create will never produce a response.created: it is no longer pending, and a cancel
                 # held for it has nothing left to cancel.
-                self._vcreates_pending = max(0, self._vcreates_pending - 1)
-                self._vcancel_on_create = self._vcancel_on_create and self._vcreates_pending > 0
+                if self.pending_creates():
+                    self._vcreates_sent_at.popleft()
             await self._vevents.put(
                 events.RealtimeSessionError(
                     vcorrelation=self.correlation(),
@@ -312,6 +320,9 @@ class QwenOmniSession:
 
 # DashScope refuses a response.create while another response is active with this message and no response.
 REJECTED_CREATE = "already has an active response"
+# response.created follows a create within about a second; one silent for this long was dropped by the server.
+# ponytail: an age cutoff, not an acknowledgement; a create answered later than this is miscounted once.
+CREATE_LOST_S = 5.0
 
 
 def _decode_arguments(varguments: object) -> dict[str, object]:

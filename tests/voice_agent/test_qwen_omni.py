@@ -12,6 +12,7 @@ from aiohttp import WSMsgType, web
 from voice_agent.pipeline import voice_contracts
 from voice_agent.realtime import events
 from voice_agent.realtime.qwen import protocol
+from voice_agent.realtime.qwen import session as qwen_session
 from voice_agent.realtime.qwen.session import QwenOmniSession
 
 EVENT_TIMEOUT_S = 5.0
@@ -343,6 +344,25 @@ async def test_a_refused_creation_no_longer_counts_as_pending(server: FakeDashSc
     assert vsink.vwrites == [], "the interrupted response's late audio is dropped"
     vstarts = [vevent.vresponse_id for vevent in vevents if isinstance(vevent, events.AssistantSpeechStarted)]
     assert vstarts == ["resp_ok", "resp_next"], "and the next answer is not cancelled in its place"
+
+
+@pytest.mark.asyncio
+async def test_a_create_the_server_never_answers_does_not_swallow_every_later_reply(server: FakeDashScopeServer, monkeypatch) -> None:
+    vnow = [100.0]
+    monkeypatch.setattr(qwen_session.time, "monotonic", lambda: vnow[0])
+    vsession = build_session(server, RecordingAudioSink())
+    await vsession.start()
+    await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+    vnow[0] += qwen_session.CREATE_LOST_S + 1
+    vstarts = []
+    for vindex in range(2):
+        await vsession.interrupt(events.InterruptRequest(vcorrelation=vsession.correlation(), vreason="floor_takeover"))
+        await vsession.request_response(events.ResponseRequest(vcorrelation=vsession.correlation()))
+        await vsession._on_frame({"type": protocol.RESPONSE_CREATED, "response": {"id": f"resp_{vindex}"}})
+        vstarts += [vevent.vresponse_id for vevent in await collect(vsession, 2) if isinstance(vevent, events.AssistantSpeechStarted)]
+    await vsession.close()
+
+    assert vstarts == ["resp_0", "resp_1"], "a lost create once left every takeover cancelling the next answer, and she went silent"
 
 
 @pytest.mark.asyncio
