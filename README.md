@@ -1,10 +1,15 @@
-# voice-agent
+# Real-time Voice Agents — LiveKit, Qwen Omni & Agent Handoffs
 
-A realtime voice agent: a Google Meet assistant, «Мэгги», on one Qwen Omni realtime session, and a
-LiveKit voice pipeline with three small LangGraph agents to drive it: Boss routes the call, Alice knows the weather, Bob knows the time,
-and any of them can hand the live call to any other with the voice changing on the switch.
+A Python engineering prototype for **interruptible voice conversations, specialist handoffs, and asynchronous work**. It includes two runnable examples:
 
-The speech pipeline lives in `voice_agent/pipeline/`.
+- **Google Meet assistant ("Мэгги")** — a Chrome-to-LiveKit bridge and a Qwen Omni realtime speech session. Background research tasks can finish without interrupting the conversation; results can be delivered when relevant.
+- **LiveKit multi-agent demo** — a "Boss" agent routes the call between "Alice" (sample weather data) and "Bob" (time). This example uses LangChain agents with a graph-backed adapter, tool-mediated handoffs, and voice changes.
+
+The reusable `voice_agent/` runtime **separates the realtime audio plane from semantic routing, background task supervision, result delivery, and action authorization**. Its active core uses `ConversationDirector` and `TaskSupervisor`; the graph-backed specialist example lives under `examples/`. See [architecture and implementation notes](docs/REALTIME_ARCHITECTURE.md) and [examples](docs/EXAMPLES.md).
+
+> **Project status:** experimental reference implementation, not a packaged production service. Weather values in the specialist demo are fixtures rather than a live forecast.
+
+## Quick start
 
 ```bash
 uv sync
